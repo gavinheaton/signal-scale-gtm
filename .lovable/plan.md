@@ -1,81 +1,58 @@
 
 
-# Super Admin & Multi-Tenant Organisation Management
+# Connections Card — Per-Project API Keys for Claude & Notion
 
-## Current state
-- `superadmin` role exists in the enum but has no UI or logic
-- One org ("Disruptors Co", type `disruptors_own`) with one `owner` membership
-- Settings page has a stub invite form that doesn't actually create users
-- No way to create new organisations from the UI
-- No role-based UI gating anywhere
+## What we're building
+A "Connections" card on the Settings page where admins can configure API keys (Claude, Notion) per project. Keys are stored in a new `project_connections` table with values encrypted via Supabase Vault's `pgsodium` extension.
 
-## Hierarchy model
+## Database
 
-```text
-Super Admin (platform level — Disruptors Co team)
-  ├── Create / manage ALL organisations
-  ├── Impersonate / switch between orgs
-  └── Invite org-level admins
+### New table: `project_connections`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | uuid PK | default gen_random_uuid() |
+| project_id | uuid NOT NULL | references projects |
+| provider | text NOT NULL | 'claude' or 'notion' |
+| api_key_secret_id | uuid NOT NULL | references pgsodium.decrypted_secrets or vault.secrets |
+| created_at | timestamptz | default now() |
+| updated_at | timestamptz | default now() |
+| UNIQUE(project_id, provider) | | one key per provider per project |
 
-Org Admin (scoped to their organisation)
-  ├── Invite users to their org (admin, manager, analyst, client)
-  ├── Create / archive projects within their org
-  └── Cannot see other organisations
-```
+### Vault approach
+Use `vault.create_secret(key_value, name, description)` to store the actual API key in Supabase Vault. Store the returned secret ID in `project_connections.api_key_secret_id`. A security definer function `get_project_connection_key(project_id, provider)` retrieves the decrypted value — only callable by users with org access to the project.
 
-## What we'll build
+### RLS on `project_connections`
+- SELECT/INSERT/UPDATE: user has org access to the project (same pattern as other tables)
+- Superadmins can manage all
 
-### 1. Super Admin dashboard page (`/admin`)
-A new top-level route (outside the project layout) visible only to `superadmin` users. Contains:
-- **Organisations table**: list all orgs with name, type, member count, project count
-- **Create Organisation** dialog: name + type selector → inserts into `organisations`
-- **Org detail drawer**: view members, add an admin user to that org
-- Navigation link in sidebar (conditionally shown for superadmin role)
+## Edge function: `manage-project-connection`
+Handles save/delete of connection keys since Vault operations need service role:
+- **POST**: accepts `{ project_id, provider, api_key }` — stores key in vault, upserts `project_connections`
+- **DELETE**: accepts `{ project_id, provider }` — removes vault secret + row
+- Validates caller has admin+ role for the project's org
 
-### 2. Working invite flow (Settings page)
-Replace the stub with a real flow using Supabase `auth.admin.inviteUserByEmail()` via an edge function:
-- Edge function `invite-user`: accepts email + role + org_id, calls the Admin API to send an invite, then inserts an `org_memberships` row
-- Settings page calls this function (only for admin+ roles)
-- The invited user receives a magic link, signs in, and lands on the projects page for their org
+## UI Changes
 
-### 3. Role-based UI gating
-- Sidebar: show "Admin" link only for superadmin
-- Settings invite section: show only for admin+ roles
-- Project creation: show only for manager+ roles
-- AuthContext: expose a `isSuperAdmin` boolean and a helper `hasMinRole(role)` function
+### Settings page (`src/pages/Settings.tsx`)
+Add a **Connections** card (visible to admin+ roles) below the Invite User card:
+- Shows the current project's connections (Claude, Notion)
+- Each row: provider icon/name, status indicator (connected/not configured), and a configure button
+- Configure opens an inline form or dialog with a masked API key input field
+- Save button calls the edge function
+- Delete/disconnect button to remove a key
 
-### 4. Super Admin org switching
-- Super Admin needs to see ALL orgs (not just their own)
-- Add a security definer function `is_superadmin(uuid)` for RLS policies
-- Add RLS policy on `organisations`: superadmin can SELECT all rows
-- Add RLS policy on `org_memberships`: superadmin can SELECT/INSERT all rows
-- In the admin dashboard, clicking an org sets it as the active context so the super admin can navigate into that org's projects
-
-### 5. Database changes (migration)
-- Create `is_superadmin()` security definer function
-- Add SELECT policy on `organisations` for superadmin (all rows)
-- Add SELECT + INSERT policies on `org_memberships` for superadmin
-- Add INSERT policy on `org_memberships` for org admins (within their own org)
-
-### 6. Edge function: `invite-user`
-- Validates caller is admin of the target org (or superadmin)
-- Uses `SUPABASE_SERVICE_ROLE_KEY` to call `auth.admin.inviteUserByEmail()`
-- Creates `org_memberships` row for the invited user
-- Returns success/error
+### Types
+Add `ProjectConnection` interface to `src/types/database.ts`.
 
 ## Files
+- **Create**: Migration — `project_connections` table, vault functions, RLS policies
+- **Create**: `supabase/functions/manage-project-connection/index.ts` — edge function for key management
+- **Modify**: `src/pages/Settings.tsx` — add Connections card with provider rows
+- **Modify**: `src/types/database.ts` — add `ProjectConnection` type
 
-- **Create**: `src/pages/AdminDashboard.tsx` — super admin org management page
-- **Create**: `supabase/functions/invite-user/index.ts` — invite edge function
-- **Create**: Migration — `is_superadmin()` function + RLS policies for cross-org access
-- **Modify**: `src/App.tsx` — add `/admin` route
-- **Modify**: `src/components/AppSidebar.tsx` — conditional admin link
-- **Modify**: `src/contexts/AuthContext.tsx` — add `isSuperAdmin` and `hasMinRole()`
-- **Modify**: `src/pages/Settings.tsx` — wire invite form to edge function, role-gate
-- **Modify**: `src/pages/Projects.tsx` — role-gate project creation
-
-## Security notes
-- Super admin check always via server-side `is_superadmin()` function in RLS — never client-side only
-- Invite edge function validates permissions using the caller's JWT + service role for admin API calls
-- Org admins can only invite into their own org (enforced by RLS + edge function check)
+## Security
+- Raw API keys never stored in plain text — always via Supabase Vault
+- Keys only decrypted server-side in edge functions that need them (wizard functions)
+- Client never receives decrypted keys — only sees "configured" / "not configured" status
+- Edge function validates caller permissions before any vault operation
 
