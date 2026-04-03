@@ -114,20 +114,20 @@ function getEmailContent(
       return wrap(
         "Confirm your email — Signal + Scale",
         "Welcome aboard! 🚀",
-        "Thanks for signing up for Signal + Scale. Please confirm your email to get started.",
+        `Thanks for signing up for Signal + Scale. Please confirm your email to get started.${data.token ? `</p><p style="color: #555555; font-size: 15px; line-height: 1.6; font-family: 'Poppins', Arial, sans-serif;">Or enter this code manually: <strong style="font-size: 20px; letter-spacing: 4px; color: #0f284c;">${data.token}</strong>` : ''}`,
         "Confirm Email",
         confirmationUrl,
-        `Welcome to Signal + Scale! Confirm your email: ${confirmationUrl}`
+        `Welcome to Signal + Scale! Confirm your email: ${confirmationUrl}${data.token ? ` — or use code: ${data.token}` : ''}`
       );
 
     case "magiclink":
       return wrap(
         "Your magic link — Signal + Scale",
         "Sign in securely ✨",
-        "Click the button below to sign in to your Signal + Scale account. This link expires in 1 hour.",
+        `Click the button below to sign in to your Signal + Scale account. This link expires in 1 hour.${data.token ? `</p><p style="color: #555555; font-size: 15px; line-height: 1.6; font-family: 'Poppins', Arial, sans-serif;">Or enter this code manually: <strong style="font-size: 20px; letter-spacing: 4px; color: #0f284c;">${data.token}</strong>` : ''}`,
         "Sign In",
         confirmationUrl,
-        `Sign in to Signal + Scale: ${confirmationUrl}`
+        `Sign in to Signal + Scale: ${confirmationUrl}${data.token ? ` — or use code: ${data.token}` : ''}`
       );
 
     case "recovery":
