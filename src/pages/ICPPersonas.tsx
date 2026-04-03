@@ -7,8 +7,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Label as RLabel } from 'recharts';
-import { Target, Users, Sparkles } from 'lucide-react';
+import { Target, Users, Sparkles, ChevronDown } from 'lucide-react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 
@@ -201,9 +202,21 @@ export default function ICPPersonas() {
 
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold" style={{ color: 'hsl(var(--orange))' }}>Persona Gallery</h2>
-            <Button size="sm" onClick={() => navigate('/project/persona-wizard')}>
-              <Sparkles className="h-4 w-4 mr-1" /> Add Persona
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="sm">
+                  <Sparkles className="h-4 w-4 mr-1" /> Add Persona <ChevronDown className="h-3 w-3 ml-1" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {icps.map(icp => (
+                  <DropdownMenuItem key={icp.id} onClick={() => navigate(`/project/persona-wizard?icp_id=${icp.id}`)}>
+                    <span className="mr-2">{icp.segment_name}</span>
+                    <Badge className={`${matrixColors[icp.matrix_category]} text-[9px] ml-auto`}>{matrixLabels[icp.matrix_category]}</Badge>
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {personas.map(p => {
