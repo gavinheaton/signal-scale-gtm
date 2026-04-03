@@ -7,7 +7,7 @@ const corsHeaders = {
 };
 
 const BREVO_API_URL = "https://api.brevo.com/v3/smtp/email";
-const SENDER_EMAIL = "noreply@signal2scale.com.au";
+const SENDER_EMAIL = "admin@signal2scale.com.au";
 const SENDER_NAME = "Signal + Scale";
 
 interface AuthEmailPayload {
@@ -236,7 +236,7 @@ serve(async (req) => {
 
     console.log(`Auth email sent: type=${email_data.email_action_type}, to=${user.email}`);
 
-    return new Response(JSON.stringify({ success: true }), {
+    return new Response(JSON.stringify({}), {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
