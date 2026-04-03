@@ -150,20 +150,26 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Build system prompt: project context + base campaign prompt
+    // Build system prompt: project context + current draft state + base campaign prompt
     let systemPrompt = "";
     if (storedContext && Object.keys(storedContext).length > 0) {
       systemPrompt += "## PROJECT CONTEXT\n" + JSON.stringify(storedContext) + "\n\n";
     }
+    if (Object.keys(existingDraft).length > 0) {
+      systemPrompt += "## CURRENT DRAFT STATE\nThis is the campaign draft built so far. Continue building on it, don't restart.\n" + JSON.stringify(existingDraft) + "\n\n";
+    }
     systemPrompt += CAMPAIGN_SYSTEM_PROMPT;
 
-    // Build Anthropic messages — strip draft tags from prior assistant messages
-    const anthropicMessages = messages.map((m) => ({
+    // Sliding window: first 2 messages (context) + last 10 messages (recent conversation)
+    const allCleanMessages = messages.map((m) => ({
       role: m.role as "user" | "assistant",
       content: m.role === "assistant"
         ? m.content.replace(/<draft>[\s\S]*?<\/draft>/g, "").trim()
         : m.content,
     }));
+    const anthropicMessages = allCleanMessages.length <= 12
+      ? allCleanMessages
+      : [...allCleanMessages.slice(0, 2), ...allCleanMessages.slice(-10)];
 
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -174,7 +180,7 @@ Deno.serve(async (req) => {
       },
       body: JSON.stringify({
         model: "claude-sonnet-4-6",
-        max_tokens: 2048,
+        max_tokens: 4096,
         system: systemPrompt,
         messages: anthropicMessages,
       }),

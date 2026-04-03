@@ -39,6 +39,7 @@ export default function CampaignWizard() {
   const [saving, setSaving] = useState(false);
   const [prevDraft, setPrevDraft] = useState<CampaignDraft>({});
   const [notionUrl, setNotionUrl] = useState<string | null>(null);
+  const [campaignId, setCampaignId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Celebrate newly completed sections
@@ -161,15 +162,44 @@ export default function CampaignWizard() {
     setDraft(prev => ({ ...prev, campaign_name: name }));
   };
 
+  const saveDraft = async () => {
+    if (!currentProject || !draft.track) return;
+    setSaving(true);
+    try {
+      const payload = {
+        project_id: currentProject.id,
+        name: draft.campaign_name || 'Untitled Campaign',
+        track: draft.track,
+        status: 'brief' as const,
+        objective: typeof draft.objective === 'object' ? JSON.stringify(draft.objective) : (draft.objective as any) || null,
+        channel_mix: draft.channel_mix || {},
+        target_icp_ids: draft.target_audience?.icp_ids || [],
+      };
+
+      if (campaignId) {
+        const { error } = await supabase.from('campaigns').update(payload).eq('id', campaignId);
+        if (error) throw error;
+      } else {
+        const { data, error } = await supabase.from('campaigns').insert(payload).select('id').single();
+        if (error) throw error;
+        setCampaignId(data.id);
+      }
+      toast.success('Draft saved!');
+    } catch (err: any) {
+      toast.error('Failed to save draft: ' + err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const saveCampaign = async () => {
     if (!currentProject || !draft.is_complete || !draft.track) return;
     setSaving(true);
 
     try {
-      // Extract target ICP IDs from target_audience
       const targetIcpIds: string[] = draft.target_audience?.icp_ids || [];
 
-      const { data: campaign, error } = await supabase.from('campaigns').insert({
+      const campaignPayload = {
         project_id: currentProject.id,
         name: draft.campaign_name || 'New Campaign',
         track: draft.track,
@@ -177,14 +207,23 @@ export default function CampaignWizard() {
         objective: typeof draft.objective === 'object' ? JSON.stringify(draft.objective) : (draft.objective as any) || null,
         channel_mix: draft.channel_mix || {},
         target_icp_ids: targetIcpIds,
-      }).select('id').single();
+      };
 
-      if (error) throw error;
+      let finalCampaignId = campaignId;
+
+      if (campaignId) {
+        const { error } = await supabase.from('campaigns').update(campaignPayload).eq('id', campaignId);
+        if (error) throw error;
+      } else {
+        const { data: campaign, error } = await supabase.from('campaigns').insert(campaignPayload).select('id').single();
+        if (error) throw error;
+        finalCampaignId = campaign.id;
+      }
 
       // Bulk insert campaign assets from content calendar
-      if (draft.content_calendar && draft.content_calendar.length > 0) {
+      if (draft.content_calendar && draft.content_calendar.length > 0 && finalCampaignId) {
         const assets = draft.content_calendar.map(item => ({
-          campaign_id: campaign.id,
+          campaign_id: finalCampaignId!,
           title: item.title,
           asset_type: (FORMAT_TO_ASSET_TYPE[item.format?.toLowerCase()] || 'blog') as AssetType,
           status: 'brief' as const,
@@ -292,6 +331,7 @@ export default function CampaignWizard() {
             draft={draft}
             saving={saving}
             onSave={saveCampaign}
+            onSaveDraft={saveDraft}
             onNameChange={handleNameChange}
             notionUrl={notionUrl}
           />

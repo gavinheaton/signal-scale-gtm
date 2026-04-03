@@ -2,18 +2,19 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { ExternalLink, Save, Loader2, CheckCircle2, Circle, CircleDot } from 'lucide-react';
+import { ExternalLink, Save, Loader2, CheckCircle2, Circle, CircleDot, Download } from 'lucide-react';
 import { CampaignDraft, CAMPAIGN_SECTIONS, getCampaignSectionStatus } from './types';
 
 interface CampaignPreviewPanelProps {
   draft: CampaignDraft;
   saving: boolean;
   onSave: () => void;
+  onSaveDraft: () => void;
   onNameChange: (name: string) => void;
   notionUrl: string | null;
 }
 
-export function CampaignPreviewPanel({ draft, saving, onSave, onNameChange, notionUrl }: CampaignPreviewPanelProps) {
+export function CampaignPreviewPanel({ draft, saving, onSave, onSaveDraft, onNameChange, notionUrl }: CampaignPreviewPanelProps) {
   const calendar = draft.content_calendar || [];
   const captureCount = calendar.filter(c => c.track === 'demand_capture').length;
   const creationCount = calendar.filter(c => c.track === 'demand_creation').length;
@@ -22,6 +23,7 @@ export function CampaignPreviewPanel({ draft, saving, onSave, onNameChange, noti
   const capturePct = totalAssets > 0 ? 100 - creationPct : 0;
 
   const completedCount = CAMPAIGN_SECTIONS.filter(s => getCampaignSectionStatus(draft, s.key) === 'complete').length;
+  const hasDraftContent = !!(draft.campaign_name || draft.track);
 
   return (
     <div className="flex flex-col h-full overflow-y-auto space-y-4">
@@ -123,12 +125,21 @@ export function CampaignPreviewPanel({ draft, saving, onSave, onNameChange, noti
       {/* Action Buttons */}
       <div className="mt-auto pt-4 space-y-2">
         <Button
+          onClick={onSaveDraft}
+          disabled={!hasDraftContent || saving}
+          variant="outline"
+          className="w-full"
+        >
+          {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Download className="h-4 w-4 mr-2" />}
+          Save Draft
+        </Button>
+        <Button
           onClick={onSave}
           disabled={!draft.is_complete || saving}
           className="w-full"
         >
           {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
-          Save Campaign
+          Finalize Campaign
         </Button>
         {notionUrl && (
           <Button variant="outline" className="w-full" asChild>
