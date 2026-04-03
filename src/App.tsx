@@ -44,6 +44,7 @@ const App = () => (
                 <Route path="/project/content" element={<ContentPipeline />} />
                 <Route path="/project/analytics" element={<Analytics />} />
                 <Route path="/project/settings" element={<SettingsPage />} />
+                <Route path="/admin" element={<AdminDashboard />} />
               </Route>
               <Route path="*" element={<NotFound />} />
             </Routes>

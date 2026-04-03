@@ -7,3 +7,5 @@ project_id = "xiufgczyecwgnkbyroow"
     verify_jwt = false
   [functions.persona-wizard]
     verify_jwt = false
+  [functions.invite-user]
+    verify_jwt = false

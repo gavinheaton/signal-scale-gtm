@@ -10,14 +10,28 @@ import { toast } from 'sonner';
 import { OrgRole } from '@/types/database';
 
 export default function SettingsPage() {
-  const { organisation, membership } = useAuth();
+  const { organisation, membership, hasMinRole } = useAuth();
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState<OrgRole>('analyst');
+  const [inviting, setInviting] = useState(false);
+
+  const canInvite = hasMinRole('admin');
 
   const handleInvite = async () => {
     if (!inviteEmail || !organisation) return;
-    toast.info(`Invite sent to ${inviteEmail} as ${inviteRole} (manual Supabase setup required for full invite flow)`);
-    setInviteEmail('');
+    setInviting(true);
+
+    const { data, error } = await supabase.functions.invoke('invite-user', {
+      body: { email: inviteEmail, role: inviteRole, org_id: organisation.id },
+    });
+
+    setInviting(false);
+    if (error || data?.error) {
+      toast.error(data?.error || error?.message || 'Invite failed');
+    } else {
+      toast.success(data?.message || `Invite sent to ${inviteEmail}`);
+      setInviteEmail('');
+    }
   };
 
   return (
@@ -33,22 +47,26 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader><CardTitle>Invite User</CardTitle></CardHeader>
-        <CardContent className="space-y-3">
-          <div><Label>Email</Label><Input type="email" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} placeholder="user@company.com" /></div>
-          <div>
-            <Label>Role</Label>
-            <Select value={inviteRole} onValueChange={v => setInviteRole(v as OrgRole)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {(['admin', 'manager', 'analyst', 'client'] as const).map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
-          <Button onClick={handleInvite}>Send Invite</Button>
-        </CardContent>
-      </Card>
+      {canInvite && (
+        <Card>
+          <CardHeader><CardTitle>Invite User</CardTitle></CardHeader>
+          <CardContent className="space-y-3">
+            <div><Label>Email</Label><Input type="email" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} placeholder="user@company.com" /></div>
+            <div>
+              <Label>Role</Label>
+              <Select value={inviteRole} onValueChange={v => setInviteRole(v as OrgRole)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {(['admin', 'manager', 'analyst', 'client'] as const).map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button onClick={handleInvite} disabled={!inviteEmail || inviting}>
+              {inviting ? 'Sending…' : 'Send Invite'}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
