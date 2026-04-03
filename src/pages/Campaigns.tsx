@@ -83,29 +83,7 @@ export default function Campaigns() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-foreground">Campaigns</h1>
-        <Sheet open={formOpen} onOpenChange={setFormOpen}>
-          <SheetTrigger asChild><Button><Plus className="h-4 w-4 mr-1" /> New Campaign</Button></SheetTrigger>
-          <SheetContent>
-            <SheetHeader><SheetTitle>New Campaign</SheetTitle></SheetHeader>
-            <div className="space-y-4 mt-4">
-              <div><Label>Name</Label><Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} /></div>
-              <div>
-                <Label>Track</Label>
-                <Select value={form.track} onValueChange={v => setForm(f => ({ ...f, track: v as CampaignTrack }))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="demand_capture">Demand Capture</SelectItem>
-                    <SelectItem value="demand_creation">Demand Creation</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div><Label>Objective</Label><Textarea value={form.objective} onChange={e => setForm(f => ({ ...f, objective: e.target.value }))} /></div>
-              <div><Label>Launch Date</Label><Input type="date" value={form.launch_date} onChange={e => setForm(f => ({ ...f, launch_date: e.target.value }))} /></div>
-              <div><Label>End Date</Label><Input type="date" value={form.end_date} onChange={e => setForm(f => ({ ...f, end_date: e.target.value }))} /></div>
-              <Button onClick={handleCreate} className="w-full">Create Campaign</Button>
-            </div>
-          </SheetContent>
-        </Sheet>
+        <Button onClick={() => navigate('/project/campaign-wizard')}><Plus className="h-4 w-4 mr-1" /> New Campaign</Button>
       </div>
 
       {/* 95-5 Split */}
