@@ -1,7 +1,10 @@
+import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Pencil, Trash2, Target, Zap, Building2, ShoppingCart, Radio, FileCheck, Handshake, Brain } from 'lucide-react';
+import { Pencil, Trash2, Target, Zap, Building2, ShoppingCart, Radio, FileCheck, Handshake, Brain, RefreshCw, Loader2 } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 import type { Persona, ICP, RoleInBuying } from '@/types/database';
 
 const roleColors: Record<RoleInBuying, string> = {
@@ -19,6 +22,7 @@ interface PersonaDetailModalProps {
   onOpenChange: (open: boolean) => void;
   onEdit: (persona: Persona) => void;
   onDelete: (persona: Persona) => void;
+  onRefreshed?: (updatedPersona: Persona) => void;
 }
 
 function renderContent(data: any): React.ReactNode {
@@ -82,7 +86,14 @@ function SectionCard({ icon, title, subtitle, data }: SectionCardProps) {
   );
 }
 
-export default function PersonaDetailModal({ persona, icp, open, onOpenChange, onEdit, onDelete }: PersonaDetailModalProps) {
+function hasEmptySections(persona: Persona): boolean {
+  const fields = [persona.goals, persona.pain_points, persona.organisational_context, persona.buying_behaviour, persona.channel_preferences];
+  return fields.filter(f => !f || (typeof f === 'object' && Object.keys(f).length === 0)).length >= 2;
+}
+
+export default function PersonaDetailModal({ persona, icp, open, onOpenChange, onEdit, onDelete, onRefreshed }: PersonaDetailModalProps) {
+  const [refreshing, setRefreshing] = useState(false);
+
   if (!persona) return null;
 
   const channelPrefs = persona.channel_preferences || {};
@@ -97,6 +108,81 @@ export default function PersonaDetailModal({ persona, icp, open, onOpenChange, o
     { icon: <FileCheck className="h-4 w-4" />, title: 'Preferred Evidence', subtitle: 'What convinces them to act', data: preferred_evidence },
     { icon: <Handshake className="h-4 w-4" />, title: 'How We Help', subtitle: 'Our value to this persona', data: persona.how_we_help },
   ];
+
+  const refreshFromSession = async () => {
+    if (!persona) return;
+    setRefreshing(true);
+    try {
+      const { data: sessions } = await supabase
+        .from('wizard_sessions')
+        .select('draft_output')
+        .eq('project_id', persona.project_id)
+        .eq('session_type', 'persona')
+        .eq('status', 'complete')
+        .order('created_at', { ascending: false });
+
+      // Find matching session by persona name
+      const match = sessions?.find(s => {
+        const draft = s.draft_output as Record<string, any>;
+        return draft?.persona_name === persona.persona_name;
+      });
+
+      if (!match) {
+        toast.error('No matching wizard session found');
+        return;
+      }
+
+      const draft = match.draft_output as Record<string, any>;
+
+      const extractJson = (...keys: string[]): Record<string, any> => {
+        for (const key of keys) {
+          const val = draft[key];
+          if (val && typeof val === 'object' && Object.keys(val).length > 0) return val;
+        }
+        return {};
+      };
+
+      const channelPrefs = extractJson('channel_preferences', 'channels');
+      const evidence = extractJson('preferred_evidence', 'evidence');
+
+      const updateData: Record<string, any> = {};
+      
+      // Only update fields that are currently empty
+      const isEmpty = (v: any) => !v || (typeof v === 'object' && Object.keys(v).length === 0) || v === '';
+      
+      if (isEmpty(persona.goals)) updateData.goals = extractJson('goals');
+      if (isEmpty(persona.pain_points)) updateData.pain_points = extractJson('pain_points', 'painpoints');
+      if (isEmpty(persona.organisational_context)) updateData.organisational_context = extractJson('organisational_context', 'org_context', 'context');
+      if (isEmpty(persona.buying_behaviour)) updateData.buying_behaviour = extractJson('buying_behaviour', 'buying_behavior');
+      if (isEmpty(persona.channel_preferences)) updateData.channel_preferences = { ...channelPrefs, preferred_evidence: evidence };
+      if (isEmpty(persona.how_we_help) && draft.how_we_help) updateData.how_we_help = draft.how_we_help;
+
+      if (Object.keys(updateData).length === 0) {
+        toast.info('No new data found in wizard session');
+        return;
+      }
+
+      const { error } = await supabase
+        .from('personas')
+        .update(updateData)
+        .eq('id', persona.id);
+
+      if (error) throw error;
+
+      toast.success('Persona refreshed with wizard data');
+      
+      // Notify parent to refresh
+      if (onRefreshed) {
+        onRefreshed({ ...persona, ...updateData } as Persona);
+      }
+    } catch (err: any) {
+      toast.error('Failed to refresh: ' + err.message);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  const showRefresh = hasEmptySections(persona);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -129,7 +215,7 @@ export default function PersonaDetailModal({ persona, icp, open, onOpenChange, o
             </div>
           </DialogHeader>
 
-          {/* AI Readiness */}
+          {/* AI Readiness + Refresh */}
           <div className="flex items-center gap-2 mt-3">
             <Brain className="h-4 w-4 text-muted-foreground" />
             <span className="text-xs text-muted-foreground">AI Readiness</span>
@@ -139,6 +225,19 @@ export default function PersonaDetailModal({ persona, icp, open, onOpenChange, o
               ))}
             </div>
             <span className="text-xs font-medium text-foreground ml-1">{persona.ai_readiness_score || 0}/5</span>
+            
+            {showRefresh && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="ml-auto text-xs text-muted-foreground hover:text-foreground"
+                onClick={refreshFromSession}
+                disabled={refreshing}
+              >
+                {refreshing ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5 mr-1" />}
+                Refresh from wizard data
+              </Button>
+            )}
           </div>
         </div>
 
