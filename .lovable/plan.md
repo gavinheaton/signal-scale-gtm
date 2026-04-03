@@ -1,35 +1,33 @@
 
 
-# Wire Up Auth Hook Secret & Deploy
+# Magic Link Auth Overhaul
 
-## Problem
-Magic link emails still come from Supabase's default sender because:
-1. The `auth-email-hook` Edge Function may not be deployed yet
-2. The hook secret isn't being verified in the function code (security gap)
-3. The secret needs to be stored as a Supabase Edge Function secret
+## Problems
+1. **Broken magic link URL**: `emailRedirectTo` is hardcoded to `https://signal2scale.com.au` instead of the app's actual URL (`window.location.origin`). This means the confirmation link in the email redirects to the wrong place.
+2. **No OTP code fallback**: If the link fails, users have no way to enter a verification code.
+3. **Password login still present**: Needs to be removed per security preference.
 
-## Steps
+## Changes
 
-### 1. Store the Hook Secret
-Add the Supabase-generated hook secret as a project secret named `AUTH_HOOK_SECRET` using the `add_secret` tool.
+### 1. Update `src/pages/Auth.tsx` — Magic-link-only with OTP fallback
+- Remove password fields, login/signup tabs, and `signInWithPassword`/`signUp` handlers
+- Single-screen flow: enter email → send magic link → show OTP input
+- After sending magic link, show a 6-digit OTP input (using existing `InputOTP` component) so users can paste the code from the email if the link doesn't work
+- Verify OTP via `supabase.auth.verifyOtp({ email, token, type: 'email' })`
+- Fix `emailRedirectTo` to use `window.location.origin` so the magic link points to the actual app
+- Add "Back" button to return to email entry
 
-### 2. Update `auth-email-hook` to verify the hook signature
-Add signature verification at the top of the request handler to confirm payloads genuinely come from Supabase Auth. This uses the standard HMAC-SHA256 verification pattern Supabase uses for hooks.
+### 2. Update `supabase/functions/auth-email-hook/index.ts` — Include OTP code in magic link email
+- In the `magiclink` case, display both the sign-in button (with `confirmation_url`) AND the OTP token code below it
+- Use `data.token` to show a 6-digit code in the email body as a fallback
+- Text like: "Or enter this code manually: 123456"
 
-**File:** `supabase/functions/auth-email-hook/index.ts`
-- Import crypto utilities
-- Read `AUTH_HOOK_SECRET` from environment
-- Verify the `x-supabase-signature` header against the request body
-- Reject requests with invalid signatures (401)
+### 3. Update `supabase/functions/auth-email-hook/index.ts` — Include OTP in signup email too
+- Similar treatment for signup confirmation: show the link button plus OTP code
 
-### 3. Deploy the Edge Function
-Deploy `auth-email-hook` with `--no-verify-jwt` (required since Supabase Auth hooks don't send a standard JWT).
-
-### 4. Test
-Trigger a magic link to `gavin@disruptorsco.com` via curl to confirm the branded email arrives from `admin@signal2scale.com.au` via Brevo.
-
-## Technical Detail
-- Supabase Auth hooks sign the POST body with HMAC-SHA256 using the hook secret
-- The signature is sent in the `x-supabase-signature` header
-- The Edge Function must verify this before processing the payload
+## Technical Details
+- `signInWithOtp()` sends both a magic link and an OTP code by default
+- `verifyOtp({ email, token, type: 'email' })` validates the 6-digit code
+- The auth hook receives `token` in `email_data` which contains the OTP code
+- The `InputOTP` component already exists in the project
 
