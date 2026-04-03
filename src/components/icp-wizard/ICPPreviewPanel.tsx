@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Check, Loader2, Save, Sparkles } from 'lucide-react';
+import { Check, Loader2, Save, Sparkles, Users, Plus } from 'lucide-react';
 import { ScoreRing } from './ScoreRing';
 import { HexProgress } from './HexProgress';
 import { SectionDetail } from './SectionDetail';
@@ -13,6 +13,8 @@ interface ICPPreviewPanelProps {
   saving: boolean;
   onSave: () => void;
   hasAnyData: boolean;
+  onPostSaveAction?: (action: 'another_icp' | 'personas') => void;
+  savedIcpId?: string | null;
 }
 
 const MATRIX_COLORS: Record<string, { bg: string; text: string; label: string }> = {
@@ -22,7 +24,7 @@ const MATRIX_COLORS: Record<string, { bg: string; text: string; label: string }>
   no_go: { bg: 'bg-red-500/15', text: 'text-red-600', label: 'No-Go Zone' },
 };
 
-export function ICPPreviewPanel({ draft, saving, onSave, hasAnyData }: ICPPreviewPanelProps) {
+export function ICPPreviewPanel({ draft, saving, onSave, hasAnyData, onPostSaveAction, savedIcpId }: ICPPreviewPanelProps) {
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
   const [activeHexSection, setActiveHexSection] = useState<string | undefined>();
   const [showSuccess, setShowSuccess] = useState(false);
@@ -38,6 +40,12 @@ export function ICPPreviewPanel({ draft, saving, onSave, hasAnyData }: ICPPrevie
     }
   }, [isComplete]);
 
+  useEffect(() => {
+    if (savedIcpId && !saving) {
+      setShowSuccess(true);
+    }
+  }, [savedIcpId, saving]);
+
   const toggleSection = (key: string) => {
     setExpandedSections(prev => {
       const next = new Set(prev);
@@ -52,21 +60,33 @@ export function ICPPreviewPanel({ draft, saving, onSave, hasAnyData }: ICPPrevie
     setExpandedSections(prev => new Set(prev).add(key));
   };
 
-  const handleSave = () => {
-    onSave();
-    setShowSuccess(true);
-  };
-
   if (showSuccess && !saving) {
     return (
       <div className="flex-1 flex items-center justify-center animate-scale-in">
-        <div className="text-center space-y-4">
+        <div className="text-center space-y-6">
           <div className="h-20 w-20 mx-auto rounded-full bg-green-500/20 flex items-center justify-center">
             <Check className="h-10 w-10 text-green-500" />
           </div>
           <div>
             <h3 className="text-lg font-bold text-foreground">ICP Saved!</h3>
-            <p className="text-sm text-muted-foreground">Redirecting to ICP & Personas…</p>
+            <p className="text-sm text-muted-foreground mb-6">What would you like to do next?</p>
+          </div>
+          <div className="space-y-3 max-w-xs mx-auto">
+            <Button
+              onClick={() => onPostSaveAction?.('personas')}
+              className="w-full"
+              size="lg"
+            >
+              <Users className="h-4 w-4 mr-2" /> Build Buyer Personas
+            </Button>
+            <Button
+              onClick={() => onPostSaveAction?.('another_icp')}
+              variant="outline"
+              className="w-full"
+              size="lg"
+            >
+              <Plus className="h-4 w-4 mr-2" /> Add Another ICP Segment
+            </Button>
           </div>
         </div>
       </div>
@@ -118,11 +138,11 @@ export function ICPPreviewPanel({ draft, saving, onSave, hasAnyData }: ICPPrevie
         ))}
       </div>
 
-      {/* Save buttons — always visible */}
+      {/* Save buttons */}
       <div className="sticky bottom-0 pt-3 pb-1 bg-gradient-to-t from-background via-background to-transparent space-y-2">
         {isComplete ? (
           <Button
-            onClick={handleSave}
+            onClick={onSave}
             disabled={saving}
             className="w-full animate-[pulse_2s_ease-in-out_infinite] shadow-lg shadow-primary/25"
             size="lg"
@@ -135,7 +155,7 @@ export function ICPPreviewPanel({ draft, saving, onSave, hasAnyData }: ICPPrevie
           </Button>
         ) : (
           <Button
-            onClick={handleSave}
+            onClick={onSave}
             disabled={saving || !hasAnyData}
             variant="outline"
             className="w-full"
