@@ -31,7 +31,11 @@ function getEmailContent(
   data: AuthEmailPayload["email_data"],
   userEmail: string
 ): { subject: string; html: string; text: string } {
-  const confirmationUrl = data.confirmation_url || "";
+  const SUPABASE_URL = "https://xiufgczyecwgnkbyroow.supabase.co";
+  const confirmationUrl = data.confirmation_url ||
+    (data.token_hash
+      ? `${SUPABASE_URL}/auth/v1/verify?token=${data.token_hash}&type=${emailType}&redirect_to=${encodeURIComponent(data.redirect_to || '')}`
+      : "");
 
   const baseStyles = `
     font-family: 'Poppins', Arial, sans-serif;
