@@ -21,7 +21,7 @@ Your job is to guide the user through building a comprehensive ICP by having a s
 6. **Anti-ICP Signals** — Red flags indicating poor fit: wrong stage, misaligned expectations, budget mismatch, cultural mismatch, technical incompatibility
 
 INSTRUCTIONS:
-- When the user provides a website URL, acknowledge it and explain what you'd look for on their site (you cannot actually browse, but use any context they provide).
+- When a website URL is provided, the page content will be fetched and included in your context. Analyse it thoroughly and map every finding to the relevant ICP section before asking questions.
 - Ask ONE focused question at a time to fill gaps in each element. Do not ask multiple questions at once.
 - After each exchange, mentally track which sections are filled and which need more information.
 - When you have enough information for a section, summarise what you've captured for that section.
@@ -153,6 +153,42 @@ Deno.serve(async (req) => {
         content: message,
         timestamp: new Date().toISOString(),
       });
+    }
+
+    // Detect URLs in the latest user message and fetch content
+    const lastUserMsg = messages[messages.length - 1];
+    let enrichedContent = lastUserMsg.content;
+    const urlRegex = /https?:\/\/[^\s<>"{}|\\^`\[\]]+/gi;
+    const urls = lastUserMsg.role === "user" ? lastUserMsg.content.match(urlRegex) : null;
+
+    if (urls && urls.length > 0) {
+      for (const url of urls.slice(0, 2)) {
+        try {
+          console.log("Fetching URL:", url);
+          const fetchRes = await fetch(url, {
+            headers: { "User-Agent": "Mozilla/5.0 (compatible; ICPWizardBot/1.0)" },
+            redirect: "follow",
+          });
+          if (fetchRes.ok) {
+            let html = await fetchRes.text();
+            // Strip scripts, styles, and HTML tags
+            html = html.replace(/<script[\s\S]*?<\/script>/gi, "");
+            html = html.replace(/<style[\s\S]*?<\/style>/gi, "");
+            html = html.replace(/<[^>]+>/g, " ");
+            html = html.replace(/\s+/g, " ").trim();
+            const cleaned = html.slice(0, 8000);
+            enrichedContent += `\n\n[Fetched content from ${url}]:\n${cleaned}`;
+          } else {
+            enrichedContent += `\n\n[Failed to fetch ${url}: HTTP ${fetchRes.status}]`;
+            await fetchRes.text(); // consume body
+          }
+        } catch (fetchErr) {
+          console.error("URL fetch error:", fetchErr);
+          enrichedContent += `\n\n[Failed to fetch ${url}: ${fetchErr instanceof Error ? fetchErr.message : "unknown error"}]`;
+        }
+      }
+      // Update the message content with enriched version
+      messages[messages.length - 1] = { ...lastUserMsg, content: enrichedContent };
     }
 
     // Build Anthropic messages (strip timestamps, extract content)
