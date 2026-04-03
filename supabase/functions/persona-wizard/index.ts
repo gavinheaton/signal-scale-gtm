@@ -144,6 +144,21 @@ Deno.serve(async (req) => {
       }
     }
 
+    // If editing an existing persona, fetch and inject its data
+    let editPersonaContext = "";
+    let editPersonaName = "";
+    if (edit_persona_id) {
+      const { data: editPersona } = await supabase
+        .from("personas")
+        .select("*")
+        .eq("id", edit_persona_id)
+        .single();
+      if (editPersona) {
+        editPersonaName = editPersona.persona_name;
+        editPersonaContext = `\n\nEXISTING PERSONA DATA (the user wants to edit this persona):\n${JSON.stringify(editPersona, null, 2)}\n\nIMPORTANT: The user is editing an existing persona. Review the data above, present a summary of what's currently captured, then ask what they'd like to change and WHY they want to make those changes. Understanding the reason helps you make better suggestions.`;
+      }
+    }
+
     // Load brand context from the project
     let brandContextStr = "";
     if (project_id) {
@@ -158,9 +173,11 @@ Deno.serve(async (req) => {
       }
     }
 
-    const syntheticPrompt = icp_id
-      ? "Analyse the ICP buyer roles data and suggest the key buying influences I should build for this segment. Consider the firmographics, psychographics, and any existing persona coverage."
-      : "Let's build a buyer persona. Ask me about the role or job title of the person I want to map and their role in the buying process.";
+    const syntheticPrompt = edit_persona_id
+      ? `I want to edit the persona "${editPersonaName}". Show me what's currently captured and ask what I'd like to change.`
+      : icp_id
+        ? "Analyse the ICP buyer roles data and suggest the key buying influences I should build for this segment. Consider the firmographics, psychographics, and any existing persona coverage."
+        : "Let's build a buyer persona. Ask me about the role or job title of the person I want to map and their role in the buying process.";
 
     if (!sessionId) {
       const userMsg = message || syntheticPrompt;
