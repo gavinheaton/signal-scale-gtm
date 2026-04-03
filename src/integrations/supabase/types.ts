@@ -384,6 +384,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      is_superadmin: { Args: { _user_id: string }; Returns: boolean }
       user_has_org_access: {
         Args: { _org_id: string; _user_id: string }
         Returns: boolean
