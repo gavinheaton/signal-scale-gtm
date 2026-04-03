@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, useRef, ReactNode } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { OrgMembership, Organisation } from '@/types/database';
@@ -24,6 +24,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [membership, setMembership] = useState<OrgMembership | null>(null);
   const [organisation, setOrganisation] = useState<Organisation | null>(null);
   const [loading, setLoading] = useState(true);
+  const bootstrapped = useRef(false);
 
   const fetchOrgData = async (userId: string) => {
     try {
@@ -55,34 +56,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let mounted = true;
 
-    // 1. Set up listener FIRST (before getSession) so we never miss auth events
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        console.log('[Auth] onAuthStateChange:', event, !!session);
-        if (!mounted) return;
-        setSession(session);
-        setUser(session?.user ?? null);
-
-        if (session?.user) {
-          // Use setTimeout to avoid potential deadlock with Supabase internals
-          setTimeout(async () => {
-            if (mounted) {
-              await fetchOrgData(session.user.id);
-              if (mounted) setLoading(false);
-            }
-          }, 0);
-        } else {
-          setMembership(null);
-          setOrganisation(null);
-          setLoading(false);
-        }
-      }
-    );
-
-    // 2. Then restore existing session
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      console.log('[Auth] getSession result:', !!session);
+    // Single bootstrap: restore session, fetch org, then mark ready
+    const bootstrap = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      console.log('[Auth] bootstrap session:', !!session);
       if (!mounted) return;
+
       setSession(session);
       setUser(session?.user ?? null);
 
@@ -90,8 +69,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await fetchOrgData(session.user.id);
       }
 
-      if (mounted) setLoading(false);
-    });
+      if (mounted) {
+        bootstrapped.current = true;
+        setLoading(false);
+      }
+    };
+
+    // Listener handles post-bootstrap events (sign-in from callback, sign-out, token refresh)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        console.log('[Auth] onAuthStateChange:', event, !!session);
+        if (!mounted) return;
+
+        setSession(session);
+        setUser(session?.user ?? null);
+
+        if (session?.user) {
+          // Fire-and-forget org lookup to avoid blocking the listener
+          setTimeout(async () => {
+            if (!mounted) return;
+            await fetchOrgData(session.user.id);
+            if (mounted && !bootstrapped.current) {
+              bootstrapped.current = true;
+              setLoading(false);
+            }
+          }, 0);
+        } else {
+          setMembership(null);
+          setOrganisation(null);
+          if (bootstrapped.current) {
+            // Only update loading after bootstrap (e.g. sign-out)
+          }
+        }
+      }
+    );
+
+    bootstrap();
 
     return () => {
       mounted = false;
