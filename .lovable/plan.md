@@ -1,47 +1,32 @@
 
 
-# Fix Auth Email Hook & Update Sender
+# Test Send Transactional Email via Script
 
-## Changes
+## Approach
+Run a `curl` command directly to invoke the `send-transactional-email` Edge Function — no UI changes needed.
 
-### 1. Update sender email in `send-transactional-email`
-**File: `supabase/functions/send-transactional-email/index.ts`**
-- Change `SENDER_EMAIL` from `noreply@signal2scale.com.au` to `admin@signal2scale.com.au`
+## Steps
 
-### 2. Fix auth-email-hook response to match Supabase Auth Hook schema
-**File: `supabase/functions/auth-email-hook/index.ts`**
+### 1. Fetch available secrets
+Check that `BREVO_API_KEY` is configured.
 
-Supabase Auth Hooks (specifically the "Send Email" hook using the Postgres function schema) expect the Edge Function to return a JSON response in this specific format:
+### 2. Run curl to invoke the Edge Function
+Call the deployed function at `https://xiufgczyecwgnkbyroow.supabase.co/functions/v1/send-transactional-email` with:
+- **To:** `gavin@disruptorsco.com`
+- **Subject:** "Test Email from Signal + Scale"
+- **HTML:** Branded test email with Signal + Scale styling
+- Auth header using the Supabase anon key (the function requires JWT, so we'll need to sign in first to get a valid token, or invoke it with the service role key)
 
-```json
-{
-  "email": {
-    "subject": "...",
-    "body": "..."
-  }
-}
-```
+### 3. Check response
+Verify success or diagnose any errors from the response.
 
-However, since we're sending the email ourselves via Brevo (not letting Supabase send it), the hook must signal that Supabase should NOT also send its default email. The correct response format for a "Send Email" hook that handles delivery itself is:
+## Important prerequisite
+The Edge Function must already be deployed to Supabase. If it returns 404, it needs deployment first (`supabase functions deploy send-transactional-email`).
 
-```json
-{}
-```
+## Technical note
+Since the function validates JWT auth, I'll need to either:
+- Use the Supabase service role key to bypass JWT check, or
+- Create a quick auth session to get a bearer token
 
-...returned with status 200. This tells Supabase the hook handled the email successfully and no further action is needed.
-
-Current code returns `{ "success": true }` which doesn't match the expected schema and may cause Supabase to reject the hook response or double-send.
-
-**Fix:** Change the success response to return an empty JSON object `{}`.
-
-Also update `SENDER_EMAIL` to `admin@signal2scale.com.au` here as well for consistency (the auth emails will also come from this address).
-
-### 3. Redeploy both Edge Functions
-After changes, both functions need redeployment:
-- `auth-email-hook` (with `--no-verify-jwt`)
-- `send-transactional-email`
-
-## Technical details
-- Supabase Auth Hook "Send Email" expects either an empty response body or a specific schema — returning arbitrary JSON like `{ success: true }` can cause hook failures
-- Both functions will use `admin@signal2scale.com.au` as the sender — ensure this address is verified in your Brevo dashboard
+I'll check what's available via secrets first.
 
