@@ -50,7 +50,7 @@ export default function ICPPersonas() {
   const [icps, setIcps] = useState<ICP[]>([]);
   const [personas, setPersonas] = useState<Persona[]>([]);
   const [expandedIcp, setExpandedIcp] = useState<string | null>(null);
-  const [expandedPersona, setExpandedPersona] = useState<string | null>(null);
+  const [selectedPersona, setSelectedPersona] = useState<Persona | null>(null);
   const [loading, setLoading] = useState(true);
   const [deleteTarget, setDeleteTarget] = useState<Persona | null>(null);
   const [deleting, setDeleting] = useState(false);
