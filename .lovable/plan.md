@@ -1,47 +1,42 @@
 
 
-# Create Notion Campaign Brief Edge Function
+# Fix Campaign Wizard: Early Save + Conversation Length
 
-## Overview
-Create `supabase/functions/create-notion-campaign-brief/index.ts` that receives a campaign draft and creates a richly formatted Notion page. Two new secrets are needed.
+## Problems
+1. **No way to save mid-session** — the "Save Campaign" button requires `is_complete`, so users can't save progress during long builds
+2. **Conversations grow unbounded** — every message is sent to Anthropic, hitting token limits and causing timeouts/incomplete responses
 
-## Secrets Required
-- **NOTION_API_KEY** — Notion integration token
-- **NOTION_CAMPAIGN_BRIEFS_PAGE_ID** — Parent page ID where briefs are created
+## Solution
 
-## Edge Function: `supabase/functions/create-notion-campaign-brief/index.ts`
+### 1. Add "Save Draft" button (always enabled)
+In `CampaignPreviewPanel.tsx`, add a second button "Save Draft" that saves the current draft state to the `campaigns` table with `status: 'brief'` even when `is_complete` is false. The existing "Save Campaign" becomes "Finalize Campaign" for completed drafts.
 
-**Input**: `{ campaign_draft, project_name, org_name }` (called internally by `campaign-wizard` with service role key)
+**File: `src/components/campaign-wizard/CampaignPreviewPanel.tsx`**
+- Add `onSaveDraft` prop
+- Render "Save Draft" button (always enabled when there's any draft content like a name or track)
+- Rename existing save to "Finalize Campaign"
 
-**Logic**:
-1. Validate input (campaign_draft required)
-2. Build Notion `pages.create` payload:
-   - **Parent**: `NOTION_CAMPAIGN_BRIEFS_PAGE_ID` (as page parent)
-   - **Title**: `campaign_draft.campaign_name`
-   - **Properties**: Track, Objective (from `campaign_draft.objective`), org/project name in subtitle
-   - **Body blocks** (children array):
-     * Heading "The Insight" + paragraph from `campaign_draft.campaign_insight`
-     * Heading "Campaign Objective" + paragraph from `campaign_draft.objective`
-     * Heading "Key Message" + callout block
-     * Heading "Channel Plan" + bulleted list items from `campaign_draft.channel_mix`
-     * Heading "Content Calendar" + table block with columns: Title, Format, Persona, Track, Week, Purpose — rows from `campaign_draft.content_calendar`
-     * Heading "Success Metrics" + two-column layout (Primary / Secondary)
-     * Heading "95-5 Balance" + paragraph with demand creation vs capture percentages
-     * Heading "What to Avoid" + bulleted list from `campaign_draft.anti_patterns`
-3. POST to `https://api.notion.com/v1/pages` with Notion API v2022-06-28
-4. Return `{ notion_url: response.url }`
+**File: `src/pages/CampaignWizard.tsx`**
+- Add `saveDraft` handler that upserts to `campaigns` table with current draft state (doesn't require `is_complete`)
+- Track a `campaignId` in state so subsequent saves update rather than insert
+- Wire to preview panel
 
-**Note on caller**: The `campaign-wizard` function currently passes `{ session_id, project_id, draft, context }`. We'll update that call to also pass `project_name` and `org_name`, or extract them from context. The function will be flexible — accepting `draft` or `campaign_draft` as the key.
+### 2. Sliding window for conversation history
+In `supabase/functions/campaign-wizard/index.ts`, instead of sending ALL messages to Anthropic:
+- Always include the first 2 messages (initial context)
+- Send only the last 10 messages (5 exchanges)
+- Inject the current `draft_output` as a system prompt section so the AI always knows the current state even without full history
+- Increase `max_tokens` to 4096 to give the AI room to complete drafts
 
-## Config Update: `supabase/config.toml`
-Add:
-```toml
-[functions.create-notion-campaign-brief]
-  verify_jwt = false
-```
+**File: `supabase/functions/campaign-wizard/index.ts`**
+- Add sliding window: keep first 2 + last 10 messages for Anthropic call
+- Add current draft state to system prompt: `## CURRENT DRAFT STATE\n{JSON}`
+- Bump `max_tokens` from 2048 to 4096
 
-## Files
-- **Create**: `supabase/functions/create-notion-campaign-brief/index.ts`
-- **Edit**: `supabase/config.toml` — add function entry
-- **Edit**: `supabase/functions/campaign-wizard/index.ts` — update the internal call to pass `campaign_draft`, `project_name`, `org_name`
+### 3. Files Changed
+| File | Action |
+|------|--------|
+| `src/components/campaign-wizard/CampaignPreviewPanel.tsx` | Add Save Draft button + onSaveDraft prop |
+| `src/pages/CampaignWizard.tsx` | Add saveDraft handler, track campaignId for upserts |
+| `supabase/functions/campaign-wizard/index.ts` | Sliding window + draft in system prompt + higher max_tokens |
 
