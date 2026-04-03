@@ -158,9 +158,15 @@ Deno.serve(async (req) => {
       }
     }
 
-    const initialMessage = icp_id
-      ? "Great, let's build a buyer persona for this ICP segment. I've loaded the ICP context. Let's start — what role or title does the key buyer you want to map have? Are they a decision-maker, influencer, champion, or blocker in the buying process?"
-      : "Let's build a buyer persona. What role or job title does the person you want to map have? And what's their role in the buying process — are they a champion, decision-maker, influencer, end user, or blocker?";
+    let initialMessage: string;
+    if (icp_id && missingRoles.length > 0) {
+      const suggested = missingRoles[0].replace('_', ' ');
+      initialMessage = `I've loaded the ICP context and checked which buying influences you've already mapped. You're missing coverage for: **${missingRoles.map(r => r.replace('_', ' ')).join(', ')}**.\n\nI'd suggest we start with the **${suggested}** role — shall we build that one? Or would you prefer a different role? Remember, this doesn't have to be an individual person — it could be a process, policy position, or reporting line that acts as a ${suggested} in the buying journey.`;
+    } else if (icp_id && missingRoles.length === 0) {
+      initialMessage = `Great news — all 5 core buying roles are already covered for this ICP segment! You could add an additional buying influence here — perhaps a process (like a procurement workflow), a policy position (like a data governance mandate), or a reporting structure that affects the deal. What would you like to map?`;
+    } else {
+      initialMessage = "Let's build a buyer persona. What role or job title does the person you want to map have? And what's their role in the buying process — are they a champion, decision-maker, influencer, end user, or blocker?";
+    }
 
     if (!sessionId) {
       const initialMsg = {
