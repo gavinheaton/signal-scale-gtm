@@ -89,9 +89,9 @@ export default function PersonaDetailModal({ persona, icp, open, onOpenChange, o
   const { preferred_evidence, ...channels } = channelPrefs as Record<string, any>;
 
   const sections: SectionCardProps[] = [
-    { icon: <Target className="h-4 w-4" />, title: 'Goals', subtitle: 'What they're trying to achieve', data: persona.goals },
+    { icon: <Target className="h-4 w-4" />, title: 'Goals', subtitle: 'What they are trying to achieve', data: persona.goals },
     { icon: <Zap className="h-4 w-4" />, title: 'Pain Points', subtitle: 'Frustrations and blockers', data: persona.pain_points },
-    { icon: <Building2 className="h-4 w-4" />, title: 'Organisational Context', subtitle: 'Structure, culture & decision-making', data: persona.organisational_context },
+    { icon: <Building2 className="h-4 w-4" />, title: 'Organisational Context', subtitle: 'Structure, culture and decision-making', data: persona.organisational_context },
     { icon: <ShoppingCart className="h-4 w-4" />, title: 'Buying Behaviour', subtitle: 'How they evaluate and purchase', data: persona.buying_behaviour },
     { icon: <Radio className="h-4 w-4" />, title: 'Channel Preferences', subtitle: 'Where they consume content', data: Object.keys(channels).length > 0 ? channels : null },
     { icon: <FileCheck className="h-4 w-4" />, title: 'Preferred Evidence', subtitle: 'What convinces them to act', data: preferred_evidence },
