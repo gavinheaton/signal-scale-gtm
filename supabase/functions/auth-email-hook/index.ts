@@ -7,7 +7,7 @@ const corsHeaders = {
 };
 
 const BREVO_API_URL = "https://api.brevo.com/v3/smtp/email";
-const SENDER_EMAIL = "noreply@signal2scale.com.au";
+const SENDER_EMAIL = "admin@signal2scale.com.au";
 const SENDER_NAME = "Signal + Scale";
 
 interface AuthEmailPayload {
