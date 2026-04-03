@@ -201,20 +201,34 @@ export default function PersonaWizard() {
         ? (draft.role_in_buying as RoleInBuying)
         : 'influencer';
 
+      // Defensive extraction: AI drafts may nest data under variant keys
+      const extractJson = (...keys: string[]): Record<string, any> => {
+        for (const key of keys) {
+          const val = (draft as any)[key];
+          if (val && typeof val === 'object' && Object.keys(val).length > 0) return val;
+        }
+        return {};
+      };
+
+      const channelPrefs = extractJson('channel_preferences', 'channels');
+      const evidence = extractJson('preferred_evidence', 'evidence');
+
+      console.log('[PersonaWizard] Full draft before save:', JSON.stringify(draft, null, 2));
+
       const personaData = {
         project_id: currentProject.id,
         icp_id: icpId || null,
         persona_name: draft.persona_name || 'New Persona',
         role_in_buying: roleInBuying,
-        goals: draft.goals || {},
-        pain_points: draft.pain_points || {},
+        goals: extractJson('goals'),
+        pain_points: extractJson('pain_points', 'painpoints'),
         channel_preferences: {
-          ...(draft.channel_preferences || {}),
-          preferred_evidence: draft.preferred_evidence || {},
+          ...channelPrefs,
+          preferred_evidence: evidence,
         },
         how_we_help: draft.how_we_help || '',
-        organisational_context: draft.organisational_context || {},
-        buying_behaviour: draft.buying_behaviour || {},
+        organisational_context: extractJson('organisational_context', 'org_context', 'context'),
+        buying_behaviour: extractJson('buying_behaviour', 'buying_behavior'),
         ai_readiness_score: draft.ai_readiness_score || 3,
         is_current: true,
       };
