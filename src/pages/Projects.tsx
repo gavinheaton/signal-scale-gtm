@@ -147,9 +147,11 @@ export default function Projects() {
     <div>
       <div className="flex items-center justify-between mb-1">
         <h1 className="text-2xl font-bold text-foreground">Your Projects</h1>
-        <Button onClick={() => setDialogOpen(true)} size="sm">
-          <Plus className="mr-1 h-4 w-4" /> New Project
-        </Button>
+        {canCreateProject && (
+          <Button onClick={() => setDialogOpen(true)} size="sm">
+            <Plus className="mr-1 h-4 w-4" /> New Project
+          </Button>
+        )}
       </div>
       <p className="text-sm mb-6" style={{ color: 'hsl(var(--orange))' }}>Select a project to enter the GTM workspace</p>
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
