@@ -44,7 +44,7 @@ export default function Auth() {
     setSubmitting(true);
     const { error } = await supabase.auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: 'https://signal-scale-gtm.lovable.app' },
+      options: { emailRedirectTo: 'https://signal2scale.com.au' },
     });
     if (error) toast.error(error.message);
     else toast.success('Magic link sent! Check your email.');
