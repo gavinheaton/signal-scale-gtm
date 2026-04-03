@@ -332,8 +332,11 @@ export default function PersonaWizard() {
             ))}
             {loading && (
               <div className="flex justify-start">
-                <div className="bg-muted rounded-lg px-4 py-3">
+                <div className="bg-muted rounded-lg px-4 py-3 flex items-center gap-2">
                   <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                  {initStage && (
+                    <span className="text-sm text-muted-foreground animate-pulse">{initStage}</span>
+                  )}
                 </div>
               </div>
             )}
