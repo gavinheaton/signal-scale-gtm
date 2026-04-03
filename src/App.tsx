@@ -7,6 +7,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { ProjectProvider } from "@/contexts/ProjectContext";
 import { AppLayout } from "@/components/AppLayout";
 import Auth from "@/pages/Auth";
+import AuthCallback from "@/pages/AuthCallback";
 import Projects from "@/pages/Projects";
 import Home from "@/pages/Home";
 import ICPPersonas from "@/pages/ICPPersonas";
@@ -28,6 +29,7 @@ const App = () => (
           <ProjectProvider>
             <Routes>
               <Route path="/auth" element={<Auth />} />
+              <Route path="/auth/callback" element={<AuthCallback />} />
               <Route path="/" element={<Navigate to="/projects" replace />} />
               <Route element={<AppLayout />}>
                 <Route path="/projects" element={<Projects />} />
