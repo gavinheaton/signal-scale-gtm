@@ -182,6 +182,29 @@ function getEmailContent(
   }
 }
 
+async function verifySignature(secret: string, payload: string, signatureHeader: string): Promise<boolean> {
+  try {
+    const encoder = new TextEncoder();
+    const key = await crypto.subtle.importKey(
+      "raw",
+      encoder.encode(secret),
+      { name: "HMAC", hash: "SHA-256" },
+      false,
+      ["sign"]
+    );
+    const signatureBytes = await crypto.subtle.sign("HMAC", key, encoder.encode(payload));
+    const computedSignature = Array.from(new Uint8Array(signatureBytes))
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+    
+    // The signature header may have a "v1," prefix
+    const providedSignature = signatureHeader.replace(/^v1,/, "");
+    return computedSignature === providedSignature;
+  } catch {
+    return false;
+  }
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -193,7 +216,30 @@ serve(async (req) => {
       throw new Error("BREVO_API_KEY is not configured");
     }
 
-    const payload: AuthEmailPayload = await req.json();
+    const AUTH_HOOK_SECRET = Deno.env.get("AUTH_HOOK_SECRET");
+    const rawBody = await req.text();
+
+    // Verify hook signature if secret is configured
+    if (AUTH_HOOK_SECRET) {
+      const signature = req.headers.get("x-supabase-signature");
+      if (!signature) {
+        console.error("Missing x-supabase-signature header");
+        return new Response(JSON.stringify({ error: "Missing signature" }), {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const valid = await verifySignature(AUTH_HOOK_SECRET, rawBody, signature);
+      if (!valid) {
+        console.error("Invalid hook signature");
+        return new Response(JSON.stringify({ error: "Invalid signature" }), {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
+
+    const payload: AuthEmailPayload = JSON.parse(rawBody);
     const { user, email_data } = payload;
 
     if (!user?.email || !email_data?.email_action_type) {
