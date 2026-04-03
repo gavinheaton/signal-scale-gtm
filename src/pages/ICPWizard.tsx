@@ -36,7 +36,6 @@ export default function ICPWizard() {
     });
   }, [draft.sections_complete]);
 
-  // Current phase indicator
   const currentPhase = ICP_SECTIONS.find(s => getSectionStatus(draft, s.key) !== 'complete');
 
   useEffect(() => {
@@ -51,6 +50,37 @@ export default function ICPWizard() {
   const initSession = async () => {
     setLoading(true);
     try {
+      // Check for existing in-progress session
+      const { data: existingSessions } = await supabase
+        .from('wizard_sessions')
+        .select('*')
+        .eq('project_id', currentProject!.id)
+        .eq('session_type', 'icp')
+        .eq('status', 'in_progress')
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (existingSessions && existingSessions.length > 0) {
+        const session = existingSessions[0];
+        setSessionId(session.id);
+        const sessionMessages = session.messages as Array<{ role: string; content: string }>;
+        // Restore messages, stripping draft tags from display
+        setMessages(
+          sessionMessages.map(m => ({
+            role: m.role as 'user' | 'assistant',
+            content: m.role === 'assistant'
+              ? m.content.replace(/<draft>[\s\S]*?<\/draft>/g, '').trim()
+              : m.content,
+          }))
+        );
+        if (session.draft_output && Object.keys(session.draft_output as object).length > 0) {
+          setDraft(session.draft_output as DraftOutput);
+        }
+        toast.info('Resumed your previous session');
+        return;
+      }
+
+      // No existing session — create new
       const res = await supabase.functions.invoke('icp-wizard', {
         body: { project_id: currentProject!.id },
       });
@@ -133,7 +163,6 @@ export default function ICPWizard() {
       setTimeout(() => navigate('/project/icp-personas'), 2000);
     } catch (err: any) {
       toast.error('Failed to save: ' + err.message);
-    } finally {
       setSaving(false);
     }
   };
@@ -143,9 +172,14 @@ export default function ICPWizard() {
     return null;
   }
 
+  // Check if there's any data to save
+  const hasAnyData = ICP_SECTIONS.some(s => {
+    const section = (draft as any)[s.key];
+    return section && typeof section === 'object' && Object.keys(section).length > 0;
+  });
+
   return (
     <div className="h-[calc(100vh-4rem)] flex flex-col">
-      {/* Header */}
       <div className="flex items-center gap-3 mb-3">
         <Button variant="ghost" size="icon" onClick={() => navigate('/project/icp-personas')}>
           <ArrowLeft className="h-4 w-4" />
@@ -159,11 +193,9 @@ export default function ICPWizard() {
         </div>
       </div>
 
-      {/* Two-panel layout: 50/50 */}
       <div className="flex-1 flex gap-4 min-h-0">
         {/* Left: Chat (50%) */}
         <div className="w-1/2 flex flex-col border rounded-lg bg-card">
-          {/* Phase indicator */}
           {currentPhase && (
             <div className="px-4 py-2 border-b bg-muted/30 flex items-center gap-2">
               <span className="text-xs text-muted-foreground">Currently exploring:</span>
@@ -173,7 +205,6 @@ export default function ICPWizard() {
             </div>
           )}
 
-          {/* Messages */}
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
             {messages.map((msg, i) => (
               <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
@@ -204,7 +235,6 @@ export default function ICPWizard() {
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Input */}
           <div className="border-t p-3 flex gap-2">
             <Textarea
               value={input}
@@ -223,7 +253,7 @@ export default function ICPWizard() {
 
         {/* Right: Visual ICP Preview (50%) */}
         <div className="w-1/2 flex flex-col border rounded-lg bg-card p-4">
-          <ICPPreviewPanel draft={draft} saving={saving} onSave={saveICP} />
+          <ICPPreviewPanel draft={draft} saving={saving} onSave={saveICP} hasAnyData={hasAnyData} />
         </div>
       </div>
     </div>
