@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, ReactNode } from 'react';
-import { Project } from '@/integrations/supabase/types';
+import { Project } from '@/types/database';
 
 interface ProjectState {
   currentProject: Project | null;

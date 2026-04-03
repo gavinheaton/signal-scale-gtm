@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
-import { OrgMembership, Organisation } from '@/integrations/supabase/types';
+import { OrgMembership, Organisation } from '@/types/database';
 
 interface AuthState {
   session: Session | null;
@@ -34,13 +34,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .single();
     
     if (mem) {
-      setMembership(mem);
+      setMembership(mem as unknown as OrgMembership);
       const { data: org } = await supabase
         .from('organisations')
         .select('*')
         .eq('id', mem.org_id)
         .single();
-      if (org) setOrganisation(org);
+      if (org) setOrganisation(org as unknown as Organisation);
     }
   };
 

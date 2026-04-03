@@ -3,8 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useProject } from '@/contexts/ProjectContext';
-import { Project } from '@/integrations/supabase/types';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
+import { Project } from '@/types/database';
+import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { FolderOpen } from 'lucide-react';
 
@@ -56,14 +56,10 @@ export default function Projects() {
   return (
     <div>
       <h1 className="text-2xl font-bold text-foreground mb-1">Your Projects</h1>
-      <p className="text-muted-foreground mb-6" style={{ color: 'hsl(var(--orange))' }}>Select a project to enter the GTM workspace</p>
+      <p className="text-sm mb-6" style={{ color: 'hsl(var(--orange))' }}>Select a project to enter the GTM workspace</p>
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {projects.map(p => (
-          <Card
-            key={p.id}
-            className="cursor-pointer hover:shadow-md transition-shadow"
-            onClick={() => selectProject(p)}
-          >
+          <Card key={p.id} className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => selectProject(p)}>
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle className="text-lg">{p.name}</CardTitle>
