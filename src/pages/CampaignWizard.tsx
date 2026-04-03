@@ -331,6 +331,7 @@ export default function CampaignWizard() {
             draft={draft}
             saving={saving}
             onSave={saveCampaign}
+            onSaveDraft={saveDraft}
             onNameChange={handleNameChange}
             notionUrl={notionUrl}
           />
