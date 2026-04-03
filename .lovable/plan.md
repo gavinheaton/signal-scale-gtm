@@ -1,32 +1,35 @@
 
 
-# Test Send Transactional Email via Script
+# Wire Up Auth Hook Secret & Deploy
 
-## Approach
-Run a `curl` command directly to invoke the `send-transactional-email` Edge Function — no UI changes needed.
+## Problem
+Magic link emails still come from Supabase's default sender because:
+1. The `auth-email-hook` Edge Function may not be deployed yet
+2. The hook secret isn't being verified in the function code (security gap)
+3. The secret needs to be stored as a Supabase Edge Function secret
 
 ## Steps
 
-### 1. Fetch available secrets
-Check that `BREVO_API_KEY` is configured.
+### 1. Store the Hook Secret
+Add the Supabase-generated hook secret as a project secret named `AUTH_HOOK_SECRET` using the `add_secret` tool.
 
-### 2. Run curl to invoke the Edge Function
-Call the deployed function at `https://xiufgczyecwgnkbyroow.supabase.co/functions/v1/send-transactional-email` with:
-- **To:** `gavin@disruptorsco.com`
-- **Subject:** "Test Email from Signal + Scale"
-- **HTML:** Branded test email with Signal + Scale styling
-- Auth header using the Supabase anon key (the function requires JWT, so we'll need to sign in first to get a valid token, or invoke it with the service role key)
+### 2. Update `auth-email-hook` to verify the hook signature
+Add signature verification at the top of the request handler to confirm payloads genuinely come from Supabase Auth. This uses the standard HMAC-SHA256 verification pattern Supabase uses for hooks.
 
-### 3. Check response
-Verify success or diagnose any errors from the response.
+**File:** `supabase/functions/auth-email-hook/index.ts`
+- Import crypto utilities
+- Read `AUTH_HOOK_SECRET` from environment
+- Verify the `x-supabase-signature` header against the request body
+- Reject requests with invalid signatures (401)
 
-## Important prerequisite
-The Edge Function must already be deployed to Supabase. If it returns 404, it needs deployment first (`supabase functions deploy send-transactional-email`).
+### 3. Deploy the Edge Function
+Deploy `auth-email-hook` with `--no-verify-jwt` (required since Supabase Auth hooks don't send a standard JWT).
 
-## Technical note
-Since the function validates JWT auth, I'll need to either:
-- Use the Supabase service role key to bypass JWT check, or
-- Create a quick auth session to get a bearer token
+### 4. Test
+Trigger a magic link to `gavin@disruptorsco.com` via curl to confirm the branded email arrives from `admin@signal2scale.com.au` via Brevo.
 
-I'll check what's available via secrets first.
+## Technical Detail
+- Supabase Auth hooks sign the POST body with HMAC-SHA256 using the hook secret
+- The signature is sent in the `x-supabase-signature` header
+- The Edge Function must verify this before processing the payload
 
