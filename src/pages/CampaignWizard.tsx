@@ -39,6 +39,7 @@ export default function CampaignWizard() {
   const [saving, setSaving] = useState(false);
   const [prevDraft, setPrevDraft] = useState<CampaignDraft>({});
   const [notionUrl, setNotionUrl] = useState<string | null>(null);
+  const [campaignId, setCampaignId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Celebrate newly completed sections
