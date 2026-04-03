@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import PersonaSunburst from '@/components/icp-wizard/PersonaSunburst';
+import PersonaDetailModal from '@/components/PersonaDetailModal';
 import { useProject } from '@/contexts/ProjectContext';
 import { ICP, Persona, MatrixCategory, RoleInBuying } from '@/types/database';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
