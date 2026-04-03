@@ -1,59 +1,42 @@
 
 
-# Fix: "No Organisation Access" Race Condition
+# Fix: Infinite Recursion in `org_memberships` RLS Policies
 
 ## Problem
-`AuthContext` has a race condition between bootstrap and sign-in:
-1. Bootstrap runs → no session → sets `loading = false`, `bootstrapped = true`
-2. User signs in → `onAuthStateChange` fires with session
-3. `fetchOrgData` starts in `setTimeout(0)` — but `loading` is already `false`
-4. Projects page renders immediately, sees `membership = null`, shows the error
-5. A moment later `fetchOrgData` completes and sets membership — but user already saw the error
+The `org_memberships` table has a SELECT policy ("Org admins can view org memberships") that queries `org_memberships` within its own USING expression. When Postgres evaluates this policy, it triggers RLS on the same table, causing infinite recursion → 500 error.
+
+The "Superadmins can view all memberships" policy uses `is_superadmin()` which is SECURITY DEFINER (safe), and "Users can view own memberships" is a simple `user_id = auth.uid()` (safe). But the admin policy is the problem.
+
+Similarly, the INSERT policies for org admins have the same self-referencing pattern.
 
 ## Fix
-In `AuthContext.tsx`, set `loading = true` when a new sign-in event arrives (before fetching org data), so the Projects page shows the spinner instead of the error.
 
-### Changes to `src/contexts/AuthContext.tsx`
-In the `onAuthStateChange` callback, when a session exists:
-- Set `loading = true` immediately before calling `fetchOrgData`
-- Set `loading = false` after `fetchOrgData` completes (regardless of `bootstrapped` flag)
+### Migration: Replace self-referencing policies with security definer function calls
 
-```
-// Before (buggy):
-if (session?.user) {
-  setTimeout(async () => {
-    await fetchOrgData(session.user.id);
-    if (mounted && !bootstrapped.current) {
-      bootstrapped.current = true;
-      setLoading(false);
-    }
-  }, 0);
-}
+1. **Create a security definer function** `user_has_org_role` that checks if a user has a specific role in an org — bypasses RLS since it runs as the function owner:
 
-// After (fixed):
-if (session?.user) {
-  setLoading(true);  // Show spinner while fetching org
-  setTimeout(async () => {
-    await fetchOrgData(session.user.id);
-    if (mounted) {
-      bootstrapped.current = true;
-      setLoading(false);
-    }
-  }, 0);
-}
+```sql
+CREATE OR REPLACE FUNCTION public.user_has_org_role(
+  _user_id uuid, _org_id uuid, _roles org_role[]
+) RETURNS boolean
+LANGUAGE sql STABLE SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM org_memberships
+    WHERE user_id = _user_id AND org_id = _org_id AND role = ANY(_roles)
+  )
+$$;
 ```
 
-Also handle the `else` branch (sign out) to ensure loading resets:
-```
-} else {
-  setMembership(null);
-  setOrganisation(null);
-  if (mounted && bootstrapped.current) setLoading(false);
-}
-```
+2. **Drop and recreate the recursive policies** on `org_memberships`:
 
-## Files Modified
-- `src/contexts/AuthContext.tsx` — fix race condition in auth state change handler
+- **SELECT** "Org admins can view org memberships": replace subquery with `user_has_org_role(auth.uid(), org_memberships.org_id, ARRAY['owner','admin']::org_role[])`
+- **INSERT** "Org admins can insert org memberships": same pattern
+
+## Files
+- **Create**: One SQL migration with the function + policy replacements
 
 ## Scope
-One file, ~5 lines changed. No database or edge function changes needed.
+Database-only change. No frontend code modifications needed.
+
