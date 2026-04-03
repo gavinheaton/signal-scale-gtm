@@ -234,6 +234,7 @@ export default function ICPPersonas() {
               </SheetContent>
             </Sheet>
           </div>
+          </div>
           <div className="grid gap-4 md:grid-cols-2">
             {icps.map(icp => (
               <Card key={icp.id} className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setExpandedIcp(expandedIcp === icp.id ? null : icp.id)}>

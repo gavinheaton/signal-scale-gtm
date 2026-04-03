@@ -3,3 +3,5 @@ project_id = "xiufgczyecwgnkbyroow"
 [functions]
   [functions.auth-email-hook]
     verify_jwt = false
+  [functions.icp-wizard]
+    verify_jwt = false
