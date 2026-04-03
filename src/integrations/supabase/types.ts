@@ -243,12 +243,14 @@ export type Database = {
       personas: {
         Row: {
           ai_readiness_score: number | null
+          buying_behaviour: Json | null
           channel_preferences: Json | null
           goals: Json | null
           how_we_help: string | null
           icp_id: string | null
           id: string
           is_current: boolean | null
+          organisational_context: Json | null
           pain_points: Json | null
           persona_name: string
           project_id: string
@@ -256,12 +258,14 @@ export type Database = {
         }
         Insert: {
           ai_readiness_score?: number | null
+          buying_behaviour?: Json | null
           channel_preferences?: Json | null
           goals?: Json | null
           how_we_help?: string | null
           icp_id?: string | null
           id?: string
           is_current?: boolean | null
+          organisational_context?: Json | null
           pain_points?: Json | null
           persona_name: string
           project_id: string
@@ -269,12 +273,14 @@ export type Database = {
         }
         Update: {
           ai_readiness_score?: number | null
+          buying_behaviour?: Json | null
           channel_preferences?: Json | null
           goals?: Json | null
           how_we_help?: string | null
           icp_id?: string | null
           id?: string
           is_current?: boolean | null
+          organisational_context?: Json | null
           pain_points?: Json | null
           persona_name?: string
           project_id?: string

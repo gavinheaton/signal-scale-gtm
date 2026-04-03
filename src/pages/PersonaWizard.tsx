@@ -213,6 +213,8 @@ export default function PersonaWizard() {
           preferred_evidence: draft.preferred_evidence || {},
         },
         how_we_help: draft.how_we_help || '',
+        organisational_context: draft.organisational_context || {},
+        buying_behaviour: draft.buying_behaviour || {},
         ai_readiness_score: draft.ai_readiness_score || 3,
         is_current: true,
       };
