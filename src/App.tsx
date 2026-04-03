@@ -7,6 +7,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { ProjectProvider } from "@/contexts/ProjectContext";
 import { AppLayout } from "@/components/AppLayout";
 import Auth from "@/pages/Auth";
+import AuthCallback from "@/pages/AuthCallback";
 import Projects from "@/pages/Projects";
 import Home from "@/pages/Home";
 import ICPPersonas from "@/pages/ICPPersonas";
