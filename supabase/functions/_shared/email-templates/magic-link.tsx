@@ -10,6 +10,7 @@ import {
   Heading,
   Html,
   Preview,
+  Section,
   Text,
 } from 'npm:@react-email/components@0.0.22'
 
@@ -23,21 +24,33 @@ export const MagicLinkEmail = ({
   confirmationUrl,
 }: MagicLinkEmailProps) => (
   <Html lang="en" dir="ltr">
-    <Head />
+    <Head>
+      <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet" />
+    </Head>
     <Preview>Your login link for {siteName}</Preview>
     <Body style={main}>
       <Container style={container}>
-        <Heading style={h1}>Your login link</Heading>
-        <Text style={text}>
-          Click the button below to log in to {siteName}. This link will expire
-          shortly.
-        </Text>
-        <Button style={button} href={confirmationUrl}>
-          Log In
-        </Button>
-        <Text style={footer}>
-          If you didn't request this link, you can safely ignore this email.
-        </Text>
+        <Section style={header}>
+          <Heading style={logoText}>{siteName}</Heading>
+          <Text style={tagline}>AI-Powered GTM Platform</Text>
+        </Section>
+        <Section style={body}>
+          <Heading style={h1}>Sign in securely ✨</Heading>
+          <Text style={text}>
+            Click the button below to sign in to your {siteName} account. This link expires in 1 hour.
+          </Text>
+          <Section style={buttonContainer}>
+            <Button style={button} href={confirmationUrl}>
+              Sign In
+            </Button>
+          </Section>
+          <Text style={muted}>
+            If you didn't request this link, you can safely ignore this email.
+          </Text>
+        </Section>
+        <Section style={footer}>
+          <Text style={footerText}>© {new Date().getFullYear()} Signal + Scale. All rights reserved.</Text>
+        </Section>
       </Container>
     </Body>
   </Html>
@@ -45,26 +58,16 @@ export const MagicLinkEmail = ({
 
 export default MagicLinkEmail
 
-const main = { backgroundColor: '#ffffff', fontFamily: 'Arial, sans-serif' }
-const container = { padding: '20px 25px' }
-const h1 = {
-  fontSize: '22px',
-  fontWeight: 'bold' as const,
-  color: '#000000',
-  margin: '0 0 20px',
-}
-const text = {
-  fontSize: '14px',
-  color: '#55575d',
-  lineHeight: '1.5',
-  margin: '0 0 25px',
-}
-const button = {
-  backgroundColor: '#000000',
-  color: '#ffffff',
-  fontSize: '14px',
-  borderRadius: '8px',
-  padding: '12px 20px',
-  textDecoration: 'none',
-}
-const footer = { fontSize: '12px', color: '#999999', margin: '30px 0 0' }
+const main = { backgroundColor: '#f8f8fc', fontFamily: "'Poppins', Arial, sans-serif", padding: '40px 0' }
+const container = { backgroundColor: '#ffffff', maxWidth: '560px', margin: '0 auto', borderRadius: '12px', overflow: 'hidden' as const, boxShadow: '0 4px 24px rgba(15, 40, 76, 0.08)' }
+const header = { backgroundColor: '#0f284c', padding: '32px 40px', textAlign: 'center' as const }
+const logoText = { color: '#ffffff', margin: '0', fontSize: '24px', fontWeight: '700' as const, fontFamily: "'Poppins', Arial, sans-serif" }
+const tagline = { color: '#e33e23', margin: '8px 0 0', fontSize: '14px', fontFamily: "'Poppins', Arial, sans-serif" }
+const body = { padding: '40px' }
+const h1 = { fontSize: '22px', fontWeight: '700' as const, color: '#0f284c', margin: '0 0 16px', fontFamily: "'Poppins', Arial, sans-serif" }
+const text = { fontSize: '15px', color: '#555555', lineHeight: '1.6', margin: '0 0 16px', fontFamily: "'Poppins', Arial, sans-serif" }
+const buttonContainer = { textAlign: 'center' as const, margin: '24px 0' }
+const button = { backgroundColor: '#8833ff', color: '#ffffff', fontSize: '16px', fontWeight: '600' as const, borderRadius: '8px', padding: '14px 32px', textDecoration: 'none', fontFamily: "'Poppins', Arial, sans-serif" }
+const muted = { fontSize: '13px', color: '#999999', lineHeight: '1.5', margin: '0', fontFamily: "'Poppins', Arial, sans-serif" }
+const footer = { padding: '24px 40px', textAlign: 'center' as const, borderTop: '1px solid #eee' }
+const footerText = { margin: '0', fontSize: '12px', color: '#888888', fontFamily: "'Poppins', Arial, sans-serif" }
