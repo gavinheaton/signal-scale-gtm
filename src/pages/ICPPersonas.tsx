@@ -12,8 +12,8 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Label as RLabel } from 'recharts';
-import { Plus, Target, Users } from 'lucide-react';
-import { Navigate } from 'react-router-dom';
+import { Plus, Target, Users, Sparkles } from 'lucide-react';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 
 const matrixColors: Record<MatrixCategory, string> = {
