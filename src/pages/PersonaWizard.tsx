@@ -177,7 +177,7 @@ export default function PersonaWizard() {
         ? (draft.role_in_buying as RoleInBuying)
         : 'influencer';
 
-      const { data: insertedData, error } = await supabase.from('personas').insert({
+      const personaData = {
         project_id: currentProject.id,
         icp_id: icpId || null,
         persona_name: draft.persona_name || 'New Persona',
@@ -191,9 +191,19 @@ export default function PersonaWizard() {
         how_we_help: draft.how_we_help || '',
         ai_readiness_score: draft.ai_readiness_score || 3,
         is_current: true,
-      }).select('id').single();
+      };
 
-      if (error) throw error;
+      let savedId: string;
+
+      if (editPersonaId) {
+        const { error } = await supabase.from('personas').update(personaData).eq('id', editPersonaId);
+        if (error) throw error;
+        savedId = editPersonaId;
+      } else {
+        const { data: insertedData, error } = await supabase.from('personas').insert(personaData).select('id').single();
+        if (error) throw error;
+        savedId = insertedData.id;
+      }
 
       if (sessionId) {
         await supabase
@@ -202,8 +212,8 @@ export default function PersonaWizard() {
           .eq('id', sessionId);
       }
 
-      toast.success('Persona saved to platform!');
-      setSavedPersonaId(insertedData.id);
+      toast.success(editPersonaId ? 'Persona updated!' : 'Persona saved to platform!');
+      setSavedPersonaId(savedId);
       setSaving(false);
     } catch (err: any) {
       toast.error('Failed to save: ' + err.message);
