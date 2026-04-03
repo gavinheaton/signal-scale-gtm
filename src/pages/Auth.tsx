@@ -107,9 +107,9 @@ export default function Auth() {
                     required
                   />
                 </div>
-                <Button type="submit" className="w-full" disabled={submitting}>
+                <Button type="submit" className="w-full" disabled={submitting || cooldown > 0}>
                   <Mail className="mr-2 h-4 w-4" />
-                  {submitting ? 'Sending...' : 'Send Magic Link'}
+                  {submitting ? 'Sending...' : cooldown > 0 ? `Send Magic Link (${cooldown}s)` : 'Send Magic Link'}
                 </Button>
               </form>
             ) : (
