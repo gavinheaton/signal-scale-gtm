@@ -111,7 +111,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { message, session_id, project_id, icp_id } = await req.json();
+    const { message, session_id, project_id, icp_id, edit_persona_id } = await req.json();
 
     let sessionId = session_id;
     let messages: Array<{ role: string; content: string; timestamp: string }> = [];
