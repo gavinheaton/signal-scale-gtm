@@ -1,63 +1,47 @@
 
 
-# Set Up Brevo as Email Provider for Auth & Transactional Emails
-
-## Overview
-Configure Brevo (formerly Sendinblue) as the email provider for all Supabase auth emails (magic links, signup confirmations, password reset) and future transactional emails, using a Supabase Edge Function as an auth email hook.
-
-## What you need ready
-- Your Brevo API key (v3 API key from Brevo dashboard → SMTP & API → API Keys)
-- A verified sender email in Brevo (e.g., `noreply@signal2scale.com.au`)
+# Fix Auth Email Hook & Update Sender
 
 ## Changes
 
-### 1. Store Brevo API key as a secret
-- Add `BREVO_API_KEY` as a runtime secret using the secrets tool
+### 1. Update sender email in `send-transactional-email`
+**File: `supabase/functions/send-transactional-email/index.ts`**
+- Change `SENDER_EMAIL` from `noreply@signal2scale.com.au` to `admin@signal2scale.com.au`
 
-### 2. Create the auth email hook Edge Function
+### 2. Fix auth-email-hook response to match Supabase Auth Hook schema
 **File: `supabase/functions/auth-email-hook/index.ts`**
 
-- Receives auth email events from Supabase (magic link, signup, recovery, etc.)
-- Renders branded HTML email content inline (Signal + Scale branding: navy #0f284c, purple #8833ff, orange #e33e23, Poppins font)
-- Calls Brevo's transactional email API (`https://api.brevo.com/v3/smtp/email`) with the rendered HTML
-- Handles all auth email types: `signup`, `magiclink`, `recovery`, `invite`, `email_change`, `reauthentication`
-- Includes CORS headers and input validation
-- Uses `verify_jwt = false` in config since it's called by Supabase internals
+Supabase Auth Hooks (specifically the "Send Email" hook using the Postgres function schema) expect the Edge Function to return a JSON response in this specific format:
 
-### 3. Create a send-transactional-email Edge Function
-**File: `supabase/functions/send-transactional-email/index.ts`**
+```json
+{
+  "email": {
+    "subject": "...",
+    "body": "..."
+  }
+}
+```
 
-- Generic sender for app/transactional emails (future use: notifications, confirmations)
-- Accepts `templateName`, `recipientEmail`, `subject`, `htmlContent`, and optional `templateData`
-- Calls Brevo's API with the provided content
-- Validates JWT for authenticated requests from the frontend
+However, since we're sending the email ourselves via Brevo (not letting Supabase send it), the hook must signal that Supabase should NOT also send its default email. The correct response format for a "Send Email" hook that handles delivery itself is:
 
-### 4. Configure Supabase Auth Hook (manual step)
-In **Supabase Dashboard → Authentication → Hooks**:
-- Enable the "Send Email" hook
-- Point it to the `auth-email-hook` Edge Function
-- This intercepts all auth emails and routes them through Brevo
+```json
+{}
+```
 
-### 5. Deploy Edge Functions
-- Deploy `auth-email-hook` and `send-transactional-email`
+...returned with status 200. This tells Supabase the hook handled the email successfully and no further action is needed.
 
-## Email templates included
-All templates will be branded with Signal + Scale styling:
-- **Signup confirmation** — "Confirm your email to get started"
-- **Magic link** — "Click to sign in securely"
-- **Password recovery** — "Reset your password"
-- **Email change** — "Confirm your new email address"
-- **Invite** — "You've been invited to Signal + Scale"
-- **Reauthentication** — OTP code for sensitive actions
+Current code returns `{ "success": true }` which doesn't match the expected schema and may cause Supabase to reject the hook response or double-send.
 
-## Manual steps required
-1. Verify `noreply@signal2scale.com.au` (or your preferred sender) in Brevo dashboard
-2. In Supabase Dashboard → Auth → Hooks → enable "Send Email" hook pointing to the Edge Function
-3. Optionally configure Brevo domain authentication (DKIM/SPF) for better deliverability
+**Fix:** Change the success response to return an empty JSON object `{}`.
+
+Also update `SENDER_EMAIL` to `admin@signal2scale.com.au` here as well for consistency (the auth emails will also come from this address).
+
+### 3. Redeploy both Edge Functions
+After changes, both functions need redeployment:
+- `auth-email-hook` (with `--no-verify-jwt`)
+- `send-transactional-email`
 
 ## Technical details
-- Brevo API endpoint: `POST https://api.brevo.com/v3/smtp/email`
-- Auth header: `api-key: {BREVO_API_KEY}`
-- Edge Functions use Deno runtime with CORS support
-- All emails sent as HTML with plain-text fallback
+- Supabase Auth Hook "Send Email" expects either an empty response body or a specific schema — returning arbitrary JSON like `{ success: true }` can cause hook failures
+- Both functions will use `admin@signal2scale.com.au` as the sender — ensure this address is verified in your Brevo dashboard
 
