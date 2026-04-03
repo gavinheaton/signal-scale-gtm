@@ -1,0 +1,1 @@
+UPDATE public.org_memberships SET role = 'superadmin' WHERE user_id = '0933f726-8038-4570-b5ad-249494a8d08d' AND org_id = 'a0000000-0000-0000-0000-000000000001';
