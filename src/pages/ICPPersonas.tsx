@@ -204,36 +204,9 @@ export default function ICPPersonas() {
           {/* ICP Cards */}
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold" style={{ color: 'hsl(var(--orange))' }}>ICP Segments</h2>
-            <div className="flex gap-2">
-              <Button size="sm" variant="outline" onClick={() => navigate('/project/icp-wizard')}>
-                <Sparkles className="h-4 w-4 mr-1" /> ICP Wizard
-              </Button>
-              <Sheet open={icpOpen} onOpenChange={setIcpOpen}>
-                <SheetTrigger asChild>
-                  <Button size="sm"><Plus className="h-4 w-4 mr-1" /> Add ICP Segment</Button>
-                </SheetTrigger>
-              <SheetContent>
-                <SheetHeader><SheetTitle>Add ICP Segment</SheetTitle></SheetHeader>
-                <div className="space-y-4 mt-4">
-                  <div><Label>Segment Name</Label><Input value={icpForm.segment_name} onChange={e => setIcpForm(f => ({ ...f, segment_name: e.target.value }))} /></div>
-                  <div><Label>Fit Score (1-10)</Label><Input type="number" min={1} max={10} value={icpForm.fit_score} onChange={e => setIcpForm(f => ({ ...f, fit_score: +e.target.value }))} /></div>
-                  <div><Label>Access Score (1-10)</Label><Input type="number" min={1} max={10} value={icpForm.access_score} onChange={e => setIcpForm(f => ({ ...f, access_score: +e.target.value }))} /></div>
-                  <div>
-                    <Label>Matrix Category</Label>
-                    <Select value={icpForm.matrix_category} onValueChange={v => setIcpForm(f => ({ ...f, matrix_category: v as MatrixCategory }))}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {Object.entries(matrixLabels).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div><Label>Firmographics (JSON)</Label><Textarea value={icpForm.firmographics} onChange={e => setIcpForm(f => ({ ...f, firmographics: e.target.value }))} placeholder='{"industry": "Government", "size": "1000+"}' /></div>
-                  <div><Label>Buyer Roles (JSON)</Label><Textarea value={icpForm.buyer_roles} onChange={e => setIcpForm(f => ({ ...f, buyer_roles: e.target.value }))} placeholder='["CTO", "Procurement"]' /></div>
-                  <Button onClick={handleAddIcp} className="w-full">Save ICP Segment</Button>
-                </div>
-              </SheetContent>
-            </Sheet>
-          </div>
+            <Button size="sm" onClick={() => navigate('/project/icp-wizard')}>
+              <Sparkles className="h-4 w-4 mr-1" /> Add ICP Segment
+            </Button>
           </div>
           <div className="grid gap-4 md:grid-cols-2">
             {icps.map(icp => (
