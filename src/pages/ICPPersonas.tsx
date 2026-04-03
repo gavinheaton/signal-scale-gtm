@@ -204,10 +204,14 @@ export default function ICPPersonas() {
           {/* ICP Cards */}
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold" style={{ color: 'hsl(var(--orange))' }}>ICP Segments</h2>
-            <Sheet open={icpOpen} onOpenChange={setIcpOpen}>
-              <SheetTrigger asChild>
-                <Button size="sm"><Plus className="h-4 w-4 mr-1" /> Add ICP Segment</Button>
-              </SheetTrigger>
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" onClick={() => navigate('/project/icp-wizard')}>
+                <Sparkles className="h-4 w-4 mr-1" /> ICP Wizard
+              </Button>
+              <Sheet open={icpOpen} onOpenChange={setIcpOpen}>
+                <SheetTrigger asChild>
+                  <Button size="sm"><Plus className="h-4 w-4 mr-1" /> Add ICP Segment</Button>
+                </SheetTrigger>
               <SheetContent>
                 <SheetHeader><SheetTitle>Add ICP Segment</SheetTitle></SheetHeader>
                 <div className="space-y-4 mt-4">
