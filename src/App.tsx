@@ -14,6 +14,7 @@ import ICPPersonas from "@/pages/ICPPersonas";
 import ICPWizard from "@/pages/ICPWizard";
 import PersonaWizard from "@/pages/PersonaWizard";
 import Campaigns from "@/pages/Campaigns";
+import CampaignWizard from "@/pages/CampaignWizard";
 import ContentPipeline from "@/pages/ContentPipeline";
 import Analytics from "@/pages/Analytics";
 import SettingsPage from "@/pages/Settings";
