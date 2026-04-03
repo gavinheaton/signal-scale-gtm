@@ -378,28 +378,34 @@ export type Database = {
       }
       wizard_sessions: {
         Row: {
+          context: Json | null
           created_at: string
           draft_output: Json
           id: string
           messages: Json
+          notion_url: string | null
           project_id: string
           session_type: Database["public"]["Enums"]["wizard_session_type"]
           status: Database["public"]["Enums"]["wizard_session_status"]
         }
         Insert: {
+          context?: Json | null
           created_at?: string
           draft_output?: Json
           id?: string
           messages?: Json
+          notion_url?: string | null
           project_id: string
           session_type: Database["public"]["Enums"]["wizard_session_type"]
           status?: Database["public"]["Enums"]["wizard_session_status"]
         }
         Update: {
+          context?: Json | null
           created_at?: string
           draft_output?: Json
           id?: string
           messages?: Json
+          notion_url?: string | null
           project_id?: string
           session_type?: Database["public"]["Enums"]["wizard_session_type"]
           status?: Database["public"]["Enums"]["wizard_session_status"]
@@ -467,7 +473,7 @@ export type Database = {
         | "end_user"
         | "blocker"
       wizard_session_status: "in_progress" | "complete"
-      wizard_session_type: "icp" | "persona" | "competitor"
+      wizard_session_type: "icp" | "persona" | "competitor" | "campaign"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -631,7 +637,7 @@ export const Constants = {
         "blocker",
       ],
       wizard_session_status: ["in_progress", "complete"],
-      wizard_session_type: ["icp", "persona", "competitor"],
+      wizard_session_type: ["icp", "persona", "competitor", "campaign"],
     },
   },
 } as const

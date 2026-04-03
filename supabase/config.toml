@@ -11,3 +11,5 @@ project_id = "xiufgczyecwgnkbyroow"
     verify_jwt = false
   [functions.manage-project-connection]
     verify_jwt = false
+  [functions.campaign-wizard]
+    verify_jwt = false
