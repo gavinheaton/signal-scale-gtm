@@ -82,36 +82,43 @@ export default function PersonaWizard() {
   const initSession = async () => {
     setLoading(true);
     try {
-      const { data: existingSessions } = await supabase
-        .from('wizard_sessions')
-        .select('*')
-        .eq('project_id', currentProject!.id)
-        .eq('session_type', 'persona')
-        .eq('status', 'in_progress')
-        .order('created_at', { ascending: false })
-        .limit(1);
+      // In edit mode, skip resuming existing sessions
+      if (!editPersonaId) {
+        const { data: existingSessions } = await supabase
+          .from('wizard_sessions')
+          .select('*')
+          .eq('project_id', currentProject!.id)
+          .eq('session_type', 'persona')
+          .eq('status', 'in_progress')
+          .order('created_at', { ascending: false })
+          .limit(1);
 
-      if (existingSessions && existingSessions.length > 0) {
-        const session = existingSessions[0];
-        setSessionId(session.id);
-        const sessionMessages = session.messages as Array<{ role: string; content: string }>;
-        setMessages(
-          sessionMessages.map(m => ({
-            role: m.role as 'user' | 'assistant',
-            content: m.role === 'assistant'
-              ? m.content.replace(/<draft>[\s\S]*?<\/draft>/g, '').trim()
-              : m.content,
-          }))
-        );
-        if (session.draft_output && Object.keys(session.draft_output as object).length > 0) {
-          setDraft(session.draft_output as PersonaDraft);
+        if (existingSessions && existingSessions.length > 0) {
+          const session = existingSessions[0];
+          setSessionId(session.id);
+          const sessionMessages = session.messages as Array<{ role: string; content: string }>;
+          setMessages(
+            sessionMessages.map(m => ({
+              role: m.role as 'user' | 'assistant',
+              content: m.role === 'assistant'
+                ? m.content.replace(/<draft>[\s\S]*?<\/draft>/g, '').trim()
+                : m.content,
+            }))
+          );
+          if (session.draft_output && Object.keys(session.draft_output as object).length > 0) {
+            setDraft(session.draft_output as PersonaDraft);
+          }
+          toast.info('Resumed your previous persona session');
+          return;
         }
-        toast.info('Resumed your previous persona session');
-        return;
       }
 
       const res = await supabase.functions.invoke('persona-wizard', {
-        body: { project_id: currentProject!.id, icp_id: icpId },
+        body: {
+          project_id: currentProject!.id,
+          icp_id: icpId,
+          ...(editPersonaId ? { edit_persona_id: editPersonaId } : {}),
+        },
       });
       if (res.error) throw res.error;
       const data = res.data;
