@@ -20,7 +20,8 @@ const statusColors: Record<string, string> = {
 };
 
 export default function Projects() {
-  const { membership, loading: authLoading, signOut } = useAuth();
+  const { membership, loading: authLoading, signOut, hasMinRole } = useAuth();
+  const canCreateProject = hasMinRole('manager');
   const { setCurrentProject } = useProject();
   const navigate = useNavigate();
   const [projects, setProjects] = useState<Project[]>([]);
