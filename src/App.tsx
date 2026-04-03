@@ -38,6 +38,7 @@ const App = () => (
                 <Route path="/project/home" element={<Home />} />
                 <Route path="/project/icp-personas" element={<ICPPersonas />} />
                 <Route path="/project/icp-wizard" element={<ICPWizard />} />
+                <Route path="/project/persona-wizard" element={<PersonaWizard />} />
                 <Route path="/project/campaigns" element={<Campaigns />} />
                 <Route path="/project/content" element={<ContentPipeline />} />
                 <Route path="/project/analytics" element={<Analytics />} />
