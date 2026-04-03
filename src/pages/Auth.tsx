@@ -40,6 +40,7 @@ export default function Auth() {
     } else {
       toast.success('Check your email for a magic link or code!');
       setStep('otp');
+      setCooldown(60);
     }
     setSubmitting(false);
   };
