@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Check, Loader2, Sparkles } from 'lucide-react';
+import { Check, Loader2, Save, Sparkles } from 'lucide-react';
 import { ScoreRing } from './ScoreRing';
 import { HexProgress } from './HexProgress';
 import { SectionDetail } from './SectionDetail';
@@ -12,6 +12,7 @@ interface ICPPreviewPanelProps {
   draft: DraftOutput;
   saving: boolean;
   onSave: () => void;
+  hasAnyData: boolean;
 }
 
 const MATRIX_COLORS: Record<string, { bg: string; text: string; label: string }> = {
@@ -21,7 +22,7 @@ const MATRIX_COLORS: Record<string, { bg: string; text: string; label: string }>
   no_go: { bg: 'bg-red-500/15', text: 'text-red-600', label: 'No-Go Zone' },
 };
 
-export function ICPPreviewPanel({ draft, saving, onSave }: ICPPreviewPanelProps) {
+export function ICPPreviewPanel({ draft, saving, onSave, hasAnyData }: ICPPreviewPanelProps) {
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
   const [activeHexSection, setActiveHexSection] = useState<string | undefined>();
   const [showSuccess, setShowSuccess] = useState(false);
@@ -30,7 +31,6 @@ export function ICPPreviewPanel({ draft, saving, onSave }: ICPPreviewPanelProps)
   const isComplete = draft.is_complete === true;
   const matrixInfo = MATRIX_COLORS[draft.matrix_category || ''];
 
-  // Auto-expand all when complete
   useEffect(() => {
     if (isComplete) {
       setExpandedSections(new Set(ICP_SECTIONS.map(s => s.key)));
@@ -75,7 +75,7 @@ export function ICPPreviewPanel({ draft, saving, onSave }: ICPPreviewPanelProps)
 
   return (
     <div ref={panelRef} className="flex-1 flex flex-col gap-4 overflow-y-auto pr-1">
-      {/* Header with segment name and matrix badge */}
+      {/* Header */}
       <div className="space-y-3">
         <div className="flex items-start justify-between">
           <div>
@@ -91,36 +91,18 @@ export function ICPPreviewPanel({ draft, saving, onSave }: ICPPreviewPanelProps)
           <Sparkles className="h-5 w-5 text-muted-foreground/30" />
         </div>
 
-        {/* Score rings */}
         {(draft.fit_score || draft.access_score) && (
           <div className="flex justify-center gap-8 py-2">
-            <ScoreRing
-              score={draft.fit_score || 0}
-              maxScore={10}
-              label="Fit"
-              color="hsl(var(--purple))"
-            />
-            <ScoreRing
-              score={draft.access_score || 0}
-              maxScore={10}
-              label="Access"
-              color="hsl(var(--orange))"
-            />
+            <ScoreRing score={draft.fit_score || 0} maxScore={10} label="Fit" color="hsl(var(--purple))" />
+            <ScoreRing score={draft.access_score || 0} maxScore={10} label="Access" color="hsl(var(--orange))" />
           </div>
         )}
 
-        {/* Completion bar */}
         <CompletionBar draft={draft} />
       </div>
 
-      {/* Hex progress */}
-      <HexProgress
-        draft={draft}
-        onSectionClick={handleHexClick}
-        activeSection={activeHexSection}
-      />
+      <HexProgress draft={draft} onSectionClick={handleHexClick} activeSection={activeHexSection} />
 
-      {/* Section details */}
       <div className="space-y-2">
         {ICP_SECTIONS.map(section => (
           <SectionDetail
@@ -136,24 +118,38 @@ export function ICPPreviewPanel({ draft, saving, onSave }: ICPPreviewPanelProps)
         ))}
       </div>
 
-      {/* Save button — always visible */}
-      <div className="sticky bottom-0 pt-3 pb-1 bg-gradient-to-t from-background via-background to-transparent">
-        <Button
-          onClick={handleSave}
-          disabled={!isComplete || saving}
-          className={`w-full transition-all duration-500 ${
-            isComplete ? 'animate-[pulse_2s_ease-in-out_infinite] shadow-lg shadow-primary/25' : ''
-          }`}
-          size="lg"
-        >
-          {saving ? (
-            <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Saving…</>
-          ) : isComplete ? (
-            <><Check className="h-4 w-4 mr-2" /> Your ICP is ready — Save to Platform</>
-          ) : (
-            <span className="text-muted-foreground">Complete all sections to save</span>
-          )}
-        </Button>
+      {/* Save buttons — always visible */}
+      <div className="sticky bottom-0 pt-3 pb-1 bg-gradient-to-t from-background via-background to-transparent space-y-2">
+        {isComplete ? (
+          <Button
+            onClick={handleSave}
+            disabled={saving}
+            className="w-full animate-[pulse_2s_ease-in-out_infinite] shadow-lg shadow-primary/25"
+            size="lg"
+          >
+            {saving ? (
+              <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Saving…</>
+            ) : (
+              <><Check className="h-4 w-4 mr-2" /> Your ICP is ready — Save to Platform</>
+            )}
+          </Button>
+        ) : (
+          <Button
+            onClick={handleSave}
+            disabled={saving || !hasAnyData}
+            variant="outline"
+            className="w-full"
+            size="lg"
+          >
+            {saving ? (
+              <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Saving…</>
+            ) : hasAnyData ? (
+              <><Save className="h-4 w-4 mr-2" /> Save Draft to Platform</>
+            ) : (
+              <span className="text-muted-foreground">Chat to start building your ICP</span>
+            )}
+          </Button>
+        )}
       </div>
     </div>
   );
