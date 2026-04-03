@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Navigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -16,6 +16,13 @@ export default function Auth() {
   const [otp, setOtp] = useState('');
   const [step, setStep] = useState<'email' | 'otp'>('email');
   const [submitting, setSubmitting] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
+
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const timer = setInterval(() => setCooldown(c => c - 1), 1000);
+    return () => clearInterval(timer);
+  }, [cooldown]);
 
   if (loading) return null;
   if (user) return <Navigate to="/projects" replace />;
@@ -33,6 +40,7 @@ export default function Auth() {
     } else {
       toast.success('Check your email for a magic link or code!');
       setStep('otp');
+      setCooldown(60);
     }
     setSubmitting(false);
   };
@@ -99,9 +107,9 @@ export default function Auth() {
                     required
                   />
                 </div>
-                <Button type="submit" className="w-full" disabled={submitting}>
+                <Button type="submit" className="w-full" disabled={submitting || cooldown > 0}>
                   <Mail className="mr-2 h-4 w-4" />
-                  {submitting ? 'Sending...' : 'Send Magic Link'}
+                  {submitting ? 'Sending...' : cooldown > 0 ? `Send Magic Link (${cooldown}s)` : 'Send Magic Link'}
                 </Button>
               </form>
             ) : (
@@ -132,9 +140,9 @@ export default function Auth() {
                   variant="link"
                   className="w-full text-muted-foreground"
                   onClick={handleSendMagicLink}
-                  disabled={submitting}
+                  disabled={submitting || cooldown > 0}
                 >
-                  Resend code
+                  {cooldown > 0 ? `Resend code (${cooldown}s)` : 'Resend code'}
                 </Button>
               </div>
             )}
