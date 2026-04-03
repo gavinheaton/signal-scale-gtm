@@ -1,62 +1,56 @@
 
 
-# Fix ICP Wizard: Storage, Save Flow, and AI Awareness
+# Cache Brand Context for Reuse Across ICP Sessions
 
-## Root Causes
+## Problem
+Every new ICP wizard session asks "what's your website URL?" and re-crawls it. The user shouldn't have to repeat this for each segment — the brand analysis from the first crawl should persist at the project level and be injected into all subsequent wizard sessions (ICP and persona).
 
-1. **Claude says "I can't save"** — The system prompt never tells Claude that the draft JSON is automatically persisted. Claude thinks it's just chatting with no backend integration.
-2. **Draft JSON parsing fails** — Edge function logs show `Failed to parse draft JSON`. When Claude outputs malformed JSON (trailing commas, comments, etc.), the draft stays empty `{}` and the save button never enables.
-3. **Save requires `is_complete === true`** — Users can't save partial progress or override. If Claude never sets the flag (or draft parsing fails), the button stays permanently disabled.
-4. **Rate limits** — The fetched website content (up to 8000 chars) plus the system prompt and conversation history pushes past the 10,000 input token/minute rate limit. Need to trim context.
+## Approach
+
+Store the crawled website content and brand summary on the **projects** table as a JSONB column. The first ICP wizard session crawls the site, and the edge function saves that analysis. All future sessions skip the URL question and start with brand context pre-loaded.
 
 ## Changes
 
-### 1. Edge function: `supabase/functions/icp-wizard/index.ts`
+### 1. Database migration — add `brand_context` column to `projects`
 
-**System prompt update** — Add explicit instructions that:
-- The draft JSON is automatically saved to the database after every exchange
-- When all 6 sections are complete, the user can save the ICP to the platform with one click
-- Claude should proactively tell the user "Your ICP is ready — click Save to Platform on the right panel" when complete
-- Remove any ambiguity about saving capability
+```sql
+ALTER TABLE public.projects 
+ADD COLUMN brand_context jsonb DEFAULT '{}'::jsonb;
+```
 
-**Robust draft parsing** — When JSON.parse fails:
-- Strip common issues: trailing commas, JS-style comments, control characters
-- Try parsing again after cleanup
-- If still failing, preserve the previous draft from the session rather than returning `{}`
-- Log the raw draft string for debugging
+Stores: `{ website_url, crawled_content, brand_summary, crawled_at }`
 
-**Context trimming** — Reduce fetched URL content from 8000 to 4000 chars to stay under rate limits. Also trim the system prompt slightly.
+No RLS changes needed — projects table already has org-scoped read/write policies.
 
-**Merge drafts** — Instead of replacing the entire draft with each response, deep-merge the new draft with the existing one so partial parse failures don't wipe progress.
+### 2. Edge function: `supabase/functions/icp-wizard/index.ts`
 
-### 2. Frontend: `src/pages/ICPWizard.tsx`
+**On session init** — query `projects.brand_context` for the current project. If it has content:
+- Skip the "what's your website URL?" opening question
+- Change the initial message to: "I already have context on your brand. Let's define a new ICP segment — what market or customer type are you targeting?"
+- Inject the brand summary into the system prompt as a `BRAND CONTEXT` block
 
-**Always-available save** — Change save button to have two states:
-- Complete: "Save ICP to Platform" (primary, pulsing)  
-- Partial (at least 1 section has data): "Save Draft to Platform" (secondary, enabled)
-- Empty: disabled
+**On first URL crawl** — after fetching and cleaning the website content:
+- Save it to `projects.brand_context` as `{ website_url, crawled_content (trimmed), crawled_at }`
+- This persists for all future sessions
 
-**Error handling** — Show a toast with the actual Supabase error if save fails, and don't trigger the success animation unless the insert actually succeeded.
+**System prompt update** — add a conditional section:
+```
+BRAND CONTEXT (from previous analysis):
+{brand_context.crawled_content}
+Use this to inform your ICP questions. Do NOT ask for the website URL again.
+```
 
-**Resume sessions** — On init, check for an existing `in_progress` wizard session for this project and resume it instead of always creating a new one, so progress isn't lost.
+### 3. Edge function: `supabase/functions/persona-wizard/index.ts`
 
-### 3. Preview panel: `src/components/icp-wizard/ICPPreviewPanel.tsx`
+Same pattern — on session init, load `projects.brand_context` and inject it into the persona system prompt alongside the ICP data. The persona wizard already receives ICP context; brand context adds another layer.
 
-**Two save buttons** — When not complete, show "Save Draft" (outlined) that saves whatever exists. When complete, show the full "Save to Platform" CTA.
+### 4. Frontend: `src/pages/ICPWizard.tsx`
 
-**Handle partial data gracefully** — The `saveICP` function should work even with incomplete sections, defaulting missing scores and matrix_category.
-
-### 4. Edge function draft merging logic
-
-When the new draft from Claude only has partial sections, merge it with the existing `draft_output` from the session so that previously captured data isn't lost on a parse failure.
+No major changes needed. The edge function handles the initial message change. The chat will simply start with a different opening question when brand context exists.
 
 ## Files to modify
 
-- `supabase/functions/icp-wizard/index.ts` — System prompt, draft parsing robustness, context trimming, draft merging
-- `src/pages/ICPWizard.tsx` — Resume sessions, partial save support, error handling
-- `src/components/icp-wizard/ICPPreviewPanel.tsx` — Enable save at partial completion
-
-## No database changes needed
-
-The existing `wizard_sessions` and `icps` tables already support everything needed.
+- **Migration**: Add `brand_context jsonb` column to `projects`
+- **`supabase/functions/icp-wizard/index.ts`**: Load brand context on init, save on first crawl, inject into system prompt, change initial message conditionally
+- **`supabase/functions/persona-wizard/index.ts`**: Load and inject brand context into system prompt
 
