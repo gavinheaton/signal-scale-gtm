@@ -43,25 +43,8 @@ export default function Campaigns() {
     });
   }, [selectedCampaign]);
 
-  if (!currentProject) return <Navigate to="/projects" replace />;
 
-  const handleCreate = async () => {
-    const { error } = await supabase.from('campaigns').insert({
-      project_id: currentProject.id,
-      name: form.name,
-      track: form.track,
-      status: 'brief',
-      objective: form.objective,
-      launch_date: form.launch_date || null,
-      end_date: form.end_date || null,
-      target_icp_ids: [],
-      channel_mix: {},
-    });
-    if (error) { toast.error(error.message); return; }
-    toast.success('Campaign created');
-    setFormOpen(false);
-    fetchData();
-  };
+
 
   const activeCampaigns = campaigns.filter(c => c.status === 'active');
   const captureActive = activeCampaigns.filter(c => c.track === 'demand_capture').length;
