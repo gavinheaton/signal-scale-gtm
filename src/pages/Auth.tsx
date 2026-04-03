@@ -140,9 +140,9 @@ export default function Auth() {
                   variant="link"
                   className="w-full text-muted-foreground"
                   onClick={handleSendMagicLink}
-                  disabled={submitting}
+                  disabled={submitting || cooldown > 0}
                 >
-                  Resend code
+                  {cooldown > 0 ? `Resend code (${cooldown}s)` : 'Resend code'}
                 </Button>
               </div>
             )}
