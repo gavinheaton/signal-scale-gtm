@@ -54,7 +54,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setMembership(null);
         setOrganisation(null);
       }
-      setLoading(false);
     });
 
     supabase.auth.getSession().then(({ data: { session } }) => {
