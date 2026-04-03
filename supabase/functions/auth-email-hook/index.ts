@@ -31,7 +31,11 @@ function getEmailContent(
   data: AuthEmailPayload["email_data"],
   userEmail: string
 ): { subject: string; html: string; text: string } {
-  const confirmationUrl = data.confirmation_url || "";
+  const SUPABASE_URL = "https://xiufgczyecwgnkbyroow.supabase.co";
+  const confirmationUrl = data.confirmation_url ||
+    (data.token_hash
+      ? `${SUPABASE_URL}/auth/v1/verify?token=${data.token_hash}&type=${emailType}&redirect_to=${encodeURIComponent(data.redirect_to || '')}`
+      : "");
 
   const baseStyles = `
     font-family: 'Poppins', Arial, sans-serif;
@@ -241,6 +245,15 @@ serve(async (req) => {
 
     const payload: AuthEmailPayload = JSON.parse(rawBody);
     const { user, email_data } = payload;
+
+    console.log("Auth email hook payload:", JSON.stringify({
+      email: user?.email,
+      email_action_type: email_data?.email_action_type,
+      has_token: !!email_data?.token,
+      has_token_hash: !!email_data?.token_hash,
+      has_confirmation_url: !!email_data?.confirmation_url,
+      redirect_to: email_data?.redirect_to,
+    }));
 
     if (!user?.email || !email_data?.email_action_type) {
       return new Response(
