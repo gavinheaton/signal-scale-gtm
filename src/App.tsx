@@ -12,6 +12,7 @@ import Projects from "@/pages/Projects";
 import Home from "@/pages/Home";
 import ICPPersonas from "@/pages/ICPPersonas";
 import ICPWizard from "@/pages/ICPWizard";
+import PersonaWizard from "@/pages/PersonaWizard";
 import Campaigns from "@/pages/Campaigns";
 import ContentPipeline from "@/pages/ContentPipeline";
 import Analytics from "@/pages/Analytics";
