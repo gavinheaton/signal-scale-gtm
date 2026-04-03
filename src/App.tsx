@@ -17,6 +17,7 @@ import Campaigns from "@/pages/Campaigns";
 import ContentPipeline from "@/pages/ContentPipeline";
 import Analytics from "@/pages/Analytics";
 import SettingsPage from "@/pages/Settings";
+import AdminDashboard from "@/pages/AdminDashboard";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
