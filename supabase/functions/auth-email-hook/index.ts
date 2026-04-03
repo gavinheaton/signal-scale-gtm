@@ -36,7 +36,7 @@ const EMAIL_TEMPLATES: Record<string, React.ComponentType<any>> = {
 }
 
 // Configuration
-const SITE_NAME = "signal-scale-gtm"
+const SITE_NAME = "Signal + Scale"
 const SENDER_DOMAIN = "notify.signal2scale.com.au"
 const ROOT_DOMAIN = "signal2scale.com.au"
 const FROM_DOMAIN = "signal2scale.com.au" // Domain shown in From address (may be root or sender subdomain)
