@@ -20,7 +20,8 @@ const statusColors: Record<string, string> = {
 };
 
 export default function Projects() {
-  const { membership, loading: authLoading, signOut } = useAuth();
+  const { membership, loading: authLoading, signOut, hasMinRole } = useAuth();
+  const canCreateProject = hasMinRole('manager');
   const { setCurrentProject } = useProject();
   const navigate = useNavigate();
   const [projects, setProjects] = useState<Project[]>([]);
@@ -132,9 +133,11 @@ export default function Projects() {
         <FolderOpen className="h-16 w-16 text-muted-foreground/40 mb-4" />
         <h2 className="text-xl font-semibold text-foreground">No Projects Yet</h2>
         <p className="text-muted-foreground mt-1 mb-4">Create your first project to get started.</p>
-        <Button onClick={() => setDialogOpen(true)}>
-          <Plus className="mr-1 h-4 w-4" /> New Project
-        </Button>
+        {canCreateProject && (
+          <Button onClick={() => setDialogOpen(true)}>
+            <Plus className="mr-1 h-4 w-4" /> New Project
+          </Button>
+        )}
         {newProjectDialog}
       </div>
     );
@@ -144,9 +147,11 @@ export default function Projects() {
     <div>
       <div className="flex items-center justify-between mb-1">
         <h1 className="text-2xl font-bold text-foreground">Your Projects</h1>
-        <Button onClick={() => setDialogOpen(true)} size="sm">
-          <Plus className="mr-1 h-4 w-4" /> New Project
-        </Button>
+        {canCreateProject && (
+          <Button onClick={() => setDialogOpen(true)} size="sm">
+            <Plus className="mr-1 h-4 w-4" /> New Project
+          </Button>
+        )}
       </div>
       <p className="text-sm mb-6" style={{ color: 'hsl(var(--orange))' }}>Select a project to enter the GTM workspace</p>
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">

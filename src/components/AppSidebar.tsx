@@ -1,4 +1,4 @@
-import { Home, Users, Megaphone, FileText, BarChart3, Settings, LogOut, FolderOpen } from 'lucide-react';
+import { Home, Users, Megaphone, FileText, BarChart3, Settings, LogOut, FolderOpen, Shield } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -30,7 +30,7 @@ export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === 'collapsed';
   const location = useLocation();
-  const { signOut, organisation } = useAuth();
+  const { signOut, organisation, isSuperAdmin } = useAuth();
   const { currentProject } = useProject();
 
   return (
@@ -96,6 +96,20 @@ export function AppSidebar() {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
+              {isSuperAdmin && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild>
+                    <NavLink
+                      to="/admin"
+                      className="text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors"
+                      activeClassName="bg-sidebar-primary text-sidebar-primary-foreground"
+                    >
+                      <Shield className="h-4 w-4" />
+                      {!collapsed && <span>Admin</span>}
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
