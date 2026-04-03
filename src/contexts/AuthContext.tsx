@@ -1,7 +1,9 @@
 import { createContext, useContext, useEffect, useState, useRef, ReactNode } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
-import { OrgMembership, Organisation } from '@/types/database';
+import { OrgMembership, Organisation, OrgRole } from '@/types/database';
+
+const ROLE_HIERARCHY: OrgRole[] = ['client', 'analyst', 'manager', 'admin', 'owner', 'superadmin'];
 
 interface AuthState {
   session: Session | null;
@@ -9,11 +11,14 @@ interface AuthState {
   membership: OrgMembership | null;
   organisation: Organisation | null;
   loading: boolean;
+  isSuperAdmin: boolean;
+  hasMinRole: (minRole: OrgRole) => boolean;
   signOut: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthState>({
-  session: null, user: null, membership: null, organisation: null, loading: true, signOut: async () => {},
+  session: null, user: null, membership: null, organisation: null, loading: true,
+  isSuperAdmin: false, hasMinRole: () => false, signOut: async () => {},
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -25,6 +30,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [organisation, setOrganisation] = useState<Organisation | null>(null);
   const [loading, setLoading] = useState(true);
   const bootstrapped = useRef(false);
+
+  const isSuperAdmin = membership?.role === 'superadmin';
+
+  const hasMinRole = (minRole: OrgRole): boolean => {
+    if (!membership) return false;
+    const userLevel = ROLE_HIERARCHY.indexOf(membership.role);
+    const requiredLevel = ROLE_HIERARCHY.indexOf(minRole);
+    return userLevel >= requiredLevel;
+  };
 
   const fetchOrgData = async (userId: string) => {
     try {
@@ -56,7 +70,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let mounted = true;
 
-    // Single bootstrap: restore session, fetch org, then mark ready
     const bootstrap = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       console.log('[Auth] bootstrap session:', !!session);
@@ -75,7 +88,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     };
 
-    // Listener handles post-bootstrap events (sign-in from callback, sign-out, token refresh)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
         console.log('[Auth] onAuthStateChange:', event, !!session);
@@ -85,7 +97,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(session?.user ?? null);
 
         if (session?.user) {
-          // Fire-and-forget org lookup to avoid blocking the listener
           setTimeout(async () => {
             if (!mounted) return;
             await fetchOrgData(session.user.id);
@@ -97,9 +108,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } else {
           setMembership(null);
           setOrganisation(null);
-          if (bootstrapped.current) {
-            // Only update loading after bootstrap (e.g. sign-out)
-          }
         }
       }
     );
@@ -117,7 +125,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ session, user, membership, organisation, loading, signOut }}>
+    <AuthContext.Provider value={{ session, user, membership, organisation, loading, isSuperAdmin, hasMinRole, signOut }}>
       {children}
     </AuthContext.Provider>
   );
