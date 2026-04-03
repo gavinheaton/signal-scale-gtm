@@ -158,6 +158,7 @@ Deno.serve(async (req) => {
     if (Object.keys(existingDraft).length > 0) {
       systemPrompt += "## CURRENT DRAFT STATE\nThis is the campaign draft built so far. Continue building on it, don't restart.\n" + JSON.stringify(existingDraft) + "\n\n";
     }
+    systemPrompt += "## DRAFT FORMAT INSTRUCTIONS\nAlways wrap structured output in a <draft> JSON tag. Include a \"sections_complete\" array listing keys for any sections you consider complete: target_audience, campaign_insight, objective, channel_mix, content_calendar, success_metrics. Mark a section complete once you have gathered enough information for it. Example: \"sections_complete\": [\"target_audience\", \"objective\"]\n\n";
     systemPrompt += CAMPAIGN_SYSTEM_PROMPT;
 
     // Sliding window: first 2 messages (context) + last 10 messages (recent conversation)
