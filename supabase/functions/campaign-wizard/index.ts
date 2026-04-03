@@ -222,6 +222,10 @@ Deno.serve(async (req) => {
     let notionUrl: string | null = null;
     if (isComplete && notionBriefReady) {
       try {
+        // Extract project/org names from stored context
+        const projectName = storedContext?.project_name || "";
+        const orgName = storedContext?.org_name || "";
+
         const notionRes = await fetch(
           `${SUPABASE_URL}/functions/v1/create-notion-campaign-brief`,
           {
@@ -231,10 +235,9 @@ Deno.serve(async (req) => {
               "Authorization": `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
             },
             body: JSON.stringify({
-              session_id: sessionId,
-              project_id,
-              draft: updatedDraft,
-              context: storedContext,
+              campaign_draft: updatedDraft,
+              project_name: projectName,
+              org_name: orgName,
             }),
           }
         );
