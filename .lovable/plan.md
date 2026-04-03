@@ -1,24 +1,45 @@
 
 
-# Make Persona Wizard Read ICP Data on Init
+# Edit & Delete Personas via AI-Guided Conversation
 
-## Problem
-The persona wizard has the ICP context in its system prompt, but the initial message is hardcoded — it just lists missing roles generically. The AI never actually *reads* the ICP's firmographics, psychographics, buyer_roles, etc. to suggest specific archetypes informed by that data.
+## What it does
+Adds edit and delete actions to each persona card on the ICP & Personas page. Both actions route through the Persona Wizard so the AI can understand context before making changes:
 
-## Solution
-When a session starts with an `icp_id` and no user message, instead of returning a hardcoded initial message, make an actual AI call with a synthetic user prompt like "Analyse the ICP data provided and suggest the specific buying influences I should map for this segment." This lets Claude read the full ICP context (firmographics, psychographics, buyer roles, anti-ICP signals) and propose tailored archetypes.
+- **Edit**: Opens the Persona Wizard pre-loaded with the existing persona data. The AI reads the current persona, asks why the user wants to change it, then guides the update conversationally.
+- **Delete**: Opens a confirmation dialog. On confirm, the AI isn't needed — the persona is soft-deleted (set `is_current = false`) or hard-deleted.
 
 ## Changes
 
-### `supabase/functions/persona-wizard/index.ts`
+### 1. Modify `src/pages/ICPPersonas.tsx`
+- Add Edit (pencil) and Delete (trash) icon buttons to each persona card header
+- Edit button navigates to `/project/persona-wizard?icp_id={icp_id}&edit_persona_id={persona_id}`
+- Delete button opens a confirmation dialog; on confirm, updates `is_current = false` on the persona record and removes it from local state
+- Import `Dialog` components and `Pencil`, `Trash2` icons
 
-- Remove the hardcoded `initialMessage` logic (the `if/else` block that builds a static string about missing roles)
-- When `!message` (session init): insert a synthetic user message `"Analyse the ICP buyer roles data and suggest the key buying influences I should build for this segment."` into the messages array
-- Make the Anthropic API call with this synthetic message so the AI can read the full ICP context from the system prompt and respond with specific, data-informed persona suggestions
-- Return the AI's response as the opening message instead of the hardcoded text
+### 2. Modify `src/pages/PersonaWizard.tsx`
+- Read `edit_persona_id` from search params
+- When present, fetch the full persona record from Supabase on init
+- Skip resuming existing wizard sessions when in edit mode
+- Pass `edit_persona_id` and the persona's existing data to the edge function
+- On save: `UPDATE` the existing persona row instead of `INSERT`ing a new one
 
-This is a single-file change to the edge function. No frontend changes needed — the persona wizard page already passes `icp_id` and displays whatever the AI returns.
+### 3. Modify `supabase/functions/persona-wizard/index.ts`
+- Accept optional `edit_persona_id` in the request body
+- When present, fetch the full persona record and inject its data into the system prompt as `EXISTING PERSONA DATA` context
+- Prepend to the ICP context so the AI sees what's already been captured
+- Use a different synthetic init prompt: "The user wants to edit the persona '[name]'. Review the existing data, then ask what they'd like to change and why."
+- On the frontend save step, the wizard will update rather than insert — no edge function change needed for that
+
+## Technical details
+
+**Delete flow**: Uses `supabase.from('personas').update({ is_current: false }).eq('id', id)` — a soft delete that preserves history. The existing query already filters by `is_current: true` implicitly (or we add that filter).
+
+**Edit flow init prompt**: The AI sees the full persona JSON in system context plus a synthetic message like: "I want to edit the persona 'The Visionary CTO'. Show me what's currently captured and ask what I'd like to change." This ensures the AI reads the data first, then asks diagnostic questions before modifying anything.
+
+**Save logic branch**: In `PersonaWizard.tsx`, if `edit_persona_id` is set, `savePersona` calls `.update()` instead of `.insert()`.
 
 ## Files
-- **Modify**: `supabase/functions/persona-wizard/index.ts`
+- **Modify**: `src/pages/ICPPersonas.tsx` — add edit/delete buttons + delete confirmation dialog
+- **Modify**: `src/pages/PersonaWizard.tsx` — handle edit mode (load persona, update on save)
+- **Modify**: `supabase/functions/persona-wizard/index.ts` — accept edit context, inject persona data into prompt
 
