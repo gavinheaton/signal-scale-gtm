@@ -117,16 +117,30 @@ Deno.serve(async (req) => {
     let messages: Array<{ role: string; content: string; timestamp: string }> = [];
     let existingDraft: Record<string, any> = {};
 
-    // Fetch ICP data and brand context
+    // Fetch ICP data, existing personas, and brand context
     let icpContext = "";
+    let coveredRoles: string[] = [];
+    let missingRoles: string[] = [];
+    const ALL_BUYING_ROLES = ["champion", "economic_buyer", "influencer", "end_user", "blocker"];
+
     if (icp_id) {
-      const { data: icpData } = await supabase
-        .from("icps")
-        .select("*")
-        .eq("id", icp_id)
-        .single();
+      const [{ data: icpData }, { data: existingPersonas }] = await Promise.all([
+        supabase.from("icps").select("*").eq("id", icp_id).single(),
+        supabase.from("personas").select("persona_name, role_in_buying").eq("icp_id", icp_id).eq("is_current", true),
+      ]);
       if (icpData) {
         icpContext = `\n\nICP CONTEXT (use this to inform your persona questions):\n- Segment: ${icpData.segment_name}\n- Matrix Category: ${icpData.matrix_category}\n- Fit Score: ${icpData.fit_score}/10, Access Score: ${icpData.access_score}/10\n- Firmographics: ${JSON.stringify(icpData.firmographics)}\n- Psychographics: ${JSON.stringify(icpData.psychographics)}\n- Buyer Roles: ${JSON.stringify(icpData.buyer_roles)}\n- Anti-ICP Signals: ${JSON.stringify(icpData.anti_icp_signals)}`;
+      }
+      if (existingPersonas && existingPersonas.length > 0) {
+        coveredRoles = existingPersonas.map((p: any) => p.role_in_buying);
+        const coveredList = existingPersonas.map((p: any) => `  - ${p.persona_name} (${p.role_in_buying.replace('_', ' ')})`).join("\n");
+        icpContext += `\n\nEXISTING PERSONAS FOR THIS ICP:\n${coveredList}`;
+      }
+      missingRoles = ALL_BUYING_ROLES.filter(r => !coveredRoles.includes(r));
+      if (missingRoles.length > 0) {
+        icpContext += `\n\nUNCOVERED BUYING ROLES: ${missingRoles.map(r => r.replace('_', ' ')).join(', ')}\nYou should suggest the user builds a persona/influence for one of these uncovered roles. Explain why that role matters for this specific ICP segment.`;
+      } else {
+        icpContext += `\n\nALL 5 BUYING ROLES ARE COVERED for this ICP. The user may want to add an additional influence (process, policy, reporting line) or refine an existing one.`;
       }
     }
 
