@@ -134,6 +134,22 @@ export default function ICPPersonas() {
 
   if (loading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>;
 
+  // If no ICPs exist, redirect to wizard
+  if (!loading && icps.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[60vh] space-y-6">
+        <div className="text-center space-y-2">
+          <Sparkles className="h-12 w-12 mx-auto" style={{ color: 'hsl(var(--orange))' }} />
+          <h1 className="text-2xl font-bold text-foreground">No ICP segments yet</h1>
+          <p className="text-muted-foreground max-w-md">Use the AI-powered ICP Wizard to build your first Ideal Customer Profile through a guided conversation.</p>
+        </div>
+        <Button onClick={() => navigate('/project/icp-wizard')} size="lg">
+          <Sparkles className="h-4 w-4 mr-2" /> Start ICP Wizard
+        </Button>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-foreground">ICP & Personas</h1>
