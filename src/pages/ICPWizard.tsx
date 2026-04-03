@@ -2,58 +2,15 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useProject } from '@/contexts/ProjectContext';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { ArrowLeft, Send, Sparkles, Check, Circle, Loader2 } from 'lucide-react';
+import { ArrowLeft, Send, Sparkles, Loader2 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import { ICPPreviewPanel } from '@/components/icp-wizard/ICPPreviewPanel';
+import { ICP_SECTIONS, getSectionStatus, type DraftOutput, type ChatMessage } from '@/components/icp-wizard/types';
 import type { MatrixCategory } from '@/types/database';
-
-interface DraftOutput {
-  firmographics?: Record<string, any>;
-  psychographics?: Record<string, any>;
-  operational_readiness?: Record<string, any>;
-  alignment_urgency?: Record<string, any>;
-  buyer_roles_behaviour?: Record<string, any>;
-  anti_icp_signals?: Record<string, any>;
-  segment_name?: string;
-  fit_score?: number | null;
-  access_score?: number | null;
-  matrix_category?: string | null;
-  sections_complete?: string[];
-  is_complete?: boolean;
-}
-
-interface ChatMessage {
-  role: 'user' | 'assistant';
-  content: string;
-}
-
-const ICP_SECTIONS = [
-  { key: 'firmographics', label: 'Firmographics', desc: 'Industry, size, geography, stage' },
-  { key: 'psychographics', label: 'Psychographics', desc: 'Values, risk tolerance, culture' },
-  { key: 'operational_readiness', label: 'Operational Readiness', desc: 'Tech maturity, team, tools' },
-  { key: 'alignment_urgency', label: 'Alignment & Urgency', desc: 'Strategic fit, drivers, timing' },
-  { key: 'buyer_roles_behaviour', label: 'Key Buyer Roles', desc: 'Decision makers, committee' },
-  { key: 'anti_icp_signals', label: 'Anti-ICP Signals', desc: 'Red flags, poor fit indicators' },
-];
-
-function getSectionStatus(draft: DraftOutput, key: string): 'empty' | 'partial' | 'complete' {
-  const completeSections = draft.sections_complete || [];
-  if (completeSections.includes(key)) return 'complete';
-
-  const section = (draft as any)[key];
-  if (!section || (typeof section === 'object' && Object.keys(section).length === 0)) return 'empty';
-  return 'partial';
-}
-
-function StatusIcon({ status }: { status: 'empty' | 'partial' | 'complete' }) {
-  if (status === 'complete') return <Check className="h-4 w-4 text-green-500" />;
-  if (status === 'partial') return <div className="h-4 w-4 rounded-full border-2 border-amber-400 bg-amber-400/30" />;
-  return <Circle className="h-4 w-4 text-muted-foreground/40" />;
-}
 
 export default function ICPWizard() {
   const { currentProject } = useProject();
@@ -64,10 +21,24 @@ export default function ICPWizard() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [draft, setDraft] = useState<DraftOutput>({});
   const [saving, setSaving] = useState(false);
+  const [prevDraft, setPrevDraft] = useState<DraftOutput>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Initialize session with first message from Claude
+  // Detect newly completed sections for inline celebrations
+  useEffect(() => {
+    if (!draft.sections_complete || !prevDraft.sections_complete) return;
+    const newlyComplete = draft.sections_complete.filter(
+      s => !prevDraft.sections_complete?.includes(s)
+    );
+    newlyComplete.forEach(key => {
+      const section = ICP_SECTIONS.find(s => s.key === key);
+      if (section) toast.success(`${section.icon} ${section.label} complete!`);
+    });
+  }, [draft.sections_complete]);
+
+  // Current phase indicator
+  const currentPhase = ICP_SECTIONS.find(s => getSectionStatus(draft, s.key) !== 'complete');
+
   useEffect(() => {
     if (!currentProject) return;
     initSession();
@@ -80,11 +51,9 @@ export default function ICPWizard() {
   const initSession = async () => {
     setLoading(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
       const res = await supabase.functions.invoke('icp-wizard', {
         body: { project_id: currentProject!.id },
       });
-
       if (res.error) throw res.error;
       const data = res.data;
       setSessionId(data.session_id);
@@ -108,11 +77,13 @@ export default function ICPWizard() {
       const res = await supabase.functions.invoke('icp-wizard', {
         body: { message: userMsg, session_id: sessionId, project_id: currentProject!.id },
       });
-
       if (res.error) throw res.error;
       const data = res.data;
       setMessages(prev => [...prev, { role: 'assistant', content: data.reply }]);
-      if (data.updated_draft) setDraft(data.updated_draft);
+      if (data.updated_draft) {
+        setPrevDraft(draft);
+        setDraft(data.updated_draft);
+      }
     } catch (err: any) {
       toast.error('AI error: ' + (err.message || 'Unknown error'));
     } finally {
@@ -132,7 +103,6 @@ export default function ICPWizard() {
     setSaving(true);
 
     try {
-      // Map draft to ICP table structure
       const matrixCategory = draft.matrix_category || 'now_account';
       const { error } = await supabase.from('icps').insert({
         project_id: currentProject.id,
@@ -152,7 +122,6 @@ export default function ICPWizard() {
 
       if (error) throw error;
 
-      // Mark session complete
       if (sessionId) {
         await supabase
           .from('wizard_sessions')
@@ -161,7 +130,7 @@ export default function ICPWizard() {
       }
 
       toast.success('ICP saved to platform!');
-      navigate('/project/icp-personas');
+      setTimeout(() => navigate('/project/icp-personas'), 2000);
     } catch (err: any) {
       toast.error('Failed to save: ' + err.message);
     } finally {
@@ -177,11 +146,11 @@ export default function ICPWizard() {
   return (
     <div className="h-[calc(100vh-4rem)] flex flex-col">
       {/* Header */}
-      <div className="flex items-center gap-3 mb-4">
+      <div className="flex items-center gap-3 mb-3">
         <Button variant="ghost" size="icon" onClick={() => navigate('/project/icp-personas')}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <div>
+        <div className="flex-1">
           <h1 className="text-xl font-bold text-foreground flex items-center gap-2">
             <Sparkles className="h-5 w-5" style={{ color: 'hsl(var(--orange))' }} />
             ICP Wizard
@@ -190,10 +159,20 @@ export default function ICPWizard() {
         </div>
       </div>
 
-      {/* Two-panel layout */}
+      {/* Two-panel layout: 50/50 */}
       <div className="flex-1 flex gap-4 min-h-0">
-        {/* Left: Chat (60%) */}
-        <div className="w-[60%] flex flex-col border rounded-lg bg-card">
+        {/* Left: Chat (50%) */}
+        <div className="w-1/2 flex flex-col border rounded-lg bg-card">
+          {/* Phase indicator */}
+          {currentPhase && (
+            <div className="px-4 py-2 border-b bg-muted/30 flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">Currently exploring:</span>
+              <Badge variant="outline" className="text-[10px] border-primary/30">
+                {currentPhase.icon} {currentPhase.label}
+              </Badge>
+            </div>
+          )}
+
           {/* Messages */}
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
             {messages.map((msg, i) => (
@@ -228,7 +207,6 @@ export default function ICPWizard() {
           {/* Input */}
           <div className="border-t p-3 flex gap-2">
             <Textarea
-              ref={textareaRef}
               value={input}
               onChange={e => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
@@ -243,84 +221,9 @@ export default function ICPWizard() {
           </div>
         </div>
 
-        {/* Right: Live ICP Preview (40%) */}
-        <div className="w-[40%] flex flex-col gap-4 overflow-y-auto">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center justify-between">
-                <span>ICP Draft</span>
-                {draft.segment_name && (
-                  <Badge variant="outline" className="text-xs font-normal">
-                    {draft.segment_name}
-                  </Badge>
-                )}
-              </CardTitle>
-              {(draft.fit_score || draft.access_score) && (
-                <div className="flex gap-3 text-xs text-muted-foreground mt-1">
-                  {draft.fit_score && <span>Fit: <strong className="text-foreground">{draft.fit_score}</strong>/10</span>}
-                  {draft.access_score && <span>Access: <strong className="text-foreground">{draft.access_score}</strong>/10</span>}
-                </div>
-              )}
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {ICP_SECTIONS.map(section => {
-                const status = getSectionStatus(draft, section.key);
-                const sectionData = (draft as any)[section.key];
-                const hasData = sectionData && typeof sectionData === 'object' && Object.keys(sectionData).length > 0;
-
-                return (
-                  <div key={section.key} className="border rounded-md p-3">
-                    <div className="flex items-center gap-2 mb-1">
-                      <StatusIcon status={status} />
-                      <span className="text-sm font-medium">{section.label}</span>
-                      <Badge
-                        variant="outline"
-                        className={`text-[10px] ml-auto ${
-                          status === 'complete'
-                            ? 'border-green-500/50 text-green-600'
-                            : status === 'partial'
-                            ? 'border-amber-400/50 text-amber-600'
-                            : 'border-muted text-muted-foreground'
-                        }`}
-                      >
-                        {status}
-                      </Badge>
-                    </div>
-                    <p className="text-[11px] text-muted-foreground">{section.desc}</p>
-                    {hasData && (
-                      <div className="mt-2 text-xs text-foreground/80 space-y-0.5">
-                        {Object.entries(sectionData).slice(0, 4).map(([k, v]) => (
-                          <p key={k}>
-                            <span className="text-muted-foreground">{k.replace(/_/g, ' ')}:</span>{' '}
-                            {typeof v === 'object' ? JSON.stringify(v) : String(v)}
-                          </p>
-                        ))}
-                        {Object.keys(sectionData).length > 4 && (
-                          <p className="text-muted-foreground">+{Object.keys(sectionData).length - 4} more</p>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </CardContent>
-          </Card>
-
-          {/* Save button when complete */}
-          {draft.is_complete && (
-            <Button
-              onClick={saveICP}
-              disabled={saving}
-              className="w-full"
-              size="lg"
-            >
-              {saving ? (
-                <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Saving...</>
-              ) : (
-                <><Check className="h-4 w-4 mr-2" /> Save ICP to Platform</>
-              )}
-            </Button>
-          )}
+        {/* Right: Visual ICP Preview (50%) */}
+        <div className="w-1/2 flex flex-col border rounded-lg bg-card p-4">
+          <ICPPreviewPanel draft={draft} saving={saving} onSave={saveICP} />
         </div>
       </div>
     </div>
