@@ -55,8 +55,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let mounted = true;
 
-    // 1. Restore session first, fetch org data, THEN set loading false
+    // 1. Set up listener FIRST (before getSession) so we never miss auth events
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        console.log('[Auth] onAuthStateChange:', event, !!session);
+        if (!mounted) return;
+        setSession(session);
+        setUser(session?.user ?? null);
+
+        if (session?.user) {
+          // Use setTimeout to avoid potential deadlock with Supabase internals
+          setTimeout(async () => {
+            if (mounted) {
+              await fetchOrgData(session.user.id);
+              if (mounted) setLoading(false);
+            }
+          }, 0);
+        } else {
+          setMembership(null);
+          setOrganisation(null);
+          setLoading(false);
+        }
+      }
+    );
+
+    // 2. Then restore existing session
     supabase.auth.getSession().then(async ({ data: { session } }) => {
+      console.log('[Auth] getSession result:', !!session);
       if (!mounted) return;
       setSession(session);
       setUser(session?.user ?? null);
@@ -67,25 +92,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (mounted) setLoading(false);
     });
-
-    // 2. Listen for subsequent auth changes (sign-in, sign-out, token refresh)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        if (!mounted) return;
-        setSession(session);
-        setUser(session?.user ?? null);
-
-        if (session?.user) {
-          // Fire-and-forget for subsequent changes — app is already past loading
-          setTimeout(() => {
-            if (mounted) fetchOrgData(session.user.id);
-          }, 0);
-        } else {
-          setMembership(null);
-          setOrganisation(null);
-        }
-      }
-    );
 
     return () => {
       mounted = false;
