@@ -14,6 +14,7 @@ import ICPPersonas from "@/pages/ICPPersonas";
 import ICPWizard from "@/pages/ICPWizard";
 import PersonaWizard from "@/pages/PersonaWizard";
 import Campaigns from "@/pages/Campaigns";
+import CampaignWizard from "@/pages/CampaignWizard";
 import ContentPipeline from "@/pages/ContentPipeline";
 import Analytics from "@/pages/Analytics";
 import SettingsPage from "@/pages/Settings";
@@ -41,6 +42,7 @@ const App = () => (
                 <Route path="/project/icp-wizard" element={<ICPWizard />} />
                 <Route path="/project/persona-wizard" element={<PersonaWizard />} />
                 <Route path="/project/campaigns" element={<Campaigns />} />
+                <Route path="/project/campaign-wizard" element={<CampaignWizard />} />
                 <Route path="/project/content" element={<ContentPipeline />} />
                 <Route path="/project/analytics" element={<Analytics />} />
                 <Route path="/project/settings" element={<SettingsPage />} />

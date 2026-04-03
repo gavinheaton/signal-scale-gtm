@@ -5,11 +5,6 @@ import { Campaign, ICP, CampaignAsset, CampaignTrack, CampaignStatus } from '@/t
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Textarea } from '@/components/ui/textarea';
 import { Plus, Calendar } from 'lucide-react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -25,8 +20,8 @@ export default function Campaigns() {
   const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
   const [assets, setAssets] = useState<CampaignAsset[]>([]);
   const [loading, setLoading] = useState(true);
-  const [formOpen, setFormOpen] = useState(false);
-  const [form, setForm] = useState({ name: '', track: 'demand_creation' as CampaignTrack, objective: '', launch_date: '', end_date: '' });
+
+
 
   const fetchData = async () => {
     if (!currentProject) return;
@@ -48,25 +43,8 @@ export default function Campaigns() {
     });
   }, [selectedCampaign]);
 
-  if (!currentProject) return <Navigate to="/projects" replace />;
 
-  const handleCreate = async () => {
-    const { error } = await supabase.from('campaigns').insert({
-      project_id: currentProject.id,
-      name: form.name,
-      track: form.track,
-      status: 'brief',
-      objective: form.objective,
-      launch_date: form.launch_date || null,
-      end_date: form.end_date || null,
-      target_icp_ids: [],
-      channel_mix: {},
-    });
-    if (error) { toast.error(error.message); return; }
-    toast.success('Campaign created');
-    setFormOpen(false);
-    fetchData();
-  };
+
 
   const activeCampaigns = campaigns.filter(c => c.status === 'active');
   const captureActive = activeCampaigns.filter(c => c.track === 'demand_capture').length;
@@ -105,29 +83,7 @@ export default function Campaigns() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-foreground">Campaigns</h1>
-        <Sheet open={formOpen} onOpenChange={setFormOpen}>
-          <SheetTrigger asChild><Button><Plus className="h-4 w-4 mr-1" /> New Campaign</Button></SheetTrigger>
-          <SheetContent>
-            <SheetHeader><SheetTitle>New Campaign</SheetTitle></SheetHeader>
-            <div className="space-y-4 mt-4">
-              <div><Label>Name</Label><Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} /></div>
-              <div>
-                <Label>Track</Label>
-                <Select value={form.track} onValueChange={v => setForm(f => ({ ...f, track: v as CampaignTrack }))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="demand_capture">Demand Capture</SelectItem>
-                    <SelectItem value="demand_creation">Demand Creation</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div><Label>Objective</Label><Textarea value={form.objective} onChange={e => setForm(f => ({ ...f, objective: e.target.value }))} /></div>
-              <div><Label>Launch Date</Label><Input type="date" value={form.launch_date} onChange={e => setForm(f => ({ ...f, launch_date: e.target.value }))} /></div>
-              <div><Label>End Date</Label><Input type="date" value={form.end_date} onChange={e => setForm(f => ({ ...f, end_date: e.target.value }))} /></div>
-              <Button onClick={handleCreate} className="w-full">Create Campaign</Button>
-            </div>
-          </SheetContent>
-        </Sheet>
+        <Button onClick={() => navigate('/project/campaign-wizard')}><Plus className="h-4 w-4 mr-1" /> New Campaign</Button>
       </div>
 
       {/* 95-5 Split */}
