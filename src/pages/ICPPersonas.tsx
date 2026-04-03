@@ -67,6 +67,20 @@ export default function ICPPersonas() {
 
   useEffect(() => { fetchData(); }, [currentProject]);
 
+  const handleDeletePersona = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    const { error } = await supabase.from('personas').update({ is_current: false }).eq('id', deleteTarget.id);
+    if (error) {
+      toast.error('Failed to delete persona');
+    } else {
+      setPersonas(prev => prev.filter(p => p.id !== deleteTarget.id));
+      toast.success(`"${deleteTarget.persona_name}" removed`);
+    }
+    setDeleting(false);
+    setDeleteTarget(null);
+  };
+
   if (!currentProject) return <Navigate to="/projects" replace />;
 
   const scatterData = icps.map(icp => ({
