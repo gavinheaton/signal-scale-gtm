@@ -1,96 +1,107 @@
 
-# Login Recovery Plan
+# Login Fix Plan — Callback-First Auth
 
-I checked the code, auth logs, and database state. The key finding is: your data is there and Supabase login is already succeeding, so the current blocker is the app flow, not the database.
+I checked the current auth code again. The remaining issue is no longer just org loading. The bigger weakness is that the app is trying to complete a magic-link login inside the normal `/` → `/projects` → `/auth` routing flow, without a dedicated callback step.
 
 ## What I found
 
-- Supabase shows a successful login event for your user.
-- Your user already has an `org_memberships` row.
-- There is already a project in that org.
-- So the app should be able to land on `/projects`, but the client-side auth/org loading flow is fragile.
+- Supabase auth logs show successful login events for your user.
+- `Auth.tsx` sends magic links back to `window.location.origin`, not to a dedicated callback route.
+- `App.tsx` immediately redirects `/` to `/projects`.
+- `AppLayout` immediately redirects unauthenticated users back to `/auth`.
+- `AuthContext` still has two separate startup paths (`onAuthStateChange` and `getSession`) that can each flip `loading` off.
+- If the session is parsed slightly late, the app can bounce back to `/auth` and look like login failed.
 
-## Root causes
+## Most likely root cause
 
-1. `AuthContext` sets `loading = false` before org membership and organisation lookup are finished.
-2. `Projects.tsx` waits for `membership`, but if that value is delayed or fails once, the page can sit in a spinner state and feel like login failed.
-3. The auth screen currently mixes two login modes:
-   - magic link email
-   - 6-digit OTP entry  
-   But the actual emails are currently being sent by Supabase SMTP, so the UI and email behavior are out of sync.
+A race between:
+1. Supabase processing the magic-link return,
+2. React Router redirecting `/` to `/projects`,
+3. `AppLayout` redirecting back to `/auth`,
+4. `AuthContext` deciding auth is ready too early.
 
-## Focused fix plan
+There is also an important environment risk: auth sessions are origin-specific. If login happens on one origin and you inspect another, the session will not appear there.
 
-### 1. Stop the churn and prioritize one working login path
-For now, I would simplify auth to **magic-link only** so you can log in reliably first.
+```text
+signal2scale.com.au            -> separate session storage
+signal-scale-gtm.lovable.app   -> separate session storage
+id-preview--...lovable.app     -> separate session storage
+```
 
-- Remove the OTP/code entry UI from `Auth.tsx`
-- Keep the resend cooldown
-- Update copy so it clearly says “check your email and click the link”
+## Updated implementation plan
 
-This is the fastest path to a working system.
+### 1. Add a dedicated auth callback route
+Create a public route like `/auth/callback` that exists only to finish login.
 
-### 2. Fix auth readiness in `AuthContext`
-Refactor auth state so the app only considers itself “ready” after:
+Why:
+- gives Supabase one stable return URL
+- avoids routing away before the session is established
+- lets us show a clear “Signing you in…” state instead of dropping back to `/auth`
 
-- session restore has completed
-- org membership lookup has completed
-- organisation lookup has completed or failed cleanly
+### 2. Change magic-link redirects to use the callback route
+Update `Auth.tsx` to send users to:
 
-That prevents the app from redirecting into a half-loaded state.
+```text
+${window.location.origin}/auth/callback
+```
 
-### 3. Fix the `/projects` loading deadlock
-Update `Projects.tsx` so it has explicit states:
+instead of just the site root.
 
-- auth/org still loading
-- signed in but no organisation access
-- signed in with org access and projects loaded
+### 3. Refactor `AuthContext` into a single bootstrap flow
+Make auth startup deterministic:
 
-It should never stay on an indefinite spinner just because `membership` is temporarily null.
+- register auth listener
+- run one initial session bootstrap
+- only mark `loading = false` after session resolution and org lookup are complete
+- avoid multiple code paths independently clearing loading
 
-### 4. Add clear fallback UI for access problems
-If membership is genuinely missing, show a real message like:
+The listener should handle later sign-in/sign-out events, but initial readiness should come from one controlled bootstrap path.
 
-- “You’re signed in, but this account doesn’t have org access yet.”
+### 4. Add callback-page fallback logic
+In the callback page:
 
-That makes the problem visible instead of looking like broken login.
+- wait for Supabase to finish processing the returned session
+- if a session appears, redirect to `/projects`
+- if an auth error exists, show it clearly
+- if no session appears after a short wait, show a useful recovery message instead of silently dumping the user back to `/auth`
 
-### 5. Only after login works, revisit branded email/OTP
-Once magic-link login is working end to end, we can decide whether to:
-- keep magic links only, or
-- reintroduce OTP with email templates that are guaranteed to send a 6-digit token
+### 5. Keep project loading separate from login success
+Leave the `/projects` page resilient, but treat these as different states:
 
-Right now, OTP is adding confusion and slowing us down.
+- signed out
+- signed in but org still loading
+- signed in with no org access
+- signed in with org access
 
-## Technical details
+That prevents “auth failed” and “no org membership” from looking identical.
 
-### Files to update
+### 6. Test on one origin only
+When implementing, verify the full flow end-to-end on the same domain where the magic link was requested.
+
+Example:
+- request link on preview → open link on preview
+- request link on custom domain → open link on custom domain
+
+Do not mix preview and published/custom domains during testing.
+
+## Files to update
+
+- `src/App.tsx`
 - `src/contexts/AuthContext.tsx`
 - `src/pages/Auth.tsx`
 - `src/pages/Projects.tsx`
+- new callback page, e.g. `src/pages/AuthCallback.tsx`
 
-### No database changes needed
-I do not see a schema problem blocking login. This looks like a frontend auth-state sequencing issue.
+## No database changes needed
 
-### Why this should unblock you quickly
-Because:
-- Supabase auth is working
-- membership exists
-- project data exists
-
-So once the client waits properly for auth + org readiness, you should be able to log in and land in the app.
+This still looks like a frontend auth/session orchestration issue, not a schema problem.
 
 ## Expected result after this pass
 
-1. Enter email
+1. Enter email on `/auth`
 2. Receive magic link
 3. Click link
-4. Return to app already authenticated
-5. Land on project list instead of getting stuck
-6. Open the existing project successfully
-
-## After that
-Once login is stable, the next pass can clean up:
-- branded auth emails
-- OTP if still needed
-- project persistence across refresh/navigation hardening
+4. Land on `/auth/callback`
+5. Session finalizes cleanly
+6. Redirect to `/projects`
+7. Continue into the app without falling back to `/auth`
