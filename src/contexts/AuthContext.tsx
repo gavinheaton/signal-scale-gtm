@@ -97,10 +97,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(session?.user ?? null);
 
         if (session?.user) {
+          setLoading(true);
           setTimeout(async () => {
             if (!mounted) return;
             await fetchOrgData(session.user.id);
-            if (mounted && !bootstrapped.current) {
+            if (mounted) {
               bootstrapped.current = true;
               setLoading(false);
             }
@@ -108,6 +109,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } else {
           setMembership(null);
           setOrganisation(null);
+          if (mounted && bootstrapped.current) setLoading(false);
         }
       }
     );
