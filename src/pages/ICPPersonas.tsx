@@ -47,6 +47,7 @@ const dotColors: Record<MatrixCategory, string> = {
 
 export default function ICPPersonas() {
   const { currentProject } = useProject();
+  const navigate = useNavigate();
   const [icps, setIcps] = useState<ICP[]>([]);
   const [personas, setPersonas] = useState<Persona[]>([]);
   const [expandedIcp, setExpandedIcp] = useState<string | null>(null);
