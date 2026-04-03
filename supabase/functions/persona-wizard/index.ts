@@ -117,7 +117,7 @@ Deno.serve(async (req) => {
     let messages: Array<{ role: string; content: string; timestamp: string }> = [];
     let existingDraft: Record<string, any> = {};
 
-    // Fetch ICP data for context
+    // Fetch ICP data and brand context
     let icpContext = "";
     if (icp_id) {
       const { data: icpData } = await supabase
@@ -127,6 +127,20 @@ Deno.serve(async (req) => {
         .single();
       if (icpData) {
         icpContext = `\n\nICP CONTEXT (use this to inform your persona questions):\n- Segment: ${icpData.segment_name}\n- Matrix Category: ${icpData.matrix_category}\n- Fit Score: ${icpData.fit_score}/10, Access Score: ${icpData.access_score}/10\n- Firmographics: ${JSON.stringify(icpData.firmographics)}\n- Psychographics: ${JSON.stringify(icpData.psychographics)}\n- Buyer Roles: ${JSON.stringify(icpData.buyer_roles)}\n- Anti-ICP Signals: ${JSON.stringify(icpData.anti_icp_signals)}`;
+      }
+    }
+
+    // Load brand context from the project
+    let brandContextStr = "";
+    if (project_id) {
+      const { data: project } = await supabase
+        .from("projects")
+        .select("brand_context")
+        .eq("id", project_id)
+        .single();
+      const bc = project?.brand_context as Record<string, any> | null;
+      if (bc?.crawled_content && bc.crawled_content.length > 0) {
+        brandContextStr = `\n\nBRAND CONTEXT (from previous analysis of ${bc.website_url || "company website"}):\n${bc.crawled_content}\n\nUse this to inform your persona questions alongside the ICP context.`;
       }
     }
 
@@ -197,7 +211,7 @@ Deno.serve(async (req) => {
         : m.content,
     }));
 
-    const systemPrompt = PERSONA_SYSTEM_PROMPT + icpContext;
+    const systemPrompt = PERSONA_SYSTEM_PROMPT + icpContext + brandContextStr;
 
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",

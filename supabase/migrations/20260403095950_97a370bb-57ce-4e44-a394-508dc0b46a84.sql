@@ -1,0 +1,1 @@
+ALTER TABLE public.projects ADD COLUMN brand_context jsonb DEFAULT '{}'::jsonb;

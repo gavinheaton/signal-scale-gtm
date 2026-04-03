@@ -5,3 +5,5 @@ project_id = "xiufgczyecwgnkbyroow"
     verify_jwt = false
   [functions.icp-wizard]
     verify_jwt = false
+  [functions.persona-wizard]
+    verify_jwt = false
