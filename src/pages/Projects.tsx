@@ -6,7 +6,8 @@ import { useProject } from '@/contexts/ProjectContext';
 import { Project } from '@/types/database';
 import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { FolderOpen } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { FolderOpen, AlertCircle } from 'lucide-react';
 
 const statusColors: Record<string, string> = {
   setup: 'bg-muted text-muted-foreground',
@@ -16,31 +17,58 @@ const statusColors: Record<string, string> = {
 };
 
 export default function Projects() {
-  const { membership } = useAuth();
+  const { membership, loading: authLoading, signOut } = useAuth();
   const { setCurrentProject } = useProject();
   const navigate = useNavigate();
   const [projects, setProjects] = useState<Project[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loadingProjects, setLoadingProjects] = useState(true);
 
   useEffect(() => {
-    if (!membership) return;
+    if (authLoading) return;
+
+    if (!membership) {
+      setLoadingProjects(false);
+      return;
+    }
+
     supabase
       .from('projects')
       .select('*')
       .eq('org_id', membership.org_id)
       .then(({ data }) => {
         if (data) setProjects(data as unknown as Project[]);
-        setLoading(false);
+        setLoadingProjects(false);
       });
-  }, [membership]);
+  }, [membership, authLoading]);
 
   const selectProject = (p: Project) => {
     setCurrentProject(p);
     navigate('/project/home');
   };
 
-  if (loading) {
-    return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>;
+  // Still loading auth + org data
+  if (authLoading || (membership && loadingProjects)) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+      </div>
+    );
+  }
+
+  // Signed in but no org membership
+  if (!membership) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 text-center">
+        <AlertCircle className="h-16 w-16 text-muted-foreground/40 mb-4" />
+        <h2 className="text-xl font-semibold text-foreground">No Organisation Access</h2>
+        <p className="text-muted-foreground mt-1 max-w-md">
+          You're signed in, but your account isn't linked to an organisation yet. Ask your admin to invite you, or contact support.
+        </p>
+        <Button variant="outline" className="mt-4" onClick={signOut}>
+          Sign out
+        </Button>
+      </div>
+    );
   }
 
   if (!projects.length) {
