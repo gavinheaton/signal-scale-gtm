@@ -273,6 +273,15 @@ export default function ICPPersonas() {
         </TabsContent>
       </Tabs>
 
+      <PersonaDetailModal
+        persona={selectedPersona}
+        icp={icps.find(i => i.id === selectedPersona?.icp_id)}
+        open={!!selectedPersona}
+        onOpenChange={(open) => !open && setSelectedPersona(null)}
+        onEdit={(p) => navigate(`/project/persona-wizard?icp_id=${p.icp_id}&edit_persona_id=${p.id}`)}
+        onDelete={(p) => setDeleteTarget(p)}
+      />
+
       <Dialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <DialogContent>
           <DialogHeader>
