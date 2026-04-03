@@ -1,63 +1,46 @@
 
 
-# Persona Detail Card — Visual Layout
+# Fix Empty Persona Modal Sections
 
 ## Problem
-Clicking a persona currently expands inline with raw `JSON.stringify` dumps. It's unreadable and doesn't match the quality of the rest of the platform.
+Persona sections show "Not captured yet" even though the information was discussed in the wizard chat. Two causes:
 
-## What we'll build
-A full-screen modal/dialog that opens when clicking a persona card, displaying the persona data in a visually structured card layout inspired by the reference image. The design will use the existing brand palette (navy sidebar, purple accent, orange sub-headings) and present persona data in a grid of themed section cards.
+1. **Personas created before the migration** — `organisational_context` and `buying_behaviour` columns didn't exist, so those fields are `{}` in the database even though the AI captured them in the wizard session's `draft_output`.
+2. **Draft mapping gaps** — The AI may structure data under slightly different keys in the draft JSON than what the save logic expects. For example, the AI prompt asks for `preferred_evidence` as a separate key, but the save logic nests it inside `channel_preferences`.
 
-## Key design decisions
+## Solution
 
-**Layout**: A `Dialog` (full-width, max-w-4xl) with a two-column grid of content sections, a prominent header area with persona name and role badge, and an AI readiness indicator.
+### 1. Backfill existing personas from wizard session drafts
+Create a one-time backfill that checks `wizard_sessions` with `session_type = 'persona'` and `status = 'complete'`, extracts `organisational_context` and `buying_behaviour` from `draft_output`, and updates the corresponding persona records.
 
-**Sections displayed** (mapped from stored data):
-- **Name & Role** — `persona_name` + `role_in_buying` badge (header area, not a card)
-- **Goals** — from `goals` jsonb
-- **Pain Points** — from `pain_points` jsonb  
-- **Channel Preferences** — from `channel_preferences` jsonb (excluding nested `preferred_evidence`)
-- **Preferred Evidence** — extracted from `channel_preferences.preferred_evidence`
-- **How We Help** — from `how_we_help` text
-- **AI Readiness** — visual score indicator from `ai_readiness_score`
+- Run as a script via the Supabase SQL editor or as a migration
+- Match sessions to personas by `project_id` + `draft_output->>'persona_name'`
 
-Each section rendered as a light card with an orange sub-heading label, a muted descriptor line, and the actual content formatted as readable bullet points (not JSON).
+### 2. Improve the save logic in `PersonaWizard.tsx`
+The current save maps draft fields directly but some AI draft structures nest data differently. Add defensive extraction:
 
-**Data formatting**: A utility function will intelligently render jsonb fields — if it's an array, render as bullets; if it's an object with keys, render as labelled items; if it's a string, render as paragraph.
+- If `draft.organisational_context` is empty but exists under a different key in the draft, extract it
+- Same for `buying_behaviour` and `preferred_evidence`
+- Log the full draft to console before save (dev aid) so mismatches are visible
 
-## Database consideration
-The wizard draft captures `organisational_context` and `buying_behaviour` but these aren't persisted to the `personas` table. We should add these columns so the detail view can show them.
-
-**Migration**: Add `organisational_context jsonb` and `buying_behaviour jsonb` columns to the `personas` table. Update the save logic in `PersonaWizard.tsx` to include these fields.
+### 3. Add a "Refresh from Session" action to the modal
+When a persona's sections are mostly empty but a completed wizard session exists for it, show a subtle "Data available — refresh from wizard session" button that pulls the draft and re-saves.
 
 ## Changes
 
-### 1. Create `src/components/PersonaDetailModal.tsx`
-- New component: visual persona detail modal
-- Header: persona name (large), role badge (color-coded), ICP segment name, AI readiness score as 5 filled/unfilled dots
-- Body: 2-column grid of section cards, each with orange heading, muted descriptor, and formatted content
-- Section cards: Goals, Pain Points, Organisational Context, Buying Behaviour, Channel Preferences, Preferred Evidence, How We Help
-- Smart JSON renderer that handles arrays, objects, and strings gracefully
-- Edit and Delete action buttons in the header
+### File: `src/pages/PersonaWizard.tsx`
+- Improve `savePersona` to be more defensive about extracting nested/variant draft keys
+- Flatten any nested objects the AI might produce (e.g. `goals.personal_goals` + `goals.organisational_goals` should stay as-is, but a bare string should be wrapped)
 
-### 2. Create migration to add columns
-- Add `organisational_context jsonb` and `buying_behaviour jsonb` to `personas` table
+### File: `src/components/PersonaDetailModal.tsx`  
+- Add a "Refresh from wizard data" button that appears when sections are empty
+- On click, query `wizard_sessions` for the matching session, extract draft fields, update the persona record, and refresh the modal
 
-### 3. Modify `src/pages/PersonaWizard.tsx`
-- Include `organisational_context` and `buying_behaviour` in the `personaData` object passed to Supabase on save
-
-### 4. Modify `src/types/database.ts`
-- Add `organisational_context` and `buying_behaviour` to the `Persona` interface
-
-### 5. Modify `src/pages/ICPPersonas.tsx`
-- Replace the inline expand logic with opening `PersonaDetailModal`
-- Pass selected persona + parent ICP to the modal
-- Remove the `expandedPersona` state and inline detail rendering
+### File: Migration (SQL)
+- Backfill `organisational_context` and `buying_behaviour` on existing personas from their wizard session `draft_output` where those fields are currently `{}`
 
 ## Files
-- **Create**: `src/components/PersonaDetailModal.tsx`
-- **Create**: Migration for new persona columns
-- **Modify**: `src/pages/PersonaWizard.tsx` — save new fields
-- **Modify**: `src/types/database.ts` — add fields to Persona type
-- **Modify**: `src/pages/ICPPersonas.tsx` — use modal instead of inline expand
+- **Modify**: `src/pages/PersonaWizard.tsx` — defensive draft extraction in save logic
+- **Modify**: `src/components/PersonaDetailModal.tsx` — add refresh-from-session capability
+- **Create**: Migration to backfill existing personas from wizard session drafts
 
