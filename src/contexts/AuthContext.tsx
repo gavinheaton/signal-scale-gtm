@@ -26,44 +26,71 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const fetchOrgData = async (userId: string) => {
-    const { data: mem } = await supabase
-      .from('org_memberships')
-      .select('*')
-      .eq('user_id', userId)
-      .limit(1)
-      .single();
-    
-    if (mem) {
-      setMembership(mem as unknown as OrgMembership);
-      const { data: org } = await supabase
-        .from('organisations')
+    try {
+      const { data: mem } = await supabase
+        .from('org_memberships')
         .select('*')
-        .eq('id', mem.org_id)
+        .eq('user_id', userId)
+        .limit(1)
         .single();
-      if (org) setOrganisation(org as unknown as Organisation);
-    }
-  };
 
-  useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        setTimeout(() => fetchOrgData(session.user.id), 0);
+      if (mem) {
+        setMembership(mem as unknown as OrgMembership);
+        const { data: org } = await supabase
+          .from('organisations')
+          .select('*')
+          .eq('id', mem.org_id)
+          .single();
+        if (org) setOrganisation(org as unknown as Organisation);
       } else {
         setMembership(null);
         setOrganisation(null);
       }
-    });
+    } catch {
+      setMembership(null);
+      setOrganisation(null);
+    }
+  };
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
+  useEffect(() => {
+    let mounted = true;
+
+    // 1. Restore session first, fetch org data, THEN set loading false
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (!mounted) return;
       setSession(session);
       setUser(session?.user ?? null);
-      if (session?.user) fetchOrgData(session.user.id);
-      setLoading(false);
+
+      if (session?.user) {
+        await fetchOrgData(session.user.id);
+      }
+
+      if (mounted) setLoading(false);
     });
 
-    return () => subscription.unsubscribe();
+    // 2. Listen for subsequent auth changes (sign-in, sign-out, token refresh)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        if (!mounted) return;
+        setSession(session);
+        setUser(session?.user ?? null);
+
+        if (session?.user) {
+          // Fire-and-forget for subsequent changes — app is already past loading
+          setTimeout(() => {
+            if (mounted) fetchOrgData(session.user.id);
+          }, 0);
+        } else {
+          setMembership(null);
+          setOrganisation(null);
+        }
+      }
+    );
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signOut = async () => {
