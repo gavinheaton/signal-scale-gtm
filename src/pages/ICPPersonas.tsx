@@ -76,23 +76,8 @@ export default function ICPPersonas() {
 
   if (!currentProject) return <Navigate to="/projects" replace />;
 
-  const handleAddIcp = async () => {
-    const { error } = await supabase.from('icps').insert({
-      project_id: currentProject.id,
-      segment_name: icpForm.segment_name,
-      fit_score: icpForm.fit_score,
-      access_score: icpForm.access_score,
-      matrix_category: icpForm.matrix_category,
-      firmographics: icpForm.firmographics ? JSON.parse(icpForm.firmographics) : {},
-      buyer_roles: icpForm.buyer_roles ? JSON.parse(icpForm.buyer_roles) : {},
-      psychographics: {},
-      anti_icp_signals: {},
-    });
-    if (error) { toast.error(error.message); return; }
-    toast.success('ICP segment added');
-    setIcpOpen(false);
-    fetchData();
-  };
+
+
 
   const handleAddPersona = async () => {
     const { error } = await supabase.from('personas').insert({
