@@ -236,7 +236,7 @@ serve(async (req) => {
 
     console.log(`Auth email sent: type=${email_data.email_action_type}, to=${user.email}`);
 
-    return new Response(JSON.stringify({ success: true }), {
+    return new Response(JSON.stringify({}), {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
