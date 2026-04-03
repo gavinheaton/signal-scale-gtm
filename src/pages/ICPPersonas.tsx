@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import PersonaSunburst from '@/components/icp-wizard/PersonaSunburst';
 import { useProject } from '@/contexts/ProjectContext';
 import { ICP, Persona, MatrixCategory, RoleInBuying } from '@/types/database';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -189,6 +190,15 @@ export default function ICPPersonas() {
         </TabsContent>
 
         <TabsContent value="personas" className="space-y-6 mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Buying Influence Map</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <PersonaSunburst icps={icps} personas={personas} />
+            </CardContent>
+          </Card>
+
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold" style={{ color: 'hsl(var(--orange))' }}>Persona Gallery</h2>
             <Button size="sm" onClick={() => navigate('/project/persona-wizard')}>
