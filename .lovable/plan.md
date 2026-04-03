@@ -1,48 +1,83 @@
 
 
-# Create Campaign Wizard Edge Function
+# Campaign Wizard Page
 
-## Database Change
-Add `notion_url` text column and `context` jsonb column to `wizard_sessions`, and add `'campaign'` to the `wizard_session_type` enum.
+## Overview
+Create a new `CampaignWizard` page with the same 60/40 chat+preview layout as `ICPWizard`. The "+ New Campaign" button on the Campaigns page will fetch ICP/persona data and navigate to the wizard. The right panel shows campaign-specific preview sections, a content calendar table, and a 95-5 balance bar.
 
-```sql
-ALTER TYPE public.wizard_session_type ADD VALUE IF NOT EXISTS 'campaign';
-ALTER TABLE public.wizard_sessions ADD COLUMN IF NOT EXISTS notion_url text;
-ALTER TABLE public.wizard_sessions ADD COLUMN IF NOT EXISTS context jsonb DEFAULT '{}'::jsonb;
+## Files to Create/Modify
+
+### 1. `src/pages/CampaignWizard.tsx` (new)
+Mirrors `ICPWizard.tsx` structure with these differences:
+
+- **On mount**: fetch ICPs and personas for the project, pass as `project_context` when invoking `campaign-wizard` edge function to create session
+- **Chat panel** (left 60%): identical pattern — messages, markdown rendering, input box
+- **Preview panel** (right 40%): uses new `CampaignPreviewPanel` component
+- **Save handler**: inserts into `campaigns` table + bulk inserts `campaign_assets` from `draft.content_calendar` array
+- **Notion button**: renders "View Brief in Notion" link when `notion_url` is returned
+
+### 2. `src/components/campaign-wizard/CampaignPreviewPanel.tsx` (new)
+Right-side panel showing:
+
+- **Campaign name** at top (editable input, bound to `draft.campaign_name`)
+- **Track badge**: orange "Demand Capture (5%)" or purple "Demand Creation (95%)" once `draft.track` is set
+- **6 completion cards**: Target Audience, Campaign Insight, Objective, Channel Mix, Content Calendar, Success Metrics — each shows filled/empty state based on draft keys
+- **Content Calendar table**: compact table with columns: Asset Title, Format, Persona, Week — populated from `draft.content_calendar[]`
+- **95-5 Balance bar**: horizontal split showing demand_creation vs demand_capture percentage of content calendar assets, purple/orange
+- **Save Campaign button**: disabled until `draft.is_complete === true`
+- **View Brief in Notion button**: shown when `notion_url` is set, opens in new tab
+
+### 3. `src/components/campaign-wizard/types.ts` (new)
+```typescript
+export interface CampaignDraft {
+  campaign_name?: string;
+  track?: 'demand_capture' | 'demand_creation';
+  target_audience?: Record<string, any>;
+  campaign_insight?: Record<string, any>;
+  objective?: Record<string, any>;
+  channel_mix?: Record<string, any>;
+  content_calendar?: ContentCalendarItem[];
+  success_metrics?: Record<string, any>;
+  is_complete?: boolean;
+  notion_brief_ready?: boolean;
+  sections_complete?: string[];
+}
+
+export interface ContentCalendarItem {
+  title: string;
+  format: string;
+  persona: string;
+  week: string;
+  track?: 'demand_capture' | 'demand_creation';
+}
+
+export const CAMPAIGN_SECTIONS = [
+  { key: 'target_audience', label: 'Target Audience', icon: '🎯' },
+  { key: 'campaign_insight', label: 'Campaign Insight', icon: '💡' },
+  { key: 'objective', label: 'Objective', icon: '📌' },
+  { key: 'channel_mix', label: 'Channel Mix', icon: '📡' },
+  { key: 'content_calendar', label: 'Content Calendar', icon: '📅' },
+  { key: 'success_metrics', label: 'Success Metrics', icon: '📊' },
+];
 ```
 
-## Edge Function: `supabase/functions/campaign-wizard/index.ts`
+### 4. `src/pages/Campaigns.tsx` (modify)
+- Change "+ New Campaign" button to navigate to `/project/campaign-wizard` instead of opening the Sheet form
+- Remove the Sheet form (campaign creation now handled by wizard)
 
-Follows the icp-wizard pattern with these differences:
+### 5. `src/App.tsx` (modify)
+- Add route: `<Route path="/project/campaign-wizard" element={<CampaignWizard />} />`
+- Import `CampaignWizard`
 
-1. **Request body**: accepts `{ message, session_id, project_id, project_context }` where `project_context` is `{ icp_segments: [...], personas: [...] }`
-2. **Session creation**: stores `project_context` in the new `context` jsonb column
-3. **System prompt**: reads `ANTHROPIC_CAMPAIGN_SYSTEM_PROMPT` from env (Supabase secret). Prepends `"## PROJECT CONTEXT\n" + JSON.stringify(project_context)` before the base prompt
-4. **Draft parsing**: identical `<draft>` tag extraction and `mergeDrafts` logic
-5. **Notion integration**: when `updatedDraft.is_complete === true && updatedDraft.notion_brief_ready === true`, invokes `create-notion-campaign-brief` edge function, stores returned `notion_url` in the session record
-6. **Response**: returns `{ reply, updated_draft, session_id, notion_url }`
+### 6. `src/types/database.ts` (modify)
+- Add `'campaign'` to `WizardSessionType`
 
-### Key flow differences from icp-wizard:
-- No URL fetching/crawling (campaign wizard uses structured project context instead)
-- No brand context loading from projects table
-- Loads `project_context` from session's `context` column on subsequent messages
-- Calls `create-notion-campaign-brief` via internal fetch when both completion flags are set
+## Save Logic (in CampaignWizard)
+When user clicks "Save Campaign":
+1. Insert into `campaigns`: project_id, name from draft, track, status='brief', objective, channel_mix, target_icp_ids (from draft.target_audience)
+2. For each item in `draft.content_calendar`, insert into `campaign_assets`: campaign_id, title, asset_type (mapped from format), status='brief', persona_target_ids
+3. Mark wizard_session as complete
 
-## Config Update: `supabase/config.toml`
-
-Add:
-```toml
-[functions.campaign-wizard]
-  verify_jwt = false
-```
-
-## Secret Required
-
-`ANTHROPIC_CAMPAIGN_SYSTEM_PROMPT` must be added as a Supabase secret. Will prompt the user for this value.
-
-## Files Modified/Created
-- **Migration**: add `notion_url`, `context` columns + enum value
-- **Create**: `supabase/functions/campaign-wizard/index.ts`
-- **Edit**: `supabase/config.toml` — add function entry
-- **Edit**: `src/integrations/supabase/types.ts` — auto-updated after migration
+## No database changes needed
+All required columns (`context`, `notion_url`, `campaign` enum value) were added in the previous migration.
 
