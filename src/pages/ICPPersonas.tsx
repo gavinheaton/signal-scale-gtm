@@ -6,13 +6,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Textarea } from '@/components/ui/textarea';
 import { ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Label as RLabel } from 'recharts';
-import { Plus, Target, Users, Sparkles } from 'lucide-react';
+import { Target, Users, Sparkles } from 'lucide-react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 
@@ -54,13 +49,6 @@ export default function ICPPersonas() {
   const [expandedPersona, setExpandedPersona] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-
-
-
-  // Persona form
-  const [personaForm, setPersonaForm] = useState({ persona_name: '', icp_id: '', role_in_buying: 'champion' as RoleInBuying, pain_points: '', goals: '', how_we_help: '', ai_readiness_score: 3 });
-  const [personaOpen, setPersonaOpen] = useState(false);
-
   const fetchData = async () => {
     if (!currentProject) return;
     const [{ data: icpData }, { data: personaData }] = await Promise.all([
@@ -75,28 +63,6 @@ export default function ICPPersonas() {
   useEffect(() => { fetchData(); }, [currentProject]);
 
   if (!currentProject) return <Navigate to="/projects" replace />;
-
-
-
-
-  const handleAddPersona = async () => {
-    const { error } = await supabase.from('personas').insert({
-      project_id: currentProject.id,
-      icp_id: personaForm.icp_id,
-      persona_name: personaForm.persona_name,
-      role_in_buying: personaForm.role_in_buying,
-      pain_points: personaForm.pain_points ? JSON.parse(personaForm.pain_points) : {},
-      goals: personaForm.goals ? JSON.parse(personaForm.goals) : {},
-      how_we_help: personaForm.how_we_help,
-      ai_readiness_score: personaForm.ai_readiness_score,
-      channel_preferences: {},
-      is_current: true,
-    });
-    if (error) { toast.error(error.message); return; }
-    toast.success('Persona added');
-    setPersonaOpen(false);
-    fetchData();
-  };
 
   const scatterData = icps.map(icp => ({
     x: icp.access_score,
@@ -118,7 +84,6 @@ export default function ICPPersonas() {
 
   if (loading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>;
 
-  // If no ICPs exist, redirect to wizard
   if (!loading && icps.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-[60vh] space-y-6">
@@ -144,7 +109,6 @@ export default function ICPPersonas() {
         </TabsList>
 
         <TabsContent value="icps" className="space-y-6 mt-4">
-          {/* Prioritisation Matrix */}
           <Card>
             <CardHeader>
               <CardTitle className="text-lg">Prioritisation Matrix</CardTitle>
@@ -176,7 +140,6 @@ export default function ICPPersonas() {
                     <Scatter data={scatterData} shape={<CustomDot />} />
                   </ScatterChart>
                 </ResponsiveContainer>
-                {/* Quadrant labels */}
                 <div className="absolute top-6 left-12 text-[10px] text-muted-foreground/50 font-medium">Strategic Nurture</div>
                 <div className="absolute top-6 right-8 text-[10px] text-muted-foreground/50 font-medium">Now Accounts</div>
                 <div className="absolute bottom-12 left-12 text-[10px] text-muted-foreground/50 font-medium">No-Go Zone</div>
@@ -185,7 +148,6 @@ export default function ICPPersonas() {
             </CardContent>
           </Card>
 
-          {/* ICP Cards */}
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold" style={{ color: 'hsl(var(--orange))' }}>ICP Segments</h2>
             <Button size="sm" onClick={() => navigate('/project/icp-wizard')}>
@@ -229,38 +191,9 @@ export default function ICPPersonas() {
         <TabsContent value="personas" className="space-y-6 mt-4">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold" style={{ color: 'hsl(var(--orange))' }}>Persona Gallery</h2>
-            <Sheet open={personaOpen} onOpenChange={setPersonaOpen}>
-              <SheetTrigger asChild>
-                <Button size="sm"><Plus className="h-4 w-4 mr-1" /> Add Persona</Button>
-              </SheetTrigger>
-              <SheetContent>
-                <SheetHeader><SheetTitle>Add Persona</SheetTitle></SheetHeader>
-                <div className="space-y-4 mt-4">
-                  <div><Label>Persona Name</Label><Input value={personaForm.persona_name} onChange={e => setPersonaForm(f => ({ ...f, persona_name: e.target.value }))} /></div>
-                  <div>
-                    <Label>ICP Segment</Label>
-                    <Select value={personaForm.icp_id} onValueChange={v => setPersonaForm(f => ({ ...f, icp_id: v }))}>
-                      <SelectTrigger><SelectValue placeholder="Select ICP" /></SelectTrigger>
-                      <SelectContent>{icps.map(i => <SelectItem key={i.id} value={i.id}>{i.segment_name}</SelectItem>)}</SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label>Role in Buying</Label>
-                    <Select value={personaForm.role_in_buying} onValueChange={v => setPersonaForm(f => ({ ...f, role_in_buying: v as RoleInBuying }))}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {(['champion', 'economic_buyer', 'influencer', 'end_user', 'blocker'] as const).map(r => <SelectItem key={r} value={r}>{r.replace('_', ' ')}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div><Label>Pain Points (JSON)</Label><Textarea value={personaForm.pain_points} onChange={e => setPersonaForm(f => ({ ...f, pain_points: e.target.value }))} placeholder='["Legacy systems", "Budget constraints"]' /></div>
-                  <div><Label>Goals (JSON)</Label><Textarea value={personaForm.goals} onChange={e => setPersonaForm(f => ({ ...f, goals: e.target.value }))} placeholder='["Modernise infrastructure"]' /></div>
-                  <div><Label>How We Help</Label><Textarea value={personaForm.how_we_help} onChange={e => setPersonaForm(f => ({ ...f, how_we_help: e.target.value }))} /></div>
-                  <div><Label>AI Readiness Score (1-5)</Label><Input type="number" min={1} max={5} value={personaForm.ai_readiness_score} onChange={e => setPersonaForm(f => ({ ...f, ai_readiness_score: +e.target.value }))} /></div>
-                  <Button onClick={handleAddPersona} className="w-full">Save Persona</Button>
-                </div>
-              </SheetContent>
-            </Sheet>
+            <Button size="sm" onClick={() => navigate('/project/persona-wizard')}>
+              <Sparkles className="h-4 w-4 mr-1" /> Add Persona
+            </Button>
           </div>
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {personas.map(p => {
