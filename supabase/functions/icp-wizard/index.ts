@@ -59,7 +59,9 @@ CRITICAL JSON RULES:
 
 The user sees the draft card update in real-time, so keep the JSON accurate and progressive.`;
 
-const INITIAL_MESSAGE = "Let's build your ICP. I'll start by researching your company — what's your website URL? If you have existing customers, personas, or messaging you'd like me to work from, you can share those too.";
+const INITIAL_MESSAGE_NO_CONTEXT = "Let's build your ICP. I'll start by researching your company — what's your website URL? If you have existing customers, personas, or messaging you'd like me to work from, you can share those too.";
+
+const INITIAL_MESSAGE_WITH_CONTEXT = "I already have context on your brand from a previous session. Let's define a new ICP segment — what market, vertical, or customer type are you targeting with this one?";
 
 /** Deep-merge two objects (shallow per top-level key) */
 function mergeDrafts(existing: Record<string, any>, incoming: Record<string, any>): Record<string, any> {
@@ -77,23 +79,15 @@ function mergeDrafts(existing: Record<string, any>, incoming: Record<string, any
 
 /** Try to parse JSON with cleanup for common LLM issues */
 function robustJsonParse(raw: string): Record<string, any> | null {
-  // First try direct parse
-  try {
-    return JSON.parse(raw);
-  } catch { /* continue */ }
-
-  // Clean up common issues
-  let cleaned = raw
-    .replace(/,\s*([}\]])/g, '$1')        // trailing commas
-    .replace(/\/\/[^\n]*/g, '')            // JS single-line comments
-    .replace(/\/\*[\s\S]*?\*\//g, '')      // JS block comments
-    .replace(/[\x00-\x1F\x7F]/g, ' ')     // control characters (except via \n etc in strings)
-    .replace(/\n/g, ' ')                   // newlines
+  try { return JSON.parse(raw); } catch { /* continue */ }
+  const cleaned = raw
+    .replace(/,\s*([}\]])/g, '$1')
+    .replace(/\/\/[^\n]*/g, '')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/[\x00-\x1F\x7F]/g, ' ')
+    .replace(/\n/g, ' ')
     .trim();
-
-  try {
-    return JSON.parse(cleaned);
-  } catch {
+  try { return JSON.parse(cleaned); } catch {
     console.error("Failed to parse draft JSON even after cleanup. Raw:", raw.slice(0, 500));
     return null;
   }
@@ -130,10 +124,26 @@ Deno.serve(async (req) => {
     let messages: Array<{ role: string; content: string; timestamp: string }> = [];
     let existingDraft: Record<string, any> = {};
 
+    // Load brand context from the project
+    let brandContext: Record<string, any> = {};
+    if (project_id) {
+      const { data: project } = await supabase
+        .from("projects")
+        .select("brand_context")
+        .eq("id", project_id)
+        .single();
+      if (project?.brand_context && Object.keys(project.brand_context).length > 0) {
+        brandContext = project.brand_context as Record<string, any>;
+      }
+    }
+
+    const hasBrandContext = brandContext.crawled_content && brandContext.crawled_content.length > 0;
+    const initialMessage = hasBrandContext ? INITIAL_MESSAGE_WITH_CONTEXT : INITIAL_MESSAGE_NO_CONTEXT;
+
     if (!sessionId) {
       const initialMsg = {
         role: "assistant",
-        content: INITIAL_MESSAGE,
+        content: initialMessage,
         timestamp: new Date().toISOString(),
       };
       messages = [initialMsg];
@@ -169,7 +179,7 @@ Deno.serve(async (req) => {
       if (!message) {
         return new Response(
           JSON.stringify({
-            reply: INITIAL_MESSAGE,
+            reply: initialMessage,
             updated_draft: {},
             session_id: sessionId,
           }),
@@ -204,6 +214,7 @@ Deno.serve(async (req) => {
     let enrichedContent = lastUserMsg.content;
     const urlRegex = /https?:\/\/[^\s<>"{}|\\^`\[\]]+/gi;
     const urls = lastUserMsg.role === "user" ? lastUserMsg.content.match(urlRegex) : null;
+    let newlyCrawledContent: { url: string; content: string } | null = null;
 
     if (urls && urls.length > 0) {
       for (const url of urls.slice(0, 2)) {
@@ -221,6 +232,11 @@ Deno.serve(async (req) => {
             html = html.replace(/\s+/g, " ").trim();
             const cleaned = html.slice(0, 4000);
             enrichedContent += `\n\n[Fetched content from ${url}]:\n${cleaned}`;
+
+            // Save the first crawl as brand context if none exists yet
+            if (!hasBrandContext && !newlyCrawledContent) {
+              newlyCrawledContent = { url, content: cleaned };
+            }
           } else {
             enrichedContent += `\n\n[Failed to fetch ${url}: HTTP ${fetchRes.status}]`;
             await fetchRes.text();
@@ -231,6 +247,27 @@ Deno.serve(async (req) => {
         }
       }
       messages[messages.length - 1] = { ...lastUserMsg, content: enrichedContent };
+    }
+
+    // Save brand context to project if this is the first crawl
+    if (newlyCrawledContent && project_id) {
+      await supabase
+        .from("projects")
+        .update({
+          brand_context: {
+            website_url: newlyCrawledContent.url,
+            crawled_content: newlyCrawledContent.content,
+            crawled_at: new Date().toISOString(),
+          },
+        })
+        .eq("id", project_id);
+      console.log("Saved brand context to project:", project_id);
+    }
+
+    // Build system prompt with brand context if available
+    let systemPrompt = ICP_SYSTEM_PROMPT;
+    if (hasBrandContext) {
+      systemPrompt += `\n\nBRAND CONTEXT (from previous analysis of ${brandContext.website_url || "company website"}):\n${brandContext.crawled_content}\n\nUse this to inform your ICP questions. Do NOT ask for the website URL again — you already have the brand context.`;
     }
 
     // Build Anthropic messages — strip draft tags from prior assistant messages to save tokens
@@ -251,7 +288,7 @@ Deno.serve(async (req) => {
       body: JSON.stringify({
         model: "claude-sonnet-4-6",
         max_tokens: 2048,
-        system: ICP_SYSTEM_PROMPT,
+        system: systemPrompt,
         messages: anthropicMessages,
       }),
     });
