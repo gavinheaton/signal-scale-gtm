@@ -9,3 +9,5 @@ project_id = "xiufgczyecwgnkbyroow"
     verify_jwt = false
   [functions.invite-user]
     verify_jwt = false
+  [functions.manage-project-connection]
+    verify_jwt = false

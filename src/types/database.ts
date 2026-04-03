@@ -87,6 +87,15 @@ export interface CampaignAsset {
   persona_target_ids: string[];
 }
 
+export interface ProjectConnection {
+  id: string;
+  project_id: string;
+  provider: 'claude' | 'notion';
+  api_key_secret_id: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface CampaignMetric {
   id: string;
   campaign_id: string;

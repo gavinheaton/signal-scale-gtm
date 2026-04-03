@@ -303,6 +303,41 @@ export type Database = {
           },
         ]
       }
+      project_connections: {
+        Row: {
+          api_key_secret_id: string
+          created_at: string
+          id: string
+          project_id: string
+          provider: string
+          updated_at: string
+        }
+        Insert: {
+          api_key_secret_id: string
+          created_at?: string
+          id?: string
+          project_id: string
+          provider: string
+          updated_at?: string
+        }
+        Update: {
+          api_key_secret_id?: string
+          created_at?: string
+          id?: string
+          project_id?: string
+          provider?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_connections_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       projects: {
         Row: {
           brand_context: Json | null
