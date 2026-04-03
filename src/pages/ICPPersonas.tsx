@@ -58,7 +58,7 @@ export default function ICPPersonas() {
     if (!currentProject) return;
     const [{ data: icpData }, { data: personaData }] = await Promise.all([
       supabase.from('icps').select('*').eq('project_id', currentProject.id),
-      supabase.from('personas').select('*').eq('project_id', currentProject.id),
+      supabase.from('personas').select('*').eq('project_id', currentProject.id).eq('is_current', true),
     ]);
     if (icpData) setIcps(icpData as unknown as ICP[]);
     if (personaData) setPersonas(personaData as unknown as Persona[]);
