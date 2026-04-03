@@ -12,8 +12,8 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Label as RLabel } from 'recharts';
-import { Plus, Target, Users } from 'lucide-react';
-import { Navigate } from 'react-router-dom';
+import { Plus, Target, Users, Sparkles } from 'lucide-react';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 
 const matrixColors: Record<MatrixCategory, string> = {
@@ -47,6 +47,7 @@ const dotColors: Record<MatrixCategory, string> = {
 
 export default function ICPPersonas() {
   const { currentProject } = useProject();
+  const navigate = useNavigate();
   const [icps, setIcps] = useState<ICP[]>([]);
   const [personas, setPersonas] = useState<Persona[]>([]);
   const [expandedIcp, setExpandedIcp] = useState<string | null>(null);
@@ -133,6 +134,22 @@ export default function ICPPersonas() {
 
   if (loading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>;
 
+  // If no ICPs exist, redirect to wizard
+  if (!loading && icps.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[60vh] space-y-6">
+        <div className="text-center space-y-2">
+          <Sparkles className="h-12 w-12 mx-auto" style={{ color: 'hsl(var(--orange))' }} />
+          <h1 className="text-2xl font-bold text-foreground">No ICP segments yet</h1>
+          <p className="text-muted-foreground max-w-md">Use the AI-powered ICP Wizard to build your first Ideal Customer Profile through a guided conversation.</p>
+        </div>
+        <Button onClick={() => navigate('/project/icp-wizard')} size="lg">
+          <Sparkles className="h-4 w-4 mr-2" /> Start ICP Wizard
+        </Button>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-foreground">ICP & Personas</h1>
@@ -187,10 +204,14 @@ export default function ICPPersonas() {
           {/* ICP Cards */}
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold" style={{ color: 'hsl(var(--orange))' }}>ICP Segments</h2>
-            <Sheet open={icpOpen} onOpenChange={setIcpOpen}>
-              <SheetTrigger asChild>
-                <Button size="sm"><Plus className="h-4 w-4 mr-1" /> Add ICP Segment</Button>
-              </SheetTrigger>
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" onClick={() => navigate('/project/icp-wizard')}>
+                <Sparkles className="h-4 w-4 mr-1" /> ICP Wizard
+              </Button>
+              <Sheet open={icpOpen} onOpenChange={setIcpOpen}>
+                <SheetTrigger asChild>
+                  <Button size="sm"><Plus className="h-4 w-4 mr-1" /> Add ICP Segment</Button>
+                </SheetTrigger>
               <SheetContent>
                 <SheetHeader><SheetTitle>Add ICP Segment</SheetTitle></SheetHeader>
                 <div className="space-y-4 mt-4">
@@ -212,6 +233,7 @@ export default function ICPPersonas() {
                 </div>
               </SheetContent>
             </Sheet>
+          </div>
           </div>
           <div className="grid gap-4 md:grid-cols-2">
             {icps.map(icp => (

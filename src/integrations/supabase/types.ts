@@ -332,6 +332,44 @@ export type Database = {
           },
         ]
       }
+      wizard_sessions: {
+        Row: {
+          created_at: string
+          draft_output: Json
+          id: string
+          messages: Json
+          project_id: string
+          session_type: Database["public"]["Enums"]["wizard_session_type"]
+          status: Database["public"]["Enums"]["wizard_session_status"]
+        }
+        Insert: {
+          created_at?: string
+          draft_output?: Json
+          id?: string
+          messages?: Json
+          project_id: string
+          session_type: Database["public"]["Enums"]["wizard_session_type"]
+          status?: Database["public"]["Enums"]["wizard_session_status"]
+        }
+        Update: {
+          created_at?: string
+          draft_output?: Json
+          id?: string
+          messages?: Json
+          project_id?: string
+          session_type?: Database["public"]["Enums"]["wizard_session_type"]
+          status?: Database["public"]["Enums"]["wizard_session_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wizard_sessions_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -375,6 +413,8 @@ export type Database = {
         | "influencer"
         | "end_user"
         | "blocker"
+      wizard_session_status: "in_progress" | "complete"
+      wizard_session_type: "icp" | "persona" | "competitor"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -537,6 +577,8 @@ export const Constants = {
         "end_user",
         "blocker",
       ],
+      wizard_session_status: ["in_progress", "complete"],
+      wizard_session_type: ["icp", "persona", "competitor"],
     },
   },
 } as const

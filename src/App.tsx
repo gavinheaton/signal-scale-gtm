@@ -11,6 +11,7 @@ import AuthCallback from "@/pages/AuthCallback";
 import Projects from "@/pages/Projects";
 import Home from "@/pages/Home";
 import ICPPersonas from "@/pages/ICPPersonas";
+import ICPWizard from "@/pages/ICPWizard";
 import Campaigns from "@/pages/Campaigns";
 import ContentPipeline from "@/pages/ContentPipeline";
 import Analytics from "@/pages/Analytics";
@@ -35,6 +36,7 @@ const App = () => (
                 <Route path="/projects" element={<Projects />} />
                 <Route path="/project/home" element={<Home />} />
                 <Route path="/project/icp-personas" element={<ICPPersonas />} />
+                <Route path="/project/icp-wizard" element={<ICPWizard />} />
                 <Route path="/project/campaigns" element={<Campaigns />} />
                 <Route path="/project/content" element={<ContentPipeline />} />
                 <Route path="/project/analytics" element={<Analytics />} />
