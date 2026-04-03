@@ -32,7 +32,7 @@ export default function Auth() {
     const { error } = await supabase.auth.signUp({
       email,
       password,
-      options: { emailRedirectTo: window.location.origin },
+      options: { emailRedirectTo: 'https://signal-scale-gtm.lovable.app' },
     });
     if (error) toast.error(error.message);
     else toast.success('Check your email for a confirmation link!');
