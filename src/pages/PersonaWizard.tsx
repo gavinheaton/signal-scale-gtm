@@ -80,8 +80,28 @@ export default function PersonaWizard() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  const INIT_STAGES = editPersonaId
+    ? [
+        { text: 'Loading persona data…', delay: 0 },
+        { text: 'Reading current profile…', delay: 1500 },
+        { text: 'Preparing edit session…', delay: 3000 },
+      ]
+    : [
+        { text: 'Reading your ICP…', delay: 0 },
+        { text: 'Analysing buyer roles…', delay: 1500 },
+        { text: 'Identifying target personas…', delay: 3000 },
+        { text: 'Building recommendations…', delay: 5000 },
+      ];
+
   const initSession = async () => {
     setLoading(true);
+    setInitStage(INIT_STAGES[0].text);
+
+    // Start progressive stage updates
+    const stageTimers = INIT_STAGES.slice(1).map(stage =>
+      setTimeout(() => setInitStage(stage.text), stage.delay)
+    );
+
     try {
       // In edit mode, skip resuming existing sessions
       if (!editPersonaId) {
@@ -110,6 +130,7 @@ export default function PersonaWizard() {
             setDraft(session.draft_output as PersonaDraft);
           }
           toast.info('Resumed your previous persona session');
+          stageTimers.forEach(clearTimeout);
           return;
         }
       }
@@ -129,6 +150,8 @@ export default function PersonaWizard() {
     } catch (err: any) {
       toast.error('Failed to start wizard: ' + (err.message || 'Unknown error'));
     } finally {
+      stageTimers.forEach(clearTimeout);
+      setInitStage(null);
       setLoading(false);
     }
   };
