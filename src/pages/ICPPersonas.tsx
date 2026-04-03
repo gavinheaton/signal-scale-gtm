@@ -9,9 +9,10 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Label as RLabel } from 'recharts';
-import { Target, Users, Sparkles, ChevronDown } from 'lucide-react';
+import { Target, Users, Sparkles, ChevronDown, Pencil, Trash2 } from 'lucide-react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
 
 const matrixColors: Record<MatrixCategory, string> = {
   now_account: 'bg-green-100 text-green-800',
@@ -50,12 +51,14 @@ export default function ICPPersonas() {
   const [expandedIcp, setExpandedIcp] = useState<string | null>(null);
   const [expandedPersona, setExpandedPersona] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [deleteTarget, setDeleteTarget] = useState<Persona | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const fetchData = async () => {
     if (!currentProject) return;
     const [{ data: icpData }, { data: personaData }] = await Promise.all([
       supabase.from('icps').select('*').eq('project_id', currentProject.id),
-      supabase.from('personas').select('*').eq('project_id', currentProject.id),
+      supabase.from('personas').select('*').eq('project_id', currentProject.id).eq('is_current', true),
     ]);
     if (icpData) setIcps(icpData as unknown as ICP[]);
     if (personaData) setPersonas(personaData as unknown as Persona[]);
@@ -63,6 +66,20 @@ export default function ICPPersonas() {
   };
 
   useEffect(() => { fetchData(); }, [currentProject]);
+
+  const handleDeletePersona = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    const { error } = await supabase.from('personas').update({ is_current: false }).eq('id', deleteTarget.id);
+    if (error) {
+      toast.error('Failed to delete persona');
+    } else {
+      setPersonas(prev => prev.filter(p => p.id !== deleteTarget.id));
+      toast.success(`"${deleteTarget.persona_name}" removed`);
+    }
+    setDeleting(false);
+    setDeleteTarget(null);
+  };
 
   if (!currentProject) return <Navigate to="/projects" replace />;
 
@@ -227,7 +244,15 @@ export default function ICPPersonas() {
                   <CardHeader className="pb-2">
                     <div className="flex items-center justify-between">
                       <CardTitle className="text-base">{p.persona_name}</CardTitle>
-                      <Badge className={roleColors[p.role_in_buying]}>{p.role_in_buying.replace('_', ' ')}</Badge>
+                      <div className="flex items-center gap-1">
+                        <Badge className={roleColors[p.role_in_buying]}>{p.role_in_buying.replace('_', ' ')}</Badge>
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); navigate(`/project/persona-wizard?icp_id=${p.icp_id}&edit_persona_id=${p.id}`); }}>
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={(e) => { e.stopPropagation(); setDeleteTarget(p); }}>
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
                     </div>
                     {icp && <p className="text-xs text-muted-foreground mt-1">{icp.segment_name}</p>}
                   </CardHeader>
@@ -259,6 +284,25 @@ export default function ICPPersonas() {
           </div>
         </TabsContent>
       </Tabs>
+
+      <Dialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Persona</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to remove <strong>{deleteTarget?.persona_name}</strong>? This will archive the persona — it won't appear in active views.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button variant="outline">Cancel</Button>
+            </DialogClose>
+            <Button variant="destructive" onClick={handleDeletePersona} disabled={deleting}>
+              {deleting ? 'Removing…' : 'Remove Persona'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

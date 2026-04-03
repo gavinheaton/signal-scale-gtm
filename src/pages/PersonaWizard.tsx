@@ -54,7 +54,7 @@ export default function PersonaWizard() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const icpId = searchParams.get('icp_id');
-
+  const editPersonaId = searchParams.get('edit_persona_id');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -82,36 +82,43 @@ export default function PersonaWizard() {
   const initSession = async () => {
     setLoading(true);
     try {
-      const { data: existingSessions } = await supabase
-        .from('wizard_sessions')
-        .select('*')
-        .eq('project_id', currentProject!.id)
-        .eq('session_type', 'persona')
-        .eq('status', 'in_progress')
-        .order('created_at', { ascending: false })
-        .limit(1);
+      // In edit mode, skip resuming existing sessions
+      if (!editPersonaId) {
+        const { data: existingSessions } = await supabase
+          .from('wizard_sessions')
+          .select('*')
+          .eq('project_id', currentProject!.id)
+          .eq('session_type', 'persona')
+          .eq('status', 'in_progress')
+          .order('created_at', { ascending: false })
+          .limit(1);
 
-      if (existingSessions && existingSessions.length > 0) {
-        const session = existingSessions[0];
-        setSessionId(session.id);
-        const sessionMessages = session.messages as Array<{ role: string; content: string }>;
-        setMessages(
-          sessionMessages.map(m => ({
-            role: m.role as 'user' | 'assistant',
-            content: m.role === 'assistant'
-              ? m.content.replace(/<draft>[\s\S]*?<\/draft>/g, '').trim()
-              : m.content,
-          }))
-        );
-        if (session.draft_output && Object.keys(session.draft_output as object).length > 0) {
-          setDraft(session.draft_output as PersonaDraft);
+        if (existingSessions && existingSessions.length > 0) {
+          const session = existingSessions[0];
+          setSessionId(session.id);
+          const sessionMessages = session.messages as Array<{ role: string; content: string }>;
+          setMessages(
+            sessionMessages.map(m => ({
+              role: m.role as 'user' | 'assistant',
+              content: m.role === 'assistant'
+                ? m.content.replace(/<draft>[\s\S]*?<\/draft>/g, '').trim()
+                : m.content,
+            }))
+          );
+          if (session.draft_output && Object.keys(session.draft_output as object).length > 0) {
+            setDraft(session.draft_output as PersonaDraft);
+          }
+          toast.info('Resumed your previous persona session');
+          return;
         }
-        toast.info('Resumed your previous persona session');
-        return;
       }
 
       const res = await supabase.functions.invoke('persona-wizard', {
-        body: { project_id: currentProject!.id, icp_id: icpId },
+        body: {
+          project_id: currentProject!.id,
+          icp_id: icpId,
+          ...(editPersonaId ? { edit_persona_id: editPersonaId } : {}),
+        },
       });
       if (res.error) throw res.error;
       const data = res.data;
@@ -134,7 +141,13 @@ export default function PersonaWizard() {
 
     try {
       const res = await supabase.functions.invoke('persona-wizard', {
-        body: { message: userMsg, session_id: sessionId, project_id: currentProject!.id, icp_id: icpId },
+        body: {
+          message: userMsg,
+          session_id: sessionId,
+          project_id: currentProject!.id,
+          icp_id: icpId,
+          ...(editPersonaId ? { edit_persona_id: editPersonaId } : {}),
+        },
       });
       if (res.error) throw res.error;
       const data = res.data;
@@ -164,7 +177,7 @@ export default function PersonaWizard() {
         ? (draft.role_in_buying as RoleInBuying)
         : 'influencer';
 
-      const { data: insertedData, error } = await supabase.from('personas').insert({
+      const personaData = {
         project_id: currentProject.id,
         icp_id: icpId || null,
         persona_name: draft.persona_name || 'New Persona',
@@ -178,9 +191,19 @@ export default function PersonaWizard() {
         how_we_help: draft.how_we_help || '',
         ai_readiness_score: draft.ai_readiness_score || 3,
         is_current: true,
-      }).select('id').single();
+      };
 
-      if (error) throw error;
+      let savedId: string;
+
+      if (editPersonaId) {
+        const { error } = await supabase.from('personas').update(personaData).eq('id', editPersonaId);
+        if (error) throw error;
+        savedId = editPersonaId;
+      } else {
+        const { data: insertedData, error } = await supabase.from('personas').insert(personaData).select('id').single();
+        if (error) throw error;
+        savedId = insertedData.id;
+      }
 
       if (sessionId) {
         await supabase
@@ -189,8 +212,8 @@ export default function PersonaWizard() {
           .eq('id', sessionId);
       }
 
-      toast.success('Persona saved to platform!');
-      setSavedPersonaId(insertedData.id);
+      toast.success(editPersonaId ? 'Persona updated!' : 'Persona saved to platform!');
+      setSavedPersonaId(savedId);
       setSaving(false);
     } catch (err: any) {
       toast.error('Failed to save: ' + err.message);
