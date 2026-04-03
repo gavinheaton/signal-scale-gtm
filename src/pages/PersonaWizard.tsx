@@ -54,7 +54,7 @@ export default function PersonaWizard() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const icpId = searchParams.get('icp_id');
-
+  const editPersonaId = searchParams.get('edit_persona_id');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
