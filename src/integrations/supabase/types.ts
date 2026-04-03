@@ -299,6 +299,7 @@ export type Database = {
       }
       projects: {
         Row: {
+          brand_context: Json | null
           created_at: string | null
           id: string
           methodology_progress: Json | null
@@ -307,6 +308,7 @@ export type Database = {
           status: Database["public"]["Enums"]["project_status"]
         }
         Insert: {
+          brand_context?: Json | null
           created_at?: string | null
           id?: string
           methodology_progress?: Json | null
@@ -315,6 +317,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["project_status"]
         }
         Update: {
+          brand_context?: Json | null
           created_at?: string | null
           id?: string
           methodology_progress?: Json | null
