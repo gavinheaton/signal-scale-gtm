@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import PersonaSunburst from '@/components/icp-wizard/PersonaSunburst';
+import PersonaDetailModal from '@/components/PersonaDetailModal';
 import { useProject } from '@/contexts/ProjectContext';
 import { ICP, Persona, MatrixCategory, RoleInBuying } from '@/types/database';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -49,7 +50,7 @@ export default function ICPPersonas() {
   const [icps, setIcps] = useState<ICP[]>([]);
   const [personas, setPersonas] = useState<Persona[]>([]);
   const [expandedIcp, setExpandedIcp] = useState<string | null>(null);
-  const [expandedPersona, setExpandedPersona] = useState<string | null>(null);
+  const [selectedPersona, setSelectedPersona] = useState<Persona | null>(null);
   const [loading, setLoading] = useState(true);
   const [deleteTarget, setDeleteTarget] = useState<Persona | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -240,18 +241,12 @@ export default function ICPPersonas() {
               const icp = icps.find(i => i.id === p.icp_id);
               const painPoints = Array.isArray(p.pain_points) ? p.pain_points : Object.values(p.pain_points || {});
               return (
-                <Card key={p.id} className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setExpandedPersona(expandedPersona === p.id ? null : p.id)}>
+                <Card key={p.id} className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setSelectedPersona(p)}>
                   <CardHeader className="pb-2">
                     <div className="flex items-center justify-between">
                       <CardTitle className="text-base">{p.persona_name}</CardTitle>
                       <div className="flex items-center gap-1">
                         <Badge className={roleColors[p.role_in_buying]}>{p.role_in_buying.replace('_', ' ')}</Badge>
-                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); navigate(`/project/persona-wizard?icp_id=${p.icp_id}&edit_persona_id=${p.id}`); }}>
-                          <Pencil className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={(e) => { e.stopPropagation(); setDeleteTarget(p); }}>
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
                       </div>
                     </div>
                     {icp && <p className="text-xs text-muted-foreground mt-1">{icp.segment_name}</p>}
@@ -270,13 +265,6 @@ export default function ICPPersonas() {
                         ))}
                       </div>
                     )}
-                    {expandedPersona === p.id && (
-                      <div className="mt-4 pt-4 border-t space-y-2 text-sm">
-                        {p.goals && <div><strong>Goals:</strong> {JSON.stringify(p.goals)}</div>}
-                        {p.how_we_help && <div><strong>How We Help:</strong> {p.how_we_help}</div>}
-                        {p.channel_preferences && Object.keys(p.channel_preferences).length > 0 && <div><strong>Channel Preferences:</strong> {JSON.stringify(p.channel_preferences)}</div>}
-                      </div>
-                    )}
                   </CardContent>
                 </Card>
               );
@@ -284,6 +272,15 @@ export default function ICPPersonas() {
           </div>
         </TabsContent>
       </Tabs>
+
+      <PersonaDetailModal
+        persona={selectedPersona}
+        icp={icps.find(i => i.id === selectedPersona?.icp_id)}
+        open={!!selectedPersona}
+        onOpenChange={(open) => !open && setSelectedPersona(null)}
+        onEdit={(p) => navigate(`/project/persona-wizard?icp_id=${p.icp_id}&edit_persona_id=${p.id}`)}
+        onDelete={(p) => setDeleteTarget(p)}
+      />
 
       <Dialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <DialogContent>

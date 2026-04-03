@@ -58,6 +58,8 @@ export interface Persona {
   pain_points: Record<string, any>;
   channel_preferences: Record<string, any>;
   how_we_help: string;
+  organisational_context: Record<string, any>;
+  buying_behaviour: Record<string, any>;
   ai_readiness_score: number;
   is_current: boolean;
 }
