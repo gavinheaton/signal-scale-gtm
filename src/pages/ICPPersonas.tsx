@@ -54,9 +54,8 @@ export default function ICPPersonas() {
   const [expandedPersona, setExpandedPersona] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // ICP form
-  const [icpForm, setIcpForm] = useState({ segment_name: '', fit_score: 5, access_score: 5, matrix_category: 'now_account' as MatrixCategory, firmographics: '', buyer_roles: '' });
-  const [icpOpen, setIcpOpen] = useState(false);
+
+
 
   // Persona form
   const [personaForm, setPersonaForm] = useState({ persona_name: '', icp_id: '', role_in_buying: 'champion' as RoleInBuying, pain_points: '', goals: '', how_we_help: '', ai_readiness_score: 3 });
