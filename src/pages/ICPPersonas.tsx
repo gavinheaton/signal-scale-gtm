@@ -280,6 +280,10 @@ export default function ICPPersonas() {
         onOpenChange={(open) => !open && setSelectedPersona(null)}
         onEdit={(p) => navigate(`/project/persona-wizard?icp_id=${p.icp_id}&edit_persona_id=${p.id}`)}
         onDelete={(p) => setDeleteTarget(p)}
+        onRefreshed={(updated) => {
+          setSelectedPersona(updated);
+          setPersonas(prev => prev.map(p => p.id === updated.id ? updated : p));
+        }}
       />
 
       <Dialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
