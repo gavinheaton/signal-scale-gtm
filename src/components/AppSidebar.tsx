@@ -30,7 +30,7 @@ export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === 'collapsed';
   const location = useLocation();
-  const { signOut, organisation } = useAuth();
+  const { signOut, organisation, isSuperAdmin } = useAuth();
   const { currentProject } = useProject();
 
   return (
