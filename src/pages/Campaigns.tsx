@@ -20,8 +20,8 @@ export default function Campaigns() {
   const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
   const [assets, setAssets] = useState<CampaignAsset[]>([]);
   const [loading, setLoading] = useState(true);
-  const [formOpen, setFormOpen] = useState(false);
-  const [form, setForm] = useState({ name: '', track: 'demand_creation' as CampaignTrack, objective: '', launch_date: '', end_date: '' });
+
+
 
   const fetchData = async () => {
     if (!currentProject) return;
