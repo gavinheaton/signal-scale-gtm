@@ -22,6 +22,7 @@ export default function ICPWizard() {
   const [draft, setDraft] = useState<DraftOutput>({});
   const [saving, setSaving] = useState(false);
   const [prevDraft, setPrevDraft] = useState<DraftOutput>({});
+  const [savedIcpId, setSavedIcpId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Detect newly completed sections for inline celebrations
@@ -50,7 +51,6 @@ export default function ICPWizard() {
   const initSession = async () => {
     setLoading(true);
     try {
-      // Check for existing in-progress session
       const { data: existingSessions } = await supabase
         .from('wizard_sessions')
         .select('*')
@@ -64,7 +64,6 @@ export default function ICPWizard() {
         const session = existingSessions[0];
         setSessionId(session.id);
         const sessionMessages = session.messages as Array<{ role: string; content: string }>;
-        // Restore messages, stripping draft tags from display
         setMessages(
           sessionMessages.map(m => ({
             role: m.role as 'user' | 'assistant',
@@ -80,7 +79,6 @@ export default function ICPWizard() {
         return;
       }
 
-      // No existing session — create new
       const res = await supabase.functions.invoke('icp-wizard', {
         body: { project_id: currentProject!.id },
       });
@@ -134,7 +132,7 @@ export default function ICPWizard() {
 
     try {
       const matrixCategory = draft.matrix_category || 'now_account';
-      const { error } = await supabase.from('icps').insert({
+      const { data: insertedData, error } = await supabase.from('icps').insert({
         project_id: currentProject.id,
         segment_name: draft.segment_name || 'New ICP Segment',
         firmographics: draft.firmographics || {},
@@ -148,7 +146,7 @@ export default function ICPWizard() {
         fit_score: draft.fit_score || 5,
         access_score: draft.access_score || 5,
         matrix_category: matrixCategory as MatrixCategory,
-      });
+      }).select('id').single();
 
       if (error) throw error;
 
@@ -160,10 +158,26 @@ export default function ICPWizard() {
       }
 
       toast.success('ICP saved to platform!');
-      setTimeout(() => navigate('/project/icp-personas'), 2000);
+      setSavedIcpId(insertedData.id);
+      setSaving(false);
     } catch (err: any) {
       toast.error('Failed to save: ' + err.message);
       setSaving(false);
+    }
+  };
+
+  const handlePostSaveAction = (action: 'another_icp' | 'personas') => {
+    if (action === 'another_icp') {
+      // Reset state and start fresh session
+      setMessages([]);
+      setDraft({});
+      setPrevDraft({});
+      setSessionId(null);
+      setSavedIcpId(null);
+      initSession();
+    } else {
+      // Navigate to persona wizard with the saved ICP context
+      navigate(`/project/persona-wizard?icp_id=${savedIcpId}`);
     }
   };
 
@@ -172,7 +186,6 @@ export default function ICPWizard() {
     return null;
   }
 
-  // Check if there's any data to save
   const hasAnyData = ICP_SECTIONS.some(s => {
     const section = (draft as any)[s.key];
     return section && typeof section === 'object' && Object.keys(section).length > 0;
@@ -194,7 +207,6 @@ export default function ICPWizard() {
       </div>
 
       <div className="flex-1 flex gap-4 min-h-0">
-        {/* Left: Chat (50%) */}
         <div className="w-1/2 flex flex-col border rounded-lg bg-card">
           {currentPhase && (
             <div className="px-4 py-2 border-b bg-muted/30 flex items-center gap-2">
@@ -251,9 +263,15 @@ export default function ICPWizard() {
           </div>
         </div>
 
-        {/* Right: Visual ICP Preview (50%) */}
         <div className="w-1/2 flex flex-col border rounded-lg bg-card p-4">
-          <ICPPreviewPanel draft={draft} saving={saving} onSave={saveICP} hasAnyData={hasAnyData} />
+          <ICPPreviewPanel
+            draft={draft}
+            saving={saving}
+            onSave={saveICP}
+            hasAnyData={hasAnyData}
+            onPostSaveAction={handlePostSaveAction}
+            savedIcpId={savedIcpId}
+          />
         </div>
       </div>
     </div>
