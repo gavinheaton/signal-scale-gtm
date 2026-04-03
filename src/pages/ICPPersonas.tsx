@@ -51,6 +51,8 @@ export default function ICPPersonas() {
   const [expandedIcp, setExpandedIcp] = useState<string | null>(null);
   const [expandedPersona, setExpandedPersona] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [deleteTarget, setDeleteTarget] = useState<Persona | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const fetchData = async () => {
     if (!currentProject) return;
