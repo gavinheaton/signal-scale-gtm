@@ -227,7 +227,7 @@ Deno.serve(async (req) => {
         : m.content,
     }));
 
-    const systemPrompt = PERSONA_SYSTEM_PROMPT + icpContext + brandContextStr;
+    const systemPrompt = PERSONA_SYSTEM_PROMPT + icpContext + editPersonaContext + brandContextStr;
 
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
