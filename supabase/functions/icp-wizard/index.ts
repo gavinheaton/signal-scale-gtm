@@ -155,6 +155,42 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Detect URLs in the latest user message and fetch content
+    const lastUserMsg = messages[messages.length - 1];
+    let enrichedContent = lastUserMsg.content;
+    const urlRegex = /https?:\/\/[^\s<>"{}|\\^`\[\]]+/gi;
+    const urls = lastUserMsg.role === "user" ? lastUserMsg.content.match(urlRegex) : null;
+
+    if (urls && urls.length > 0) {
+      for (const url of urls.slice(0, 2)) {
+        try {
+          console.log("Fetching URL:", url);
+          const fetchRes = await fetch(url, {
+            headers: { "User-Agent": "Mozilla/5.0 (compatible; ICPWizardBot/1.0)" },
+            redirect: "follow",
+          });
+          if (fetchRes.ok) {
+            let html = await fetchRes.text();
+            // Strip scripts, styles, and HTML tags
+            html = html.replace(/<script[\s\S]*?<\/script>/gi, "");
+            html = html.replace(/<style[\s\S]*?<\/style>/gi, "");
+            html = html.replace(/<[^>]+>/g, " ");
+            html = html.replace(/\s+/g, " ").trim();
+            const cleaned = html.slice(0, 8000);
+            enrichedContent += `\n\n[Fetched content from ${url}]:\n${cleaned}`;
+          } else {
+            enrichedContent += `\n\n[Failed to fetch ${url}: HTTP ${fetchRes.status}]`;
+            await fetchRes.text(); // consume body
+          }
+        } catch (fetchErr) {
+          console.error("URL fetch error:", fetchErr);
+          enrichedContent += `\n\n[Failed to fetch ${url}: ${fetchErr instanceof Error ? fetchErr.message : "unknown error"}]`;
+        }
+      }
+      // Update the message content with enriched version
+      messages[messages.length - 1] = { ...lastUserMsg, content: enrichedContent };
+    }
+
     // Build Anthropic messages (strip timestamps, extract content)
     const anthropicMessages = messages.map((m) => ({
       role: m.role as "user" | "assistant",
