@@ -1,42 +1,36 @@
 
 
-# Fix Campaign Wizard: Early Save + Conversation Length
+# Fix Campaign Section Completion Detection
 
-## Problems
-1. **No way to save mid-session** — the "Save Campaign" button requires `is_complete`, so users can't save progress during long builds
-2. **Conversations grow unbounded** — every message is sent to Anthropic, hitting token limits and causing timeouts/incomplete responses
+## Problem
+Sections like Target Audience, Objective, and Campaign Insight have data in the draft but never show as "complete" (green checkmark). The `getCampaignSectionStatus` function only marks a section complete if the AI explicitly adds its key to a `sections_complete[]` array — which the AI rarely does. So sections stay at "partial" forever.
 
 ## Solution
 
-### 1. Add "Save Draft" button (always enabled)
-In `CampaignPreviewPanel.tsx`, add a second button "Save Draft" that saves the current draft state to the `campaigns` table with `status: 'brief'` even when `is_complete` is false. The existing "Save Campaign" becomes "Finalize Campaign" for completed drafts.
+### 1. Auto-detect completion from draft data (`src/components/campaign-wizard/types.ts`)
+Update `getCampaignSectionStatus` to infer completion from the data itself instead of relying solely on `sections_complete[]`:
 
-**File: `src/components/campaign-wizard/CampaignPreviewPanel.tsx`**
-- Add `onSaveDraft` prop
-- Render "Save Draft" button (always enabled when there's any draft content like a name or track)
-- Rename existing save to "Finalize Campaign"
+- **target_audience**: complete if it has `icp_ids` or `personas` with at least one entry
+- **campaign_insight**: complete if it has a non-empty string value (or object with a `text`/`insight` key)
+- **objective**: complete if it has a non-empty string or object with content
+- **channel_mix**: complete if it has at least one channel key
+- **content_calendar**: complete if array has 3+ items
+- **success_metrics**: complete if it has `primary` or `secondary` keys
 
-**File: `src/pages/CampaignWizard.tsx`**
-- Add `saveDraft` handler that upserts to `campaigns` table with current draft state (doesn't require `is_complete`)
-- Track a `campaignId` in state so subsequent saves update rather than insert
-- Wire to preview panel
+The `sections_complete[]` from the AI still works as an override — if the AI marks it complete, it stays complete. But now sections can also auto-complete based on data richness.
 
-### 2. Sliding window for conversation history
-In `supabase/functions/campaign-wizard/index.ts`, instead of sending ALL messages to Anthropic:
-- Always include the first 2 messages (initial context)
-- Send only the last 10 messages (5 exchanges)
-- Inject the current `draft_output` as a system prompt section so the AI always knows the current state even without full history
-- Increase `max_tokens` to 4096 to give the AI room to complete drafts
+### 2. Add draft instructions to system prompt (`supabase/functions/campaign-wizard/index.ts`)
+Append explicit instructions to the system prompt telling the AI about the `sections_complete` array and the expected draft structure. This ensures the AI also tries to set `sections_complete` when appropriate, as a belt-and-suspenders approach alongside auto-detection.
 
-**File: `supabase/functions/campaign-wizard/index.ts`**
-- Add sliding window: keep first 2 + last 10 messages for Anthropic call
-- Add current draft state to system prompt: `## CURRENT DRAFT STATE\n{JSON}`
-- Bump `max_tokens` from 2048 to 4096
+Add to the system prompt (after the CURRENT DRAFT STATE block):
+```
+## DRAFT FORMAT INSTRUCTIONS
+Always include a <draft> tag with JSON. Include sections_complete array listing completed section keys: target_audience, campaign_insight, objective, channel_mix, content_calendar, success_metrics. Mark a section complete once you have gathered enough information for it.
+```
 
-### 3. Files Changed
-| File | Action |
+### Files Changed
+| File | Change |
 |------|--------|
-| `src/components/campaign-wizard/CampaignPreviewPanel.tsx` | Add Save Draft button + onSaveDraft prop |
-| `src/pages/CampaignWizard.tsx` | Add saveDraft handler, track campaignId for upserts |
-| `supabase/functions/campaign-wizard/index.ts` | Sliding window + draft in system prompt + higher max_tokens |
+| `src/components/campaign-wizard/types.ts` | Smarter `getCampaignSectionStatus` with data-based completion detection |
+| `supabase/functions/campaign-wizard/index.ts` | Add draft format instructions to system prompt |
 
