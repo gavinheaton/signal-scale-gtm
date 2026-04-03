@@ -246,6 +246,15 @@ serve(async (req) => {
     const payload: AuthEmailPayload = JSON.parse(rawBody);
     const { user, email_data } = payload;
 
+    console.log("Auth email hook payload:", JSON.stringify({
+      email: user?.email,
+      email_action_type: email_data?.email_action_type,
+      has_token: !!email_data?.token,
+      has_token_hash: !!email_data?.token_hash,
+      has_confirmation_url: !!email_data?.confirmation_url,
+      redirect_to: email_data?.redirect_to,
+    }));
+
     if (!user?.email || !email_data?.email_action_type) {
       return new Response(
         JSON.stringify({ error: "Invalid payload: missing user email or email_action_type" }),
