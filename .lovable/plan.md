@@ -1,46 +1,81 @@
 
 
-# Fix Empty Persona Modal Sections
+# Super Admin & Multi-Tenant Organisation Management
 
-## Problem
-Persona sections show "Not captured yet" even though the information was discussed in the wizard chat. Two causes:
+## Current state
+- `superadmin` role exists in the enum but has no UI or logic
+- One org ("Disruptors Co", type `disruptors_own`) with one `owner` membership
+- Settings page has a stub invite form that doesn't actually create users
+- No way to create new organisations from the UI
+- No role-based UI gating anywhere
 
-1. **Personas created before the migration** — `organisational_context` and `buying_behaviour` columns didn't exist, so those fields are `{}` in the database even though the AI captured them in the wizard session's `draft_output`.
-2. **Draft mapping gaps** — The AI may structure data under slightly different keys in the draft JSON than what the save logic expects. For example, the AI prompt asks for `preferred_evidence` as a separate key, but the save logic nests it inside `channel_preferences`.
+## Hierarchy model
 
-## Solution
+```text
+Super Admin (platform level — Disruptors Co team)
+  ├── Create / manage ALL organisations
+  ├── Impersonate / switch between orgs
+  └── Invite org-level admins
 
-### 1. Backfill existing personas from wizard session drafts
-Create a one-time backfill that checks `wizard_sessions` with `session_type = 'persona'` and `status = 'complete'`, extracts `organisational_context` and `buying_behaviour` from `draft_output`, and updates the corresponding persona records.
+Org Admin (scoped to their organisation)
+  ├── Invite users to their org (admin, manager, analyst, client)
+  ├── Create / archive projects within their org
+  └── Cannot see other organisations
+```
 
-- Run as a script via the Supabase SQL editor or as a migration
-- Match sessions to personas by `project_id` + `draft_output->>'persona_name'`
+## What we'll build
 
-### 2. Improve the save logic in `PersonaWizard.tsx`
-The current save maps draft fields directly but some AI draft structures nest data differently. Add defensive extraction:
+### 1. Super Admin dashboard page (`/admin`)
+A new top-level route (outside the project layout) visible only to `superadmin` users. Contains:
+- **Organisations table**: list all orgs with name, type, member count, project count
+- **Create Organisation** dialog: name + type selector → inserts into `organisations`
+- **Org detail drawer**: view members, add an admin user to that org
+- Navigation link in sidebar (conditionally shown for superadmin role)
 
-- If `draft.organisational_context` is empty but exists under a different key in the draft, extract it
-- Same for `buying_behaviour` and `preferred_evidence`
-- Log the full draft to console before save (dev aid) so mismatches are visible
+### 2. Working invite flow (Settings page)
+Replace the stub with a real flow using Supabase `auth.admin.inviteUserByEmail()` via an edge function:
+- Edge function `invite-user`: accepts email + role + org_id, calls the Admin API to send an invite, then inserts an `org_memberships` row
+- Settings page calls this function (only for admin+ roles)
+- The invited user receives a magic link, signs in, and lands on the projects page for their org
 
-### 3. Add a "Refresh from Session" action to the modal
-When a persona's sections are mostly empty but a completed wizard session exists for it, show a subtle "Data available — refresh from wizard session" button that pulls the draft and re-saves.
+### 3. Role-based UI gating
+- Sidebar: show "Admin" link only for superadmin
+- Settings invite section: show only for admin+ roles
+- Project creation: show only for manager+ roles
+- AuthContext: expose a `isSuperAdmin` boolean and a helper `hasMinRole(role)` function
 
-## Changes
+### 4. Super Admin org switching
+- Super Admin needs to see ALL orgs (not just their own)
+- Add a security definer function `is_superadmin(uuid)` for RLS policies
+- Add RLS policy on `organisations`: superadmin can SELECT all rows
+- Add RLS policy on `org_memberships`: superadmin can SELECT/INSERT all rows
+- In the admin dashboard, clicking an org sets it as the active context so the super admin can navigate into that org's projects
 
-### File: `src/pages/PersonaWizard.tsx`
-- Improve `savePersona` to be more defensive about extracting nested/variant draft keys
-- Flatten any nested objects the AI might produce (e.g. `goals.personal_goals` + `goals.organisational_goals` should stay as-is, but a bare string should be wrapped)
+### 5. Database changes (migration)
+- Create `is_superadmin()` security definer function
+- Add SELECT policy on `organisations` for superadmin (all rows)
+- Add SELECT + INSERT policies on `org_memberships` for superadmin
+- Add INSERT policy on `org_memberships` for org admins (within their own org)
 
-### File: `src/components/PersonaDetailModal.tsx`  
-- Add a "Refresh from wizard data" button that appears when sections are empty
-- On click, query `wizard_sessions` for the matching session, extract draft fields, update the persona record, and refresh the modal
-
-### File: Migration (SQL)
-- Backfill `organisational_context` and `buying_behaviour` on existing personas from their wizard session `draft_output` where those fields are currently `{}`
+### 6. Edge function: `invite-user`
+- Validates caller is admin of the target org (or superadmin)
+- Uses `SUPABASE_SERVICE_ROLE_KEY` to call `auth.admin.inviteUserByEmail()`
+- Creates `org_memberships` row for the invited user
+- Returns success/error
 
 ## Files
-- **Modify**: `src/pages/PersonaWizard.tsx` — defensive draft extraction in save logic
-- **Modify**: `src/components/PersonaDetailModal.tsx` — add refresh-from-session capability
-- **Create**: Migration to backfill existing personas from wizard session drafts
+
+- **Create**: `src/pages/AdminDashboard.tsx` — super admin org management page
+- **Create**: `supabase/functions/invite-user/index.ts` — invite edge function
+- **Create**: Migration — `is_superadmin()` function + RLS policies for cross-org access
+- **Modify**: `src/App.tsx` — add `/admin` route
+- **Modify**: `src/components/AppSidebar.tsx` — conditional admin link
+- **Modify**: `src/contexts/AuthContext.tsx` — add `isSuperAdmin` and `hasMinRole()`
+- **Modify**: `src/pages/Settings.tsx` — wire invite form to edge function, role-gate
+- **Modify**: `src/pages/Projects.tsx` — role-gate project creation
+
+## Security notes
+- Super admin check always via server-side `is_superadmin()` function in RLS — never client-side only
+- Invite edge function validates permissions using the caller's JWT + service role for admin API calls
+- Org admins can only invite into their own org (enforced by RLS + edge function check)
 
