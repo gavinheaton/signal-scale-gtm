@@ -1,24 +1,52 @@
 
 
-# Replace Add Persona Form with Persona Wizard Navigation
+# Persona Sunburst Visualization (Revised)
 
-## Problem
-The "Add Persona" button on the Personas tab opens a manual form sheet. It should navigate to the AI-powered Persona Wizard instead, consistent with how "Add ICP Segment" now navigates to the ICP Wizard.
+## Key Insight
+
+Archetypes identified from ICP conversations aren't always individual people. They can be:
+- **People**: "The Visionary CTO", "The Procurement Lead"
+- **Processes**: "Annual Budget Cycle", "Vendor Approval Workflow"
+- **Reporting Lines**: "Board → CFO → Procurement chain"
+- **Policy Positions**: "AI Governance Committee", "Data Residency Mandate"
+
+The sunburst and the auto-identification logic must treat these as **buying influences** rather than strictly "personas as people." The outer ring labels should reflect this — showing the archetype name and a type indicator (person, process, policy, structure).
+
+## Visualization Design
+
+Three concentric rings inside a Card titled "Buying Influence Map":
+
+- **Center**: ICP segment names (colored by `matrix_category`)
+- **Middle ring**: Buying role categories (Champion, Economic Buyer, Influencer, End User, Blocker) — but understood as influence types, not just job titles
+- **Outer ring**: Mapped archetypes — each labeled with name + a small icon/badge indicating type (person 👤, process ⚙️, policy 📋, structure 🏛️)
+- **Gap segments**: Dashed outline, muted fill — roles without a mapped archetype yet
+
+Hover tooltip shows: archetype name, type, role, parent ICP, and `how_we_help` summary.
+
+## Data Model Consideration
+
+The existing `personas` table stores these as records with `persona_name` and `role_in_buying`. No schema change needed — the `persona_name` field already accommodates non-person archetypes (e.g., "Vendor Approval Process"). The persona wizard's prompt update (separate task) will handle identifying these varied archetype types during conversation.
 
 ## Changes
 
-### `src/pages/ICPPersonas.tsx`
+### 1. Create `src/components/icp-wizard/PersonaSunburst.tsx`
 
-1. **Remove manual persona form** — Delete the `Sheet`, `SheetContent`, `SheetTrigger`, and all form fields for manual persona creation. Remove associated state (`personaForm`, `personaOpen`) and the `handleAddPersona` function.
+Custom SVG sunburst component:
+- Props: `icps: ICP[]`, `personas: Persona[]`
+- Builds hierarchy: ICP → 5 buying roles → mapped archetypes (+ gap placeholders)
+- SVG arc rendering using `d3-shape` arc generator (already available via recharts dependency) or manual arc math
+- Color palette: reuse existing `roleColors` (purple/green/blue/amber/red)
+- Gap arcs: dashed stroke, `hsl(var(--muted))` fill
+- Center text: ICP name when hovering over that segment's children
+- Responsive: scales within container
 
-2. **Remove unused imports** — `Sheet`, `SheetContent`, `SheetHeader`, `SheetTitle`, `SheetTrigger`, `Input`, `Label`, `Select`, `SelectContent`, `SelectItem`, `SelectTrigger`, `SelectValue`, `Textarea`, `Plus`.
+### 2. Modify `src/pages/ICPPersonas.tsx`
 
-3. **Replace button** — The "Add Persona" button becomes a simple navigate button:
-   ```tsx
-   <Button size="sm" onClick={() => navigate('/project/persona-wizard')}>
-     <Sparkles className="h-4 w-4 mr-1" /> Add Persona
-   </Button>
-   ```
-   
-   Note: This navigates without an `icp_id` param. The persona wizard should handle this gracefully (let the user pick an ICP in the chat).
+- Import `PersonaSunburst`
+- Add a `<Card>` with title "Buying Influence Map" at the top of the Personas `TabsContent`, before the card grid
+- Pass `icps` and `personas` as props
+
+## Files
+- **Create**: `src/components/icp-wizard/PersonaSunburst.tsx`
+- **Modify**: `src/pages/ICPPersonas.tsx`
 
