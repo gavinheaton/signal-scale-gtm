@@ -1,45 +1,63 @@
 
 
-# Edit & Delete Personas via AI-Guided Conversation
+# Persona Detail Card — Visual Layout
 
-## What it does
-Adds edit and delete actions to each persona card on the ICP & Personas page. Both actions route through the Persona Wizard so the AI can understand context before making changes:
+## Problem
+Clicking a persona currently expands inline with raw `JSON.stringify` dumps. It's unreadable and doesn't match the quality of the rest of the platform.
 
-- **Edit**: Opens the Persona Wizard pre-loaded with the existing persona data. The AI reads the current persona, asks why the user wants to change it, then guides the update conversationally.
-- **Delete**: Opens a confirmation dialog. On confirm, the AI isn't needed — the persona is soft-deleted (set `is_current = false`) or hard-deleted.
+## What we'll build
+A full-screen modal/dialog that opens when clicking a persona card, displaying the persona data in a visually structured card layout inspired by the reference image. The design will use the existing brand palette (navy sidebar, purple accent, orange sub-headings) and present persona data in a grid of themed section cards.
+
+## Key design decisions
+
+**Layout**: A `Dialog` (full-width, max-w-4xl) with a two-column grid of content sections, a prominent header area with persona name and role badge, and an AI readiness indicator.
+
+**Sections displayed** (mapped from stored data):
+- **Name & Role** — `persona_name` + `role_in_buying` badge (header area, not a card)
+- **Goals** — from `goals` jsonb
+- **Pain Points** — from `pain_points` jsonb  
+- **Channel Preferences** — from `channel_preferences` jsonb (excluding nested `preferred_evidence`)
+- **Preferred Evidence** — extracted from `channel_preferences.preferred_evidence`
+- **How We Help** — from `how_we_help` text
+- **AI Readiness** — visual score indicator from `ai_readiness_score`
+
+Each section rendered as a light card with an orange sub-heading label, a muted descriptor line, and the actual content formatted as readable bullet points (not JSON).
+
+**Data formatting**: A utility function will intelligently render jsonb fields — if it's an array, render as bullets; if it's an object with keys, render as labelled items; if it's a string, render as paragraph.
+
+## Database consideration
+The wizard draft captures `organisational_context` and `buying_behaviour` but these aren't persisted to the `personas` table. We should add these columns so the detail view can show them.
+
+**Migration**: Add `organisational_context jsonb` and `buying_behaviour jsonb` columns to the `personas` table. Update the save logic in `PersonaWizard.tsx` to include these fields.
 
 ## Changes
 
-### 1. Modify `src/pages/ICPPersonas.tsx`
-- Add Edit (pencil) and Delete (trash) icon buttons to each persona card header
-- Edit button navigates to `/project/persona-wizard?icp_id={icp_id}&edit_persona_id={persona_id}`
-- Delete button opens a confirmation dialog; on confirm, updates `is_current = false` on the persona record and removes it from local state
-- Import `Dialog` components and `Pencil`, `Trash2` icons
+### 1. Create `src/components/PersonaDetailModal.tsx`
+- New component: visual persona detail modal
+- Header: persona name (large), role badge (color-coded), ICP segment name, AI readiness score as 5 filled/unfilled dots
+- Body: 2-column grid of section cards, each with orange heading, muted descriptor, and formatted content
+- Section cards: Goals, Pain Points, Organisational Context, Buying Behaviour, Channel Preferences, Preferred Evidence, How We Help
+- Smart JSON renderer that handles arrays, objects, and strings gracefully
+- Edit and Delete action buttons in the header
 
-### 2. Modify `src/pages/PersonaWizard.tsx`
-- Read `edit_persona_id` from search params
-- When present, fetch the full persona record from Supabase on init
-- Skip resuming existing wizard sessions when in edit mode
-- Pass `edit_persona_id` and the persona's existing data to the edge function
-- On save: `UPDATE` the existing persona row instead of `INSERT`ing a new one
+### 2. Create migration to add columns
+- Add `organisational_context jsonb` and `buying_behaviour jsonb` to `personas` table
 
-### 3. Modify `supabase/functions/persona-wizard/index.ts`
-- Accept optional `edit_persona_id` in the request body
-- When present, fetch the full persona record and inject its data into the system prompt as `EXISTING PERSONA DATA` context
-- Prepend to the ICP context so the AI sees what's already been captured
-- Use a different synthetic init prompt: "The user wants to edit the persona '[name]'. Review the existing data, then ask what they'd like to change and why."
-- On the frontend save step, the wizard will update rather than insert — no edge function change needed for that
+### 3. Modify `src/pages/PersonaWizard.tsx`
+- Include `organisational_context` and `buying_behaviour` in the `personaData` object passed to Supabase on save
 
-## Technical details
+### 4. Modify `src/types/database.ts`
+- Add `organisational_context` and `buying_behaviour` to the `Persona` interface
 
-**Delete flow**: Uses `supabase.from('personas').update({ is_current: false }).eq('id', id)` — a soft delete that preserves history. The existing query already filters by `is_current: true` implicitly (or we add that filter).
-
-**Edit flow init prompt**: The AI sees the full persona JSON in system context plus a synthetic message like: "I want to edit the persona 'The Visionary CTO'. Show me what's currently captured and ask what I'd like to change." This ensures the AI reads the data first, then asks diagnostic questions before modifying anything.
-
-**Save logic branch**: In `PersonaWizard.tsx`, if `edit_persona_id` is set, `savePersona` calls `.update()` instead of `.insert()`.
+### 5. Modify `src/pages/ICPPersonas.tsx`
+- Replace the inline expand logic with opening `PersonaDetailModal`
+- Pass selected persona + parent ICP to the modal
+- Remove the `expandedPersona` state and inline detail rendering
 
 ## Files
-- **Modify**: `src/pages/ICPPersonas.tsx` — add edit/delete buttons + delete confirmation dialog
-- **Modify**: `src/pages/PersonaWizard.tsx` — handle edit mode (load persona, update on save)
-- **Modify**: `supabase/functions/persona-wizard/index.ts` — accept edit context, inject persona data into prompt
+- **Create**: `src/components/PersonaDetailModal.tsx`
+- **Create**: Migration for new persona columns
+- **Modify**: `src/pages/PersonaWizard.tsx` — save new fields
+- **Modify**: `src/types/database.ts` — add fields to Persona type
+- **Modify**: `src/pages/ICPPersonas.tsx` — use modal instead of inline expand
 
