@@ -141,7 +141,13 @@ export default function PersonaWizard() {
 
     try {
       const res = await supabase.functions.invoke('persona-wizard', {
-        body: { message: userMsg, session_id: sessionId, project_id: currentProject!.id, icp_id: icpId },
+        body: {
+          message: userMsg,
+          session_id: sessionId,
+          project_id: currentProject!.id,
+          icp_id: icpId,
+          ...(editPersonaId ? { edit_persona_id: editPersonaId } : {}),
+        },
       });
       if (res.error) throw res.error;
       const data = res.data;
