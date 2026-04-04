@@ -1,43 +1,42 @@
 
 
-# Always Set Publish Date on Notion Calendar Entries
+# Campaign Dashboard Visualization
 
-## Problem
-When content items are pushed to Notion without a `Publish Date`, they don't appear on the calendar view — they effectively disappear. The three edge functions only set `Publish Date` conditionally (when the item has a date), leaving entries without dates invisible in the calendar.
+## What we're building
 
-## Solution
-In all three functions, default `Publish Date` to today's date (`new Date().toISOString().split("T")[0]`) when no date is provided. This anchors every entry on the calendar.
+A rich campaign detail view that replaces the current bare kanban with a full dashboard inspired by your reference image. Three sections stacked vertically:
 
-## Changes
+### 1. Campaign Timeline Bar
+A horizontal progress bar spanning `launch_date` → `end_date`, showing where "today" falls. Three shaded phases (Foundation & Drafting, Review & Approval, Publishing & Lead Gen) derived by splitting the date range into thirds. Milestone dots for assets with `publish_date` values plotted along the timeline.
 
-### 1. `supabase/functions/create-notion-campaign-brief/index.ts`
+### 2. Enhanced Asset Pipeline Kanban
+Keep the existing 5-column layout (Brief → Draft → Review → Approved → Published) but add:
+- Colored column headers with chevron arrows between them (matching your reference: gray → blue → amber → green → teal)
+- Richer cards: show asset type badge, status badge, content indicator, Notion sync indicator, and `publish_date` if set
+- Visual flow: subtle gradient/arrow connectors between columns
 
-**Brief entry (line ~148-158)**: Add `"Publish Date": { date: { start: today } }` to the brief properties.
+### 3. Campaign Metrics Summary
+A row of stat cards below the kanban:
+- **Assets Published**: count of `status === 'published'`
+- **Content Pipeline Progress**: percentage of assets past `brief` status, shown as a donut/ring
+- **Assets with Content**: count where `content` is not null
+- **Notion Synced**: count where `notion_url` is set
+- **Status Breakdown**: mini horizontal stacked bar showing brief/draft/review/approved/published proportions
 
-**Calendar items (lines 191-194)**: Change from conditional to always-set:
-```typescript
-const today = new Date().toISOString().split("T")[0];
-properties["Publish Date"] = { date: { start: item.publish_date || item.week || today } };
-```
-
-### 2. `supabase/functions/push-asset-to-notion/index.ts`
-
-**Line ~169-170**: Change from `if (asset.publish_date)` to always set:
-```typescript
-const today = new Date().toISOString().split("T")[0];
-properties["Publish Date"] = { date: { start: asset.publish_date || today } };
-```
-
-### 3. `supabase/functions/bulk-push-campaign-to-notion/index.ts`
-
-**Line ~172**: Same pattern — always set Publish Date, defaulting to today:
-```typescript
-const today = new Date().toISOString().split("T")[0];
-properties["Publish Date"] = { date: { start: asset.publish_date || today } };
-```
+All data is already available from `campaign_assets` and `campaigns` — no new API calls or DB changes needed.
 
 ## Files changed
-1. `supabase/functions/create-notion-campaign-brief/index.ts` — default date on brief + calendar items
-2. `supabase/functions/push-asset-to-notion/index.ts` — default date on asset push
-3. `supabase/functions/bulk-push-campaign-to-notion/index.ts` — default date on bulk push
+
+1. **`src/components/campaigns/CampaignTimeline.tsx`** (new) — horizontal date bar with phase labels and asset milestone dots
+2. **`src/components/campaigns/CampaignMetricsSummary.tsx`** (new) — row of stat cards with counts and a progress ring
+3. **`src/pages/Campaigns.tsx`** — import and render the two new components in the campaign detail view, between the bulk actions toolbar and the kanban. Upgrade kanban column headers with color styling and arrow connectors.
+
+## Technical details
+
+- Timeline phases calculated by dividing `(end_date - launch_date)` into thirds
+- "Today" marker positioned as `(today - launch_date) / (end_date - launch_date) * 100%`
+- Progress ring uses a simple SVG `circle` with `stroke-dasharray` — no charting library needed
+- Stacked bar is a flex row with colored segments proportional to asset counts per status
+- All components are pure presentational — they receive `campaign` and `assets` as props
+- Responsive: timeline and metrics cards stack on mobile
 
