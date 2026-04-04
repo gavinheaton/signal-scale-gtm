@@ -1,100 +1,74 @@
 
 
-# Brand Voice Module
+# Document Upload for Brand Voice Wizard
 
-A complete Brand Voice feature mirroring the ICP Wizard pattern: database table, edge function, wizard page, detail page, export button, and sidebar navigation.
+Allow users to upload an existing tone of voice document (PDF, DOCX, or plain text), have it analyzed by AI, and use it to pre-populate the brand voice wizard sections.
 
-## 1. Database Migration
+## User Flow
 
-**Single migration** with:
+1. On the **Brand Voice index page** (empty state), show two CTAs side by side:
+   - "Start Brand Voice Wizard" (existing) — guided chat from scratch
+   - "Upload Existing Document" — new option with an Upload icon
 
-- **Add `slug` column to `projects`** — `text`, generated from name (lowercase, hyphens). Needed for the export filename. Populate existing rows with a trigger or default.
-- **Create `brand_voices` table** — as specified, with RLS using the same `user_has_org_access` pattern.
-- **Add `'brand_voice'` to `wizard_session_type` enum** so wizard sessions can track brand voice conversations.
-- **RLS policies on `brand_voices`**: SELECT, INSERT, UPDATE for authenticated users via org access check on `project_id`.
+2. User clicks "Upload Existing Document" → file picker opens (accepts `.pdf`, `.docx`, `.txt`, `.md`)
 
-Note: The spec uses a CHECK constraint for status — I'll use a validation trigger instead per Supabase guidelines.
+3. File is uploaded to a Supabase Storage bucket (`brand-voice-uploads`), then the wizard opens with a special first message: the edge function receives the file content and the system prompt instructs Claude to analyze it and pre-populate as many brand voice sections as possible.
 
-## 2. Edge Function: `brand-voice-wizard`
+4. Claude responds with its analysis, pre-fills the draft panel on the right, and asks follow-up questions about any sections that couldn't be inferred from the document.
 
-**File**: `supabase/functions/brand-voice-wizard/index.ts`
+5. From there, the normal wizard conversation continues — but with a head start.
 
-Same structure as `icp-wizard`:
-- Auth via JWT token validation
-- Reads `ANTHROPIC_API_KEY` and `ANTHROPIC_BRAND_VOICE_SYSTEM_PROMPT` from env (the prompt secret will need to be set by the user separately)
-- Creates/resumes `wizard_sessions` with `session_type: 'brand_voice'`
-- Calls Claude claude-sonnet-4-6, max_tokens 2048
-- Parses `<draft>` tags from response, merges into existing draft
-- Upserts `brand_voices` record on each turn (status: `in_progress`)
-- When `is_complete: true`, sets status to `complete`
-- Returns `{ reply, updated_draft, session_id }`
+## Implementation
 
-**Config**: Add to `supabase/config.toml` with `verify_jwt = false`.
+### 1. Storage Bucket
 
-## 3. Navigation
+Migration to create a `brand-voice-uploads` bucket with RLS policies scoped to authenticated users via org membership.
 
-**`AppSidebar.tsx`**: Add "Brand Voice" nav item between "ICP & Personas" and "Campaigns" with a `Mic` icon. Route: `/project/brand-voice`.
+### 2. Edge Function Changes (`brand-voice-wizard`)
 
-**`App.tsx`**: Add routes:
-- `/project/brand-voice` — Brand Voice index page
-- `/project/brand-voice-wizard` — Wizard page
+- Accept an optional `file_url` parameter in the request body
+- When `file_url` is provided, fetch the file content from Supabase Storage (using service role key)
+- For PDF files: extract text server-side (basic text extraction)
+- For DOCX: extract raw text content
+- For TXT/MD: use content directly
+- Prepend the extracted document content to the system prompt context, with instructions like: "The user has uploaded their existing brand voice document. Analyze it thoroughly and extract as much structured brand voice data as possible into the draft. Then ask about any gaps."
+- The first AI turn will analyze the document and output a heavily pre-filled `<draft>` block
 
-## 4. Brand Voice Index Page
+### 3. Frontend Changes
 
-**File**: `src/pages/BrandVoice.tsx`
+**BrandVoice.tsx** (index page):
+- Add "Upload Existing Document" button next to the existing wizard CTA
+- On click: open a file input dialog (accept PDF, DOCX, TXT, MD; max 10MB)
+- Upload to `brand-voice-uploads/{project_id}/{filename}`
+- Get the public/signed URL
+- Navigate to the wizard page, passing the file URL as state
 
-- Fetches `brand_voices` for current project
-- **No record**: Empty state with "Define your brand voice" headline + "Start Brand Voice Wizard" CTA
-- **Draft/in-progress record**: Summary card with status badge, personality adjectives as tags, "Continue" button (navigates to wizard with session resumption)
-- **Complete record**: Summary card with status badge, personality tags, "View" button (navigates to detail page), "Export for Cowork" button
+**BrandVoiceWizard.tsx**:
+- Accept optional `fileUrl` from router location state
+- On init, if `fileUrl` is present, call the edge function with `file_url` parameter instead of the default empty init
+- Show a "Analyzing your document..." loading state with a document icon
 
-## 5. Brand Voice Wizard
+### 4. File Processing (Edge Function)
 
-**File**: `src/pages/BrandVoiceWizard.tsx`
-
-60/40 split layout matching ICP Wizard:
-- **Left (60%)**: Chat interface with message history, input, send button
-- **Right (40%)**: Live preview panel showing brand voice sections populating
-
-**Preview panel component**: `src/components/brand-voice-wizard/BrandVoicePreviewPanel.tsx`
-- Sections: Personality, Tone, Writing Principles, Banned Phrases, Preferred Vocabulary, Formatting Rules, Content Type Guidance, Writing Samples, Target Audiences, Brand Identity
-- Each section shows status indicators (empty/partial/complete)
-- "Save Brand Voice" button appears when `is_complete: true`
-
-**Types file**: `src/components/brand-voice-wizard/types.ts` — Draft interface and section definitions.
-
-## 6. Brand Voice Detail Page
-
-**File**: `src/pages/BrandVoiceDetail.tsx`
-
-- Read-only view of completed brand voice
-- Sections rendered as cards matching the preview panel layout
-- Header actions: "Edit" (reopens wizard) + "Export for Cowork" (only when status = complete)
-
-**Export logic**: Client-side JSON blob download using project slug as filename. After download, shows dismissible info banner with instructions.
-
-## 7. TypeScript Types
-
-**`src/types/database.ts`**: Add `BrandVoice` interface and update `WizardSessionType` to include `'brand_voice'`.
+For PDF extraction in Deno, use a lightweight approach:
+- Fetch the file as ArrayBuffer from storage
+- For PDFs: use basic text extraction (regex-based from the raw content, or a Deno-compatible PDF library)
+- For DOCX: unzip and parse `word/document.xml` for text nodes
+- Truncate to ~8000 chars to stay within context limits
+- Pass as additional context in the user's first message
 
 ## Files to Create/Modify
 
 | File | Action |
 |------|--------|
-| Migration SQL | Create `brand_voices` table, add `slug` to `projects`, add enum value |
-| `supabase/functions/brand-voice-wizard/index.ts` | New edge function |
-| `supabase/config.toml` | Add brand-voice-wizard config |
-| `src/pages/BrandVoice.tsx` | New — index page |
-| `src/pages/BrandVoiceWizard.tsx` | New — wizard page |
-| `src/pages/BrandVoiceDetail.tsx` | New — detail/view page |
-| `src/components/brand-voice-wizard/BrandVoicePreviewPanel.tsx` | New — preview panel |
-| `src/components/brand-voice-wizard/types.ts` | New — types and section defs |
-| `src/types/database.ts` | Add BrandVoice interface |
-| `src/components/AppSidebar.tsx` | Add Brand Voice nav item |
-| `src/App.tsx` | Add routes |
-| `src/integrations/supabase/types.ts` | Will auto-update after migration |
+| Migration SQL | Create `brand-voice-uploads` storage bucket + RLS |
+| `supabase/functions/brand-voice-wizard/index.ts` | Add `file_url` parameter handling and document text extraction |
+| `src/pages/BrandVoice.tsx` | Add "Upload Existing Document" button |
+| `src/pages/BrandVoiceWizard.tsx` | Accept file URL from router state, pass to edge function |
 
-## Secret Required
+## Limitations to Note
 
-The user must set `ANTHROPIC_BRAND_VOICE_SYSTEM_PROMPT` as a Supabase edge function secret. The edge function will read it from env. A fallback system prompt will be hardcoded for development.
+- PDF text extraction will be basic (no OCR for scanned documents)
+- Very large documents will be truncated to fit context limits
+- The AI analysis is a best-effort mapping — some sections may still need manual input
 
