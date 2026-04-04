@@ -219,14 +219,21 @@ Deno.serve(async (req) => {
     let messages: Array<{ role: string; content: string; timestamp: string }> = [];
     let existingDraft: Record<string, any> = {};
 
-    // Load brand context
+    // Load brand context, ICPs, and personas
     let brandContext: Record<string, any> = {};
+    let icps: any[] = [];
+    let personas: any[] = [];
     if (project_id) {
-      const { data: project } = await supabase
-        .from("projects").select("brand_context").eq("id", project_id).single();
-      if (project?.brand_context && Object.keys(project.brand_context).length > 0) {
-        brandContext = project.brand_context as Record<string, any>;
+      const [projectRes, icpRes, personaRes] = await Promise.all([
+        supabase.from("projects").select("brand_context").eq("id", project_id).single(),
+        supabase.from("icps").select("segment_name, firmographics, psychographics, matrix_category, fit_score").eq("project_id", project_id),
+        supabase.from("personas").select("persona_name, role_in_buying, goals, pain_points, channel_preferences, icp_id").eq("project_id", project_id),
+      ]);
+      if (projectRes.data?.brand_context && Object.keys(projectRes.data.brand_context).length > 0) {
+        brandContext = projectRes.data.brand_context as Record<string, any>;
       }
+      icps = icpRes.data || [];
+      personas = personaRes.data || [];
     }
 
     // Extract document text if file_url provided
@@ -235,6 +242,25 @@ Deno.serve(async (req) => {
       documentText = await extractDocumentText(supabase, file_url);
     }
 
+    // Build pre-seeded target_audiences from ICPs/personas
+    const hasAudienceContext = icps.length > 0 || personas.length > 0;
+    let preSeededDraft: Record<string, any> = {};
+    if (hasAudienceContext) {
+      const seededAudiences: Array<{ segment: string; tone_adjustment: string }> = [];
+      for (const icp of icps) {
+        seededAudiences.push({ segment: icp.segment_name, tone_adjustment: "" });
+      }
+      for (const p of personas) {
+        seededAudiences.push({ segment: `${p.persona_name} (${p.role_in_buying})`, tone_adjustment: "" });
+      }
+      preSeededDraft = { target_audiences: seededAudiences };
+    }
+
+    // Determine initial message based on context
+    const initialMessageText = hasAudienceContext
+      ? "I can see you've already defined your ICPs and personas — I'll use those to shape the audience sections. Let's start with your company name and how you want your brand to sound."
+      : INITIAL_MESSAGE;
+
     if (!sessionId) {
       // Determine initial user message based on whether a document was uploaded
       let initialUserMessage = message || "";
@@ -242,7 +268,7 @@ Deno.serve(async (req) => {
         initialUserMessage = `I've uploaded my existing brand voice document. Please analyse it and extract as much as you can.\n\n${DOCUMENT_ANALYSIS_PROMPT}${documentText}`;
       }
 
-      const initialMsg = { role: "assistant", content: documentText ? "I've received your brand voice document. Let me analyse it..." : INITIAL_MESSAGE, timestamp: new Date().toISOString() };
+      const initialMsg = { role: "assistant", content: documentText ? "I've received your brand voice document. Let me analyse it..." : initialMessageText, timestamp: new Date().toISOString() };
       messages = [initialMsg];
 
       if (initialUserMessage) {
@@ -251,7 +277,7 @@ Deno.serve(async (req) => {
 
       const { data: session, error: insertError } = await supabase
         .from("wizard_sessions")
-        .insert({ project_id, session_type: "brand_voice", messages, status: "in_progress" })
+        .insert({ project_id, session_type: "brand_voice", messages, draft_output: preSeededDraft, status: "in_progress" })
         .select("id").single();
 
       if (insertError) {
@@ -261,14 +287,16 @@ Deno.serve(async (req) => {
       }
 
       sessionId = session.id;
+      existingDraft = preSeededDraft;
 
       // Create initial brand_voices record
       await supabase.from("brand_voices").insert({
         project_id, status: "draft", wizard_session_id: sessionId,
+        ...(hasAudienceContext ? { target_audiences: preSeededDraft.target_audiences } : {}),
       });
 
       if (!initialUserMessage) {
-        return new Response(JSON.stringify({ reply: INITIAL_MESSAGE, updated_draft: {}, session_id: sessionId }), {
+        return new Response(JSON.stringify({ reply: initialMessageText, updated_draft: preSeededDraft, session_id: sessionId }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
@@ -325,6 +353,28 @@ Deno.serve(async (req) => {
     const hasBrandContext = brandContext.crawled_content && brandContext.crawled_content.length > 0;
     if (hasBrandContext) {
       systemPrompt += `\n\nBRAND CONTEXT (from previous analysis of ${brandContext.website_url || "company website"}):\n${brandContext.crawled_content}\n\nUse this to inform your brand voice questions.`;
+    }
+
+    // Inject ICP & Persona context
+    if (icps.length > 0) {
+      const icpSummary = icps.map((icp: any) => {
+        const firmSummary = icp.firmographics ? ` — ${JSON.stringify(icp.firmographics)}` : '';
+        return `- ${icp.segment_name} (${icp.matrix_category}, fit: ${icp.fit_score ?? 'N/A'})${firmSummary}`;
+      }).join('\n');
+      systemPrompt += `\n\nPROJECT ICPs (already defined — do NOT ask the user to describe their target audience from scratch):\n${icpSummary}`;
+    }
+
+    if (personas.length > 0) {
+      const personaSummary = personas.map((p: any) => {
+        const goals = p.goals ? ` Goals: ${JSON.stringify(p.goals)}` : '';
+        const pains = p.pain_points ? ` Pain points: ${JSON.stringify(p.pain_points)}` : '';
+        return `- ${p.persona_name} (${p.role_in_buying})${goals}${pains}`;
+      }).join('\n');
+      systemPrompt += `\n\nPROJECT PERSONAS (already defined):\n${personaSummary}`;
+    }
+
+    if (hasAudienceContext) {
+      systemPrompt += `\n\nIMPORTANT: Since ICPs and personas are already defined, pre-populate the target_audiences section using these segments. Do NOT ask "Who is your audience?" — instead ask nuanced questions about how tone should shift for each segment/persona (e.g., "How should your tone differ when addressing a ${personas[0]?.persona_name || 'champion'} vs an ${personas[1]?.persona_name || 'economic buyer'}?").`;
     }
 
     const anthropicMessages = messages.map((m) => ({

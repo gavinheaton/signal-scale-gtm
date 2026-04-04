@@ -12,3 +12,4 @@ type: feature
 - Routes: /project/brand-voice, /project/brand-voice-wizard, /project/brand-voice-detail
 - Sidebar: Brand Voice nav item between ICP & Personas and Campaigns (Mic icon)
 - projects table now has slug column (auto-generated from name via trigger)
+- Wizard auto-loads ICPs + personas from project; pre-seeds target_audiences and skips audience discovery questions
