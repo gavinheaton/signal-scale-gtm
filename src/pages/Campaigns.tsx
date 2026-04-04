@@ -263,7 +263,7 @@ export default function Campaigns() {
                           </div>
                           {a.publish_date && (
                             <div className="flex items-center gap-1 mt-1 text-[10px] text-muted-foreground">
-                              <Calendar className="h-2.5 w-2.5" />
+                              <CalendarIcon className="h-2.5 w-2.5" />
                               {new Date(a.publish_date).toLocaleDateString()}
                             </div>
                           )}
