@@ -213,6 +213,8 @@ export default function SettingsPage() {
         </Card>
       )}
 
+      <ApiAccessCard />
+
       {/* API Key Dialog */}
       <Dialog open={!!configProvider} onOpenChange={(open) => { if (!open) { setConfigProvider(null); setApiKeyInput(''); setShowKey(false); } }}>
         <DialogContent>
