@@ -179,6 +179,12 @@ Deno.serve(async (req) => {
       .update({ notion_url: notionUrl })
       .in("id", assetIds);
 
+    // Update last synced timestamp
+    await supabase
+      .from("projects")
+      .update({ notion_last_synced_at: new Date().toISOString() })
+      .eq("id", campaign.project_id);
+
     return new Response(JSON.stringify({ notion_url: notionUrl, assets_pushed: assets.length }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

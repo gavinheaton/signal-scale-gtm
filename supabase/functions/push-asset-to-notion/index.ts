@@ -150,6 +150,20 @@ Deno.serve(async (req) => {
       .update({ notion_url: notionUrl })
       .eq("id", asset_id);
 
+    // Update last synced timestamp on project via campaign
+    const { data: campaignData } = await supabase
+      .from("campaign_assets").select("campaign_id").eq("id", asset_id).single();
+    if (campaignData) {
+      const { data: camp } = await supabase
+        .from("campaigns").select("project_id").eq("id", campaignData.campaign_id).single();
+      if (camp) {
+        await supabase
+          .from("projects")
+          .update({ notion_last_synced_at: new Date().toISOString() })
+          .eq("id", camp.project_id);
+      }
+    }
+
     return new Response(JSON.stringify({ notion_url: notionUrl, asset_id }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
