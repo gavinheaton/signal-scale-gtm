@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { OrgRole } from '@/types/database';
-import { Bot, FileText, Settings2, Trash2, Eye, EyeOff } from 'lucide-react';
+import { Bot, FileText, Settings2, Trash2, Eye, EyeOff, ExternalLink, Loader2, CheckCircle2 } from 'lucide-react';
 import ApiAccessCard from '@/components/settings/ApiAccessCard';
 
 const PROVIDERS = [
@@ -35,10 +35,15 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [disconnecting, setDisconnecting] = useState<string | null>(null);
 
+  // Notion workspace state
+  const [settingUpNotion, setSettingUpNotion] = useState(false);
+  const [notionWorkspaceId, setNotionWorkspaceId] = useState<string | null>(null);
+  const [notionWorkspaceUrl, setNotionWorkspaceUrl] = useState<string | null>(null);
+
   const canInvite = hasMinRole('admin');
   const canManageConnections = hasMinRole('admin');
 
-  // Fetch existing connections
+  // Fetch existing connections + Notion workspace state
   useEffect(() => {
     if (!currentProject) return;
     setLoadingConnections(true);
@@ -52,6 +57,15 @@ export default function SettingsPage() {
         setConnections(map);
         setLoadingConnections(false);
       });
+
+    // Check for existing Notion workspace
+    if (currentProject.notion_workspace_id) {
+      setNotionWorkspaceId(currentProject.notion_workspace_id);
+      setNotionWorkspaceUrl(`https://notion.so/${currentProject.notion_workspace_id.replace(/-/g, '')}`);
+    } else {
+      setNotionWorkspaceId(null);
+      setNotionWorkspaceUrl(null);
+    }
   }, [currentProject]);
 
   const handleInvite = async () => {
@@ -104,6 +118,32 @@ export default function SettingsPage() {
         delete next[provider];
         return next;
       });
+    }
+  };
+
+  const handleSetupNotionWorkspace = async () => {
+    if (!currentProject) return;
+    setSettingUpNotion(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('setup-notion-workspace', {
+        body: { project_id: currentProject.id },
+      });
+      if (error || data?.error) {
+        toast.error(data?.error || error?.message || 'Failed to set up Notion workspace');
+        return;
+      }
+      setNotionWorkspaceId(data.workspace_id);
+      setNotionWorkspaceUrl(data.workspace_url);
+      // Update project context
+      if (currentProject) {
+        currentProject.notion_workspace_id = data.workspace_id;
+        currentProject.notion_calendar_db_id = data.calendar_db_id;
+      }
+      toast.success('Notion workspace created!');
+    } catch (err: any) {
+      toast.error('Error: ' + (err.message || 'Unknown error'));
+    } finally {
+      setSettingUpNotion(false);
     }
   };
 
@@ -208,6 +248,67 @@ export default function SettingsPage() {
             })}
             {loadingConnections && (
               <p className="text-sm text-muted-foreground text-center py-2">Loading connections…</p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {canManageConnections && currentProject && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Notion Workspace
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {notionWorkspaceId ? (
+              <div className="flex items-center justify-between p-4 rounded-lg border bg-card">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-500/10">
+                    <CheckCircle2 className="h-5 w-5 text-green-500" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-foreground">Workspace Ready</p>
+                    <p className="text-xs text-muted-foreground">Content calendar database is set up in Notion</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge variant="default" className="bg-green-500/20 text-green-600 border-green-500/30">Connected</Badge>
+                  <Button size="sm" variant="outline" asChild>
+                    <a href={notionWorkspaceUrl || '#'} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1">
+                      Open in Notion <ExternalLink className="h-3 w-3" />
+                    </a>
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={handleSetupNotionWorkspace} disabled={settingUpNotion}>
+                    {settingUpNotion ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Re-sync'}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between p-4 rounded-lg border bg-card">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted">
+                    <FileText className="h-5 w-5 text-foreground" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-foreground">Content Calendar</p>
+                    <p className="text-xs text-muted-foreground">Create a full content calendar workspace in Notion for this project</p>
+                  </div>
+                </div>
+                <Button onClick={handleSetupNotionWorkspace} disabled={settingUpNotion || !connections['notion']}>
+                  {settingUpNotion ? (
+                    <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Setting up…</>
+                  ) : (
+                    'Set up Notion Workspace'
+                  )}
+                </Button>
+              </div>
+            )}
+            {!connections['notion'] && !notionWorkspaceId && (
+              <p className="text-xs text-muted-foreground">
+                Configure your Notion API key in the Connections section above first.
+              </p>
             )}
           </CardContent>
         </Card>

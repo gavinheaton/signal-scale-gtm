@@ -238,6 +238,19 @@ export default function CampaignWizard() {
         await supabase.from('wizard_sessions').update({ status: 'complete' }).eq('id', sessionId);
       }
 
+      // Push to Notion if workspace is set up (fire-and-forget)
+      if (currentProject.notion_calendar_db_id && finalCampaignId) {
+        supabase.functions.invoke('add-campaign-to-notion', {
+          body: { campaign_id: finalCampaignId },
+        }).then(({ data, error }) => {
+          if (error || data?.error) {
+            toast.error('Notion sync failed — you can re-sync from Settings');
+          } else {
+            toast.success(`${data?.items_pushed || 0} items pushed to Notion calendar`);
+          }
+        });
+      }
+
       toast.success('Campaign saved!');
       navigate('/project/campaigns');
     } catch (err: any) {
