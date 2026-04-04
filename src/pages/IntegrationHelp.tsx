@@ -32,6 +32,10 @@ export default function IntegrationHelp() {
         You need <Badge variant="secondary">admin</Badge> or higher role to manage connections.
       </p>
 
+      <div className="rounded-md border border-primary/20 bg-primary/5 p-3 text-sm text-foreground">
+        <strong>Prerequisite:</strong> You must have an <Badge variant="secondary">admin</Badge> or higher role <strong>and</strong> a project selected to see the <strong>Connections</strong> section in Settings.
+      </div>
+
       {/* Claude */}
       <Card>
         <CardHeader>
@@ -78,9 +82,9 @@ export default function IntegrationHelp() {
                   <div>
                     <p className="font-medium text-sm">Open Settings → Connections</p>
                     <p className="text-xs text-muted-foreground">
-                      In Signal + Scale, go to{' '}
-                      <Link to="/project/settings" className="underline text-primary">Settings</Link>{' '}
-                      and find the <strong>Connections</strong> section.
+                      In Signal + Scale, select a project first, then go to{' '}
+                      <Link to="/project/settings" className="underline text-primary">Settings</Link>.
+                      The <strong>Connections</strong> section appears for admin users and above.
                     </p>
                   </div>
                 </div>
@@ -150,9 +154,9 @@ export default function IntegrationHelp() {
                   <div>
                     <p className="font-medium text-sm">Configure Notion in Settings</p>
                     <p className="text-xs text-muted-foreground">
-                      In Signal + Scale, go to{' '}
-                      <Link to="/project/settings" className="underline text-primary">Settings → Connections</Link>{' '}
-                      and click <strong>Configure</strong> next to Notion. Paste the token and save.
+                      In Signal + Scale, select a project first, then go to{' '}
+                      <Link to="/project/settings" className="underline text-primary">Settings</Link>.
+                      In the <strong>Connections</strong> section (visible to admin users and above), click <strong>Configure</strong> next to Notion. Paste the token and save.
                     </p>
                   </div>
                 </div>
