@@ -174,6 +174,8 @@ export default function CampaignWizard() {
         objective: typeof draft.objective === 'object' ? JSON.stringify(draft.objective) : (draft.objective as any) || null,
         channel_mix: draft.channel_mix || {},
         target_icp_ids: draft.target_audience?.icp_ids || [],
+        launch_date: draft.launch_date || null,
+        end_date: draft.end_date || null,
       };
 
       if (campaignId) {
