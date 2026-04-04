@@ -1,56 +1,81 @@
 
 
-# Add Integration Help Page
+# Add API Key Management + Brand Voice Sync Endpoint
 
-## What
-A new `/project/help` page documenting the step-by-step setup process for Claude (Anthropic) and Notion integrations, accessible from the sidebar and linked from the Settings connections section.
+## Overview
+Three pieces: a new `api_keys` table, an API Access section in Settings, and a `get-brand-voices` edge function for Cowork to pull completed brand voices via API key auth.
 
-## Pages and Components
+## 1. Database Migration
 
-### 1. New page: `src/pages/IntegrationHelp.tsx`
+Create `api_keys` table with RLS:
 
-A clean documentation-style page with expandable sections for each integration:
+```sql
+create table public.api_keys (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null,
+  key_hash text not null unique,
+  key_prefix text not null,
+  label text default 'Cowork Sync',
+  created_at timestamptz default now(),
+  last_used_at timestamptz
+);
 
-**Claude (Anthropic) section:**
-- What it powers (ICP wizard, Persona wizard, Brand Voice wizard, Campaign content generation)
-- Step 1: Create an Anthropic account at console.anthropic.com
-- Step 2: Generate an API key under API Keys
-- Step 3: Go to Settings > Connections in Signal+Scale
-- Step 4: Click Configure on Claude, paste the key
-- Note about billing/credits on the Anthropic side
+alter table public.api_keys enable row level security;
 
-**Notion section:**
-- What it powers (push campaign assets, create campaign briefs)
-- Step 1: Go to notion.so/my-integrations, create a new integration named "Signal2Scale"
-- Step 2: Copy the integration token (starts with `ntn_`)
-- Step 3: Go to Settings > Connections, configure Notion with the token
-- Step 4: Share target Notion pages with the integration (critical step — explain the Share > Add integration flow)
-- Step 5: Set the `NOTION_CAMPAIGN_BRIEFS_PAGE_ID` secret (admin/Supabase step)
-- Troubleshooting: "object_not_found" means the page isn't shared with the integration
+create policy "Users can view own keys"
+  on public.api_keys for select to authenticated
+  using (user_id = auth.uid());
 
-**General troubleshooting section:**
-- 502 errors → check if API key is valid and service is accessible
-- Permission errors → verify org role (admin+ required to manage connections)
-- Link to Settings page for quick access
+create policy "Users can insert own keys"
+  on public.api_keys for insert to authenticated
+  with check (user_id = auth.uid());
 
-### 2. Update sidebar: `src/components/AppSidebar.tsx`
-- Add a "Help" nav item with `HelpCircle` icon pointing to `/project/help`
+create policy "Users can delete own keys"
+  on public.api_keys for delete to authenticated
+  using (user_id = auth.uid());
+```
 
-### 3. Update router: `src/App.tsx`
-- Add route `<Route path="/project/help" element={<IntegrationHelp />} />`
+Note: `user_id` references `auth.users(id)` conceptually but we avoid FK to auth schema per project conventions. RLS scopes all access to the owning user.
 
-### 4. Update Settings page: `src/pages/Settings.tsx`
-- Add a small "Need help setting up?" link below the Connections card description, linking to `/project/help`
+## 2. Settings Page — API Access Section
 
-## Design
-- Uses existing Card, Accordion components for collapsible sections
-- Consistent with the app's existing styling (Poppins, navy/purple/orange palette)
-- Step numbers use orange accent badges
-- Code snippets (API key formats) in monospace with muted background
+Add to `src/pages/Settings.tsx` after the Connections card:
 
-## Files changed
-1. `src/pages/IntegrationHelp.tsx` — new file
-2. `src/components/AppSidebar.tsx` — add Help nav item
-3. `src/App.tsx` — add route
-4. `src/pages/Settings.tsx` — add help link
+- New card: "API Access" with Key icon
+- "Generate API Key" button:
+  - Client generates 32-char random hex prefixed `gtm_`
+  - Hashes with SHA-256 via Web Crypto API
+  - Inserts `{ user_id, key_hash, key_prefix: key.slice(0,12) }` into `api_keys`
+  - Shows modal with full key + copy button + "Copy this key now — it won't be shown again."
+- Below: table of existing keys showing prefix, label, created date, last used date, revoke button
+- Available to all authenticated users (not role-gated)
+
+## 3. Edge Function: `get-brand-voices`
+
+Create `supabase/functions/get-brand-voices/index.ts`:
+
+- Method: GET only
+- Auth: `Authorization: Bearer gtm_xxxxx` — no JWT
+- Flow:
+  1. Extract key from header
+  2. SHA-256 hash it
+  3. Look up hash in `api_keys` using service role client — if not found, return 401
+  4. Update `last_used_at`
+  5. Get `user_id` from matched row
+  6. Query `brand_voices` where `status = 'complete'` joined with `projects` where project's `org_id` matches user's org (via `org_memberships`)
+  7. Return JSON with `brand_voices` array containing `schema_version`, `project_slug`, `project_name`, `generated_at`, `generated_by`, and full `brand_voice` object
+- CORS headers included
+- Add to `supabase/config.toml` with `verify_jwt = false`
+
+## 4. Secret
+
+Store `GTM_PLATFORM_URL` = `https://xiufgczyecwgnkbyroow.supabase.co/functions/v1/get-brand-voices` as a Supabase secret.
+
+## Files Changed
+
+1. **Migration** — new `api_keys` table + RLS policies
+2. `supabase/functions/get-brand-voices/index.ts` — new edge function
+3. `supabase/config.toml` — add `get-brand-voices` function config
+4. `src/pages/Settings.tsx` — add API Access card with key generation, list, and revoke
+5. `src/types/database.ts` — add `ApiKey` interface
 
