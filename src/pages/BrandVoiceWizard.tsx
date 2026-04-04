@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useProject } from '@/contexts/ProjectContext';
 import { Badge } from '@/components/ui/badge';
@@ -14,6 +14,8 @@ import { BRAND_VOICE_SECTIONS, getSectionStatus, type BrandVoiceDraft, type Chat
 export default function BrandVoiceWizard() {
   const { currentProject } = useProject();
   const navigate = useNavigate();
+  const location = useLocation();
+  const fileUrl = (location.state as any)?.fileUrl as string | undefined;
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -57,7 +59,7 @@ export default function BrandVoiceWizard() {
         .order('created_at', { ascending: false })
         .limit(1);
 
-      if (existingSessions && existingSessions.length > 0) {
+      if (existingSessions && existingSessions.length > 0 && !fileUrl) {
         const session = existingSessions[0];
         setSessionId(session.id);
         const sessionMessages = session.messages as Array<{ role: string; content: string }>;
@@ -76,8 +78,12 @@ export default function BrandVoiceWizard() {
         return;
       }
 
+      if (fileUrl) {
+        setMessages([{ role: 'assistant', content: 'Analysing your brand voice document... This may take a moment.' }]);
+      }
+
       const res = await supabase.functions.invoke('brand-voice-wizard', {
-        body: { project_id: currentProject!.id },
+        body: { project_id: currentProject!.id, ...(fileUrl ? { file_url: fileUrl } : {}) },
       });
       if (res.error) throw res.error;
       const data = res.data;
