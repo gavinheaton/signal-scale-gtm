@@ -30,6 +30,23 @@ const assetStatusColors: Record<AssetStatus, string> = {
   published: 'bg-purple-100 text-purple-800',
 };
 
+function CampaignDatePicker({ label, value, onChange }: { label: string; value: string | null; onChange: (date: Date | undefined) => void }) {
+  const parsed = value ? parseISO(value) : undefined;
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="outline" size="sm" className={cn('h-7 text-xs gap-1', !value && 'text-muted-foreground')}>
+          <CalendarIcon className="h-3 w-3" />
+          {value ? `${label}: ${format(parsed!, 'MMM d, yyyy')}` : `Set ${label} Date`}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-auto p-0" align="start">
+        <Calendar mode="single" selected={parsed} onSelect={onChange} initialFocus className={cn('p-3 pointer-events-auto')} />
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 export default function Campaigns() {
   const { currentProject } = useProject();
   const navigate = useNavigate();
