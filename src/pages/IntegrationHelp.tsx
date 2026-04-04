@@ -154,9 +154,9 @@ export default function IntegrationHelp() {
                   <div>
                     <p className="font-medium text-sm">Configure Notion in Settings</p>
                     <p className="text-xs text-muted-foreground">
-                      In Signal + Scale, go to{' '}
-                      <Link to="/project/settings" className="underline text-primary">Settings → Connections</Link>{' '}
-                      and click <strong>Configure</strong> next to Notion. Paste the token and save.
+                      In Signal + Scale, select a project first, then go to{' '}
+                      <Link to="/project/settings" className="underline text-primary">Settings</Link>.
+                      In the <strong>Connections</strong> section (visible to admin users and above), click <strong>Configure</strong> next to Notion. Paste the token and save.
                     </p>
                   </div>
                 </div>
