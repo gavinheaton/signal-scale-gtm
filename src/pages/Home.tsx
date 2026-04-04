@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useProject } from '@/contexts/ProjectContext';
-import { ICP, Campaign, CampaignAsset, CampaignMetric, MethodologyPhase, PhaseStatus } from '@/types/database';
+import { Campaign, CampaignAsset, PhaseStatus, MethodologyPhase } from '@/types/database';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Users, Target, Megaphone, TrendingUp } from 'lucide-react';
@@ -29,8 +29,12 @@ export default function Home() {
   const [icpCount, setIcpCount] = useState(0);
   const [personaCount, setPersonaCount] = useState(0);
   const [activeCampaigns, setActiveCampaigns] = useState<Campaign[]>([]);
+  const [allCampaigns, setAllCampaigns] = useState<Campaign[]>([]);
   const [thisWeekAssets, setThisWeekAssets] = useState<CampaignAsset[]>([]);
   const [pipeline, setPipeline] = useState(0);
+  const [brandVoiceStatus, setBrandVoiceStatus] = useState<string | null>(null);
+  const [assetStatuses, setAssetStatuses] = useState<string[]>([]);
+  const [icpWizardComplete, setIcpWizardComplete] = useState(false);
 
   useEffect(() => {
     if (!currentProject) return;
@@ -38,8 +42,11 @@ export default function Home() {
 
     supabase.from('icps').select('id', { count: 'exact' }).eq('project_id', pid).then(({ count }) => setIcpCount(count || 0));
     supabase.from('personas').select('id', { count: 'exact' }).eq('project_id', pid).then(({ count }) => setPersonaCount(count || 0));
-    supabase.from('campaigns').select('*').eq('project_id', pid).eq('status', 'active').then(({ data }) => {
-      if (data) setActiveCampaigns(data as unknown as Campaign[]);
+    supabase.from('campaigns').select('*').eq('project_id', pid).then(({ data }) => {
+      if (data) {
+        setAllCampaigns(data as unknown as Campaign[]);
+        setActiveCampaigns((data as unknown as Campaign[]).filter(c => c.status === 'active'));
+      }
     });
 
     const now = new Date();
@@ -51,11 +58,36 @@ export default function Home() {
     supabase.from('campaign_metrics').select('pipeline_influenced').then(({ data }) => {
       if (data) setPipeline(data.reduce((sum: number, r: any) => sum + (r.pipeline_influenced || 0), 0));
     });
+
+    // Additional queries for methodology progress
+    supabase.from('brand_voices').select('status').eq('project_id', pid).limit(1).single()
+      .then(({ data }) => setBrandVoiceStatus(data?.status || null));
+
+    supabase.from('wizard_sessions').select('status')
+      .eq('project_id', pid).eq('session_type', 'icp').eq('status', 'complete')
+      .then(({ data }) => setIcpWizardComplete((data?.length || 0) > 0));
+
+    supabase.from('campaign_assets').select('status, campaign_id').then(({ data }) => {
+      if (data) setAssetStatuses(data.map((a: any) => a.status));
+    });
   }, [currentProject]);
 
   if (!currentProject) return <Navigate to="/projects" replace />;
 
-  const progress = currentProject.methodology_progress || {};
+  // Derive methodology progress from real data
+  const computedProgress: Record<string, PhaseStatus> = {
+    icp: icpCount === 0 ? 'not_started' : icpWizardComplete ? 'complete' : 'in_progress',
+    personas: personaCount === 0 ? 'not_started' : personaCount >= 3 ? 'complete' : 'in_progress',
+    customer_conversations: 'not_started',
+    competitor_mapping: 'not_started',
+    ecosystem_map: 'not_started',
+    value_proposition: !brandVoiceStatus ? 'not_started' : brandVoiceStatus === 'complete' ? 'complete' : 'in_progress',
+    campaign_strategy: allCampaigns.length === 0 ? 'not_started' :
+      allCampaigns.some(c => ['active', 'complete'].includes(c.status)) ? 'complete' : 'in_progress',
+    execution: assetStatuses.length === 0 ? 'not_started' :
+      assetStatuses.includes('published') ? 'complete' : 'in_progress',
+  };
+
   const captureCount = activeCampaigns.filter(c => c.track === 'demand_capture').length;
   const creationCount = activeCampaigns.filter(c => c.track === 'demand_creation').length;
 
@@ -72,7 +104,7 @@ export default function Home() {
         <CardContent>
           <div className="flex items-center gap-2 overflow-x-auto pb-2">
             {phases.map((phase, i) => {
-              const status = (progress as any)[phase.key] || 'not_started';
+              const status = computedProgress[phase.key] || 'not_started';
               return (
                 <div key={phase.key} className="flex items-center">
                   <div className="flex flex-col items-center min-w-[90px]">
