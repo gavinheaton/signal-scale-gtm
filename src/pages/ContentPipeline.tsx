@@ -68,7 +68,7 @@ export default function ContentPipeline() {
           <SelectTrigger className="w-40"><SelectValue placeholder="Type" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Types</SelectItem>
-            {(['blog', 'video', 'podcast', 'linkedin_post', 'email', 'webinar', 'whitepaper'] as const).map(t => <SelectItem key={t} value={t}>{t.replace('_', ' ')}</SelectItem>)}
+            {(['blog', 'video', 'podcast', 'linkedin_post', 'email', 'webinar', 'whitepaper', 'press_release'] as const).map(t => <SelectItem key={t} value={t}>{t.replace(/_/g, ' ')}</SelectItem>)}
           </SelectContent>
         </Select>
       </div>
@@ -86,7 +86,7 @@ export default function ContentPipeline() {
           {filtered.map(a => (
             <TableRow key={a.id} className="cursor-pointer" onClick={() => setSelected(a)}>
               <TableCell className="font-medium">{a.title}</TableCell>
-              <TableCell><Badge variant="outline">{a.asset_type.replace('_', ' ')}</Badge></TableCell>
+              <TableCell><Badge variant="outline">{a.asset_type.replace(/_/g, ' ')}</Badge></TableCell>
               <TableCell className="text-sm">{(a as any).campaign_name}</TableCell>
               <TableCell><Badge className={statusColors[a.status]}>{a.status}</Badge></TableCell>
               <TableCell className="text-sm">{a.publish_date ? new Date(a.publish_date).toLocaleDateString() : '—'}</TableCell>

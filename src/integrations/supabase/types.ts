@@ -450,6 +450,7 @@ export type Database = {
         | "email"
         | "webinar"
         | "whitepaper"
+        | "press_release"
       campaign_status: "brief" | "planning" | "active" | "complete"
       campaign_track: "demand_capture" | "demand_creation"
       matrix_category:
@@ -610,6 +611,7 @@ export const Constants = {
         "email",
         "webinar",
         "whitepaper",
+        "press_release",
       ],
       campaign_status: ["brief", "planning", "active", "complete"],
       campaign_track: ["demand_capture", "demand_creation"],
