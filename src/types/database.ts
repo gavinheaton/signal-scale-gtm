@@ -31,6 +31,7 @@ export interface Project {
   id: string;
   org_id: string;
   name: string;
+  slug?: string;
   status: ProjectStatus;
   methodology_progress: Record<MethodologyPhase, PhaseStatus>;
   created_at: string;
