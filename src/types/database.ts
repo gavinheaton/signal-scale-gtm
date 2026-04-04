@@ -9,8 +9,9 @@ export type AssetType = 'blog' | 'video' | 'podcast' | 'linkedin_post' | 'email'
 export type AssetStatus = 'brief' | 'draft' | 'review' | 'approved' | 'published';
 export type MethodologyPhase = 'icp' | 'personas' | 'customer_conversations' | 'competitor_mapping' | 'ecosystem_map' | 'value_proposition' | 'campaign_strategy' | 'execution';
 export type PhaseStatus = 'not_started' | 'in_progress' | 'complete';
-export type WizardSessionType = 'icp' | 'persona' | 'competitor' | 'campaign';
+export type WizardSessionType = 'icp' | 'persona' | 'competitor' | 'campaign' | 'brand_voice';
 export type WizardSessionStatus = 'in_progress' | 'complete';
+export type BrandVoiceStatus = 'draft' | 'in_progress' | 'complete';
 
 export interface Organisation {
   id: string;
@@ -30,6 +31,7 @@ export interface Project {
   id: string;
   org_id: string;
   name: string;
+  slug?: string;
   status: ProjectStatus;
   methodology_progress: Record<MethodologyPhase, PhaseStatus>;
   created_at: string;
@@ -92,6 +94,25 @@ export interface ProjectConnection {
   project_id: string;
   provider: 'claude' | 'notion';
   api_key_secret_id: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BrandVoice {
+  id: string;
+  project_id: string;
+  status: BrandVoiceStatus;
+  personality_adjectives: string[];
+  tone_description: string | null;
+  writing_principles: Record<string, any>[];
+  banned_phrases: string[];
+  preferred_vocabulary: Record<string, any>[];
+  formatting_rules: string[];
+  content_type_guidance: Record<string, any>;
+  writing_samples: Record<string, any>[];
+  target_audiences: Record<string, any>[];
+  brand_identity: Record<string, any>;
+  wizard_session_id: string | null;
   created_at: string;
   updated_at: string;
 }
