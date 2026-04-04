@@ -114,7 +114,7 @@ Deno.serve(async (req) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        parent: { page_id: parent_page_id || NOTION_PARENT_PAGE_ID },
+        parent: { page_id: extractNotionId(parent_page_id || NOTION_PARENT_PAGE_ID) },
         properties: {
           title: { title: [{ text: { content: `${asset.title} (${asset.asset_type.replace(/_/g, ' ')})` } }] },
         },

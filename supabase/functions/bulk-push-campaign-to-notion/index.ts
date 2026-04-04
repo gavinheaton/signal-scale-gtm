@@ -135,7 +135,7 @@ Deno.serve(async (req) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        parent: { page_id: NOTION_PARENT_PAGE_ID },
+        parent: { page_id: extractNotionId(NOTION_PARENT_PAGE_ID) },
         properties: {
           title: { title: [{ text: { content: `${campaign.name} — Content Assets` } }] },
         },
