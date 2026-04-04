@@ -94,9 +94,64 @@ Deno.serve(async (req) => {
       if (brandVoice.personality_adjectives?.length) {
         systemPrompt += `Personality: ${brandVoice.personality_adjectives.join(', ')}\n`;
       }
-      if (brandVoice.banned_phrases?.length) {
-        systemPrompt += `Avoid: ${brandVoice.banned_phrases.join(', ')}\n`;
+
+      // Brand identity context
+      const bi = brandVoice.brand_identity;
+      if (bi && typeof bi === 'object' && Object.keys(bi).length > 0) {
+        if (bi.brand_name) systemPrompt += `Brand Name: ${bi.brand_name}\n`;
+        if (bi.brand_name_rules) systemPrompt += `Name Usage Rules: ${bi.brand_name_rules}\n`;
+        if (bi.locale) systemPrompt += `Locale/Language: ${bi.locale}\n`;
       }
+
+      // Writing principles as numbered rules
+      if (brandVoice.writing_principles?.length) {
+        systemPrompt += `\n### Writing Principles (MUST follow)\n`;
+        brandVoice.writing_principles.forEach((wp: any, i: number) => {
+          systemPrompt += `${i + 1}. **${wp.principle}**: ${wp.explanation}\n`;
+          if (wp.bad_example) systemPrompt += `   ✗ Bad: "${wp.bad_example}"\n`;
+          if (wp.good_example) systemPrompt += `   ✓ Good: "${wp.good_example}"\n`;
+        });
+      }
+
+      // Preferred vocabulary
+      if (brandVoice.preferred_vocabulary?.length) {
+        systemPrompt += `\n### Preferred Vocabulary\n`;
+        brandVoice.preferred_vocabulary.forEach((v: any) => {
+          systemPrompt += `- Use "${v.use}" instead of "${v.instead_of}"\n`;
+        });
+      }
+
+      // Banned phrases
+      if (brandVoice.banned_phrases?.length) {
+        systemPrompt += `\n### Banned Phrases (NEVER use)\n${brandVoice.banned_phrases.join(', ')}\n`;
+      }
+
+      // Formatting rules
+      if (brandVoice.formatting_rules?.length) {
+        systemPrompt += `\n### Formatting Rules\n`;
+        brandVoice.formatting_rules.forEach((r: string) => {
+          systemPrompt += `- ${r}\n`;
+        });
+      }
+
+      // Content-type-specific guidance (most impactful)
+      const ctg = brandVoice.content_type_guidance;
+      if (ctg && typeof ctg === 'object') {
+        const typeKey = asset.asset_type;
+        if (ctg[typeKey]) {
+          systemPrompt += `\n### Content-Type Specific Guidance (for ${typeKey.replace(/_/g, ' ')})\n${ctg[typeKey]}\n`;
+        }
+      }
+
+      // Writing samples as style reference
+      if (brandVoice.writing_samples?.length) {
+        const samples = brandVoice.writing_samples.slice(0, 2);
+        systemPrompt += `\n### Writing Style Reference\n`;
+        samples.forEach((s: any) => {
+          systemPrompt += `[${s.type}]: "${s.sample.substring(0, 500)}"\n`;
+        });
+      }
+
       systemPrompt += `\n`;
     }
 
