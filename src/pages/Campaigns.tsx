@@ -68,7 +68,7 @@ export default function Campaigns() {
             <div key={s} className="space-y-2">
               <h3 className="text-xs font-semibold uppercase text-muted-foreground">{s}</h3>
               {assets.filter(a => a.status === s).map(a => (
-                <Card key={a.id} className="p-3"><p className="text-sm font-medium">{a.title}</p><Badge variant="outline" className="text-[10px] mt-1">{a.asset_type.replace('_', ' ')}</Badge></Card>
+                <Card key={a.id} className="p-3"><p className="text-sm font-medium">{a.title}</p><Badge variant="outline" className="text-[10px] mt-1">{a.asset_type.replace(/_/g, ' ')}</Badge></Card>
               ))}
             </div>
           ))}
