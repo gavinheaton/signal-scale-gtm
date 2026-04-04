@@ -3,6 +3,16 @@ import { corsHeaders } from "../_shared/cors.ts";
 
 const NOTION_API = "https://api.notion.com/v1";
 
+function extractNotionId(input: string): string {
+  if (/^[0-9a-f]{8}-/.test(input)) return input;
+  const match = input.match(/([0-9a-f]{32})/);
+  if (match) {
+    const h = match[1];
+    return `${h.slice(0,8)}-${h.slice(8,12)}-${h.slice(12,16)}-${h.slice(16,20)}-${h.slice(20)}`;
+  }
+  return input;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -70,6 +80,14 @@ Deno.serve(async (req) => {
       });
     }
 
+    const normalizedParentPageId = extractNotionId(PARENT_PAGE_ID);
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(normalizedParentPageId)) {
+      return new Response(JSON.stringify({ error: "NOTION_CAMPAIGN_BRIEFS_PAGE_ID must be a valid Notion page ID or URL" }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const notionHeaders = {
       Authorization: `Bearer ${NOTION_TOKEN}`,
       "Content-Type": "application/json",
@@ -81,7 +99,7 @@ Deno.serve(async (req) => {
       method: "POST",
       headers: notionHeaders,
       body: JSON.stringify({
-        parent: { page_id: PARENT_PAGE_ID },
+        parent: { page_id: normalizedParentPageId },
         icon: { type: "emoji", emoji: "🎯" },
         properties: {
           title: [{ text: { content: `${project.name} — GTM Workspace` } }],
