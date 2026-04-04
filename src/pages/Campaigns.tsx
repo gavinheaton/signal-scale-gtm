@@ -130,6 +130,24 @@ export default function Campaigns() {
     }
   };
 
+  const handleDeleteCampaign = async (campaign: Campaign) => {
+    setDeleting(true);
+    try {
+      await supabase.from('campaign_metrics').delete().eq('campaign_id', campaign.id);
+      await supabase.from('campaign_assets').delete().eq('campaign_id', campaign.id);
+      const { error } = await supabase.from('campaigns').delete().eq('id', campaign.id);
+      if (error) throw error;
+      toast.success(`"${campaign.name}" deleted`);
+      if (selectedCampaign?.id === campaign.id) setSelectedCampaign(null);
+      fetchData();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to delete campaign');
+    } finally {
+      setDeleting(false);
+      setDeleteTarget(null);
+    }
+  };
+
   const briefCount = assets.filter(a => a.status === 'brief').length;
   const pushableCount = assets.filter(a => a.content && !a.notion_url).length;
   const alreadyPushed = assets.filter(a => a.notion_url).length;
