@@ -1,11 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useProject } from '@/contexts/ProjectContext';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Mic, Sparkles, Eye, Download, ArrowRight, Info, X } from 'lucide-react';
+import { Mic, Sparkles, Eye, Download, ArrowRight, Info, X, Upload, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface BrandVoiceRecord {
@@ -23,6 +23,8 @@ export default function BrandVoice() {
   const [brandVoice, setBrandVoice] = useState<BrandVoiceRecord | null>(null);
   const [loading, setLoading] = useState(true);
   const [showBanner, setShowBanner] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!currentProject) return;
@@ -41,6 +43,41 @@ export default function BrandVoice() {
       setBrandVoice(data[0] as unknown as BrandVoiceRecord);
     }
     setLoading(false);
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !currentProject) return;
+
+    const allowedTypes = ['.pdf', '.docx', '.txt', '.md'];
+    const ext = '.' + file.name.split('.').pop()?.toLowerCase();
+    if (!allowedTypes.includes(ext)) {
+      toast.error('Please upload a PDF, DOCX, TXT, or MD file');
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error('File must be under 10MB');
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const filePath = `${currentProject.id}/${file.name}`;
+      const { error: uploadError } = await supabase.storage
+        .from('brand-voice-uploads')
+        .upload(filePath, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      toast.success('Document uploaded — starting analysis...');
+      navigate('/project/brand-voice-wizard', { state: { fileUrl: filePath } });
+    } catch (err: any) {
+      toast.error('Upload failed: ' + (err.message || 'Unknown error'));
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
   };
 
   const exportForCowork = async () => {
@@ -142,6 +179,14 @@ export default function BrandVoice() {
         </div>
       )}
 
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".pdf,.docx,.txt,.md"
+        className="hidden"
+        onChange={handleFileUpload}
+      />
+
       {!brandVoice ? (
         <Card className="border-dashed">
           <CardContent className="flex flex-col items-center justify-center py-16 text-center">
@@ -152,10 +197,28 @@ export default function BrandVoice() {
             <p className="text-muted-foreground max-w-md mb-6">
               Our AI wizard will guide you through creating a comprehensive brand voice guide — covering tone, writing principles, vocabulary, and more.
             </p>
-            <Button size="lg" onClick={() => navigate('/project/brand-voice-wizard')}>
-              <Sparkles className="h-4 w-4 mr-2" />
-              Start Brand Voice Wizard
-            </Button>
+            <div className="flex gap-3">
+              <Button size="lg" onClick={() => navigate('/project/brand-voice-wizard')}>
+                <Sparkles className="h-4 w-4 mr-2" />
+                Start Brand Voice Wizard
+              </Button>
+              <Button
+                size="lg"
+                variant="outline"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+              >
+                {uploading ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Upload className="h-4 w-4 mr-2" />
+                )}
+                {uploading ? 'Uploading...' : 'Upload Existing Document'}
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground mt-3">
+              Supports PDF, DOCX, TXT, and MD files (max 10MB)
+            </p>
           </CardContent>
         </Card>
       ) : (

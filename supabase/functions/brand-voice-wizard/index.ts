@@ -55,6 +55,15 @@ CRITICAL JSON RULES:
 - Set is_complete to true ONLY when all sections have substantive content.
 - sections_complete should list keys that have enough content: personality_adjectives, tone_description, writing_principles, banned_phrases, preferred_vocabulary, formatting_rules, content_type_guidance, writing_samples, target_audiences, brand_identity`;
 
+const DOCUMENT_ANALYSIS_PROMPT = `The user has uploaded an existing brand voice / tone of voice document. Its text content is included below.
+
+TASK: Analyse this document thoroughly and extract as much structured brand voice data as possible into the <draft> block. Map the document's content to the 10 brand voice sections. For any sections where the document provides clear guidance, mark them as complete. For sections with partial or no information, leave them empty or partial.
+
+After your analysis, briefly summarise what you found and ask about any gaps — what sections still need input from the user.
+
+--- DOCUMENT CONTENT ---
+`;
+
 const INITIAL_MESSAGE = "Let's define your brand voice. I'll guide you through building a comprehensive brand voice guide. To start — what's your company name and website URL? If you have any existing brand guidelines or messaging, feel free to share those too.";
 
 function mergeDrafts(existing: Record<string, any>, incoming: Record<string, any>): Record<string, any> {
@@ -85,6 +94,103 @@ function robustJsonParse(raw: string): Record<string, any> | null {
   }
 }
 
+async function extractDocumentText(supabase: any, fileUrl: string): Promise<string> {
+  try {
+    // fileUrl format: brand-voice-uploads/{project_id}/{filename}
+    const { data, error } = await supabase.storage
+      .from('brand-voice-uploads')
+      .download(fileUrl);
+
+    if (error || !data) {
+      console.error("Storage download error:", error);
+      return "[Failed to download the uploaded document]";
+    }
+
+    const fileName = fileUrl.toLowerCase();
+
+    if (fileName.endsWith('.txt') || fileName.endsWith('.md')) {
+      return (await data.text()).slice(0, 8000);
+    }
+
+    if (fileName.endsWith('.docx')) {
+      return await extractDocxText(data);
+    }
+
+    if (fileName.endsWith('.pdf')) {
+      return await extractPdfText(data);
+    }
+
+    // Fallback: try as text
+    return (await data.text()).slice(0, 8000);
+  } catch (err) {
+    console.error("Document extraction error:", err);
+    return "[Error extracting document text]";
+  }
+}
+
+async function extractDocxText(blob: Blob): Promise<string> {
+  try {
+    // DOCX is a zip file; word/document.xml contains the text
+    const { default: JSZip } = await import("https://esm.sh/jszip@3.10.1");
+    const zip = await JSZip.loadAsync(await blob.arrayBuffer());
+    const docXml = await zip.file("word/document.xml")?.async("text");
+    if (!docXml) return "[Could not read DOCX content]";
+
+    // Strip XML tags to get plain text
+    const text = docXml
+      .replace(/<w:p[^>]*>/g, '\n')
+      .replace(/<[^>]+>/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    return text.slice(0, 8000);
+  } catch (err) {
+    console.error("DOCX extraction error:", err);
+    return "[Failed to extract text from DOCX]";
+  }
+}
+
+async function extractPdfText(blob: Blob): Promise<string> {
+  try {
+    // Basic PDF text extraction - look for text streams
+    const buffer = await blob.arrayBuffer();
+    const bytes = new Uint8Array(buffer);
+    const rawText = new TextDecoder('latin1').decode(bytes);
+
+    // Extract text between BT and ET markers (PDF text objects)
+    const textParts: string[] = [];
+    const btEtRegex = /BT\s([\s\S]*?)ET/g;
+    let match;
+    while ((match = btEtRegex.exec(rawText)) !== null) {
+      const block = match[1];
+      // Extract text from Tj and TJ operators
+      const tjRegex = /\(([^)]*)\)\s*Tj/g;
+      let tjMatch;
+      while ((tjMatch = tjRegex.exec(block)) !== null) {
+        textParts.push(tjMatch[1]);
+      }
+      // TJ arrays
+      const tjArrayRegex = /\[([^\]]*)\]\s*TJ/g;
+      let tjArrMatch;
+      while ((tjArrMatch = tjArrayRegex.exec(block)) !== null) {
+        const innerRegex = /\(([^)]*)\)/g;
+        let innerMatch;
+        while ((innerMatch = innerRegex.exec(tjArrMatch[1])) !== null) {
+          textParts.push(innerMatch[1]);
+        }
+      }
+    }
+
+    const text = textParts.join(' ').replace(/\s+/g, ' ').trim();
+    if (text.length < 50) {
+      return "[PDF text extraction returned minimal content — the PDF may be image-based/scanned. Please upload a text-based document instead (TXT, DOCX, or MD).]";
+    }
+    return text.slice(0, 8000);
+  } catch (err) {
+    console.error("PDF extraction error:", err);
+    return "[Failed to extract text from PDF]";
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -107,7 +213,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { message, session_id, project_id } = await req.json();
+    const { message, session_id, project_id, file_url } = await req.json();
 
     let sessionId = session_id;
     let messages: Array<{ role: string; content: string; timestamp: string }> = [];
@@ -123,12 +229,24 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Extract document text if file_url provided
+    let documentText = "";
+    if (file_url) {
+      documentText = await extractDocumentText(supabase, file_url);
+    }
+
     if (!sessionId) {
-      const initialMsg = { role: "assistant", content: INITIAL_MESSAGE, timestamp: new Date().toISOString() };
+      // Determine initial user message based on whether a document was uploaded
+      let initialUserMessage = message || "";
+      if (documentText && documentText.length > 0 && !documentText.startsWith("[Failed") && !documentText.startsWith("[Error") && !documentText.startsWith("[Could not") && !documentText.startsWith("[PDF text")) {
+        initialUserMessage = `I've uploaded my existing brand voice document. Please analyse it and extract as much as you can.\n\n${DOCUMENT_ANALYSIS_PROMPT}${documentText}`;
+      }
+
+      const initialMsg = { role: "assistant", content: documentText ? "I've received your brand voice document. Let me analyse it..." : INITIAL_MESSAGE, timestamp: new Date().toISOString() };
       messages = [initialMsg];
 
-      if (message) {
-        messages.push({ role: "user", content: message, timestamp: new Date().toISOString() });
+      if (initialUserMessage) {
+        messages.push({ role: "user", content: initialUserMessage, timestamp: new Date().toISOString() });
       }
 
       const { data: session, error: insertError } = await supabase
@@ -149,7 +267,7 @@ Deno.serve(async (req) => {
         project_id, status: "draft", wizard_session_id: sessionId,
       });
 
-      if (!message) {
+      if (!initialUserMessage) {
         return new Response(JSON.stringify({ reply: INITIAL_MESSAGE, updated_draft: {}, session_id: sessionId }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
@@ -225,7 +343,7 @@ Deno.serve(async (req) => {
       },
       body: JSON.stringify({
         model: "claude-sonnet-4-6",
-        max_tokens: 2048,
+        max_tokens: 4096,
         system: systemPrompt,
         messages: anthropicMessages,
       }),
