@@ -1,6 +1,6 @@
 export type OrgType = 'disruptors_own' | 'disruptors_client' | 'independent';
 export type OrgRole = 'superadmin' | 'owner' | 'admin' | 'manager' | 'analyst' | 'client';
-export type ProjectStatus = 'setup' | 'active' | 'review' | 'complete';
+export type ProjectStatus = 'setup' | 'active' | 'review' | 'complete' | 'archived';
 export type MatrixCategory = 'now_account' | 'strategic_nurture' | 'trap_account' | 'no_go';
 export type RoleInBuying = 'champion' | 'economic_buyer' | 'influencer' | 'end_user' | 'blocker';
 export type CampaignTrack = 'demand_capture' | 'demand_creation';
