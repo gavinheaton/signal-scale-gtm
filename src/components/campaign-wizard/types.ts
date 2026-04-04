@@ -18,6 +18,12 @@ export interface ContentCalendarItem {
   persona: string;
   week: string;
   track?: 'demand_capture' | 'demand_creation';
+  sequence_order?: number;
+  offset_days?: number;
+  publish_date?: string;
+  production_due?: string;
+  depends_on?: number;
+  rationale?: string;
 }
 
 export const CAMPAIGN_SECTIONS = [

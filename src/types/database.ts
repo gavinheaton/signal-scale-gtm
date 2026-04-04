@@ -95,6 +95,11 @@ export interface CampaignAsset {
   persona_target_ids: string[];
   content: string | null;
   notion_url: string | null;
+  sequence_order: number | null;
+  offset_days: number | null;
+  production_due: string | null;
+  depends_on: string | null;
+  rationale: string | null;
 }
 
 export interface ProjectConnection {

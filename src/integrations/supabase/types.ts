@@ -121,10 +121,15 @@ export type Database = {
           asset_type: Database["public"]["Enums"]["asset_type"]
           campaign_id: string
           content: string | null
+          depends_on: string | null
           id: string
           notion_url: string | null
+          offset_days: number | null
           persona_target_ids: string[] | null
+          production_due: string | null
           publish_date: string | null
+          rationale: string | null
+          sequence_order: number | null
           status: Database["public"]["Enums"]["asset_status"]
           title: string
         }
@@ -132,10 +137,15 @@ export type Database = {
           asset_type: Database["public"]["Enums"]["asset_type"]
           campaign_id: string
           content?: string | null
+          depends_on?: string | null
           id?: string
           notion_url?: string | null
+          offset_days?: number | null
           persona_target_ids?: string[] | null
+          production_due?: string | null
           publish_date?: string | null
+          rationale?: string | null
+          sequence_order?: number | null
           status?: Database["public"]["Enums"]["asset_status"]
           title: string
         }
@@ -143,10 +153,15 @@ export type Database = {
           asset_type?: Database["public"]["Enums"]["asset_type"]
           campaign_id?: string
           content?: string | null
+          depends_on?: string | null
           id?: string
           notion_url?: string | null
+          offset_days?: number | null
           persona_target_ids?: string[] | null
+          production_due?: string | null
           publish_date?: string | null
+          rationale?: string | null
+          sequence_order?: number | null
           status?: Database["public"]["Enums"]["asset_status"]
           title?: string
         }
@@ -156,6 +171,13 @@ export type Database = {
             columns: ["campaign_id"]
             isOneToOne: false
             referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campaign_assets_depends_on_fkey"
+            columns: ["depends_on"]
+            isOneToOne: false
+            referencedRelation: "campaign_assets"
             referencedColumns: ["id"]
           },
         ]
