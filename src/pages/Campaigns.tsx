@@ -337,7 +337,7 @@ export default function Campaigns() {
                     <Badge className={`${trackColors[c.track]} text-[10px]`}>{c.track.replace(/_/g, ' ')}</Badge>
                     {c.launch_date && (
                       <div className="flex items-center gap-1 mt-2 text-xs text-muted-foreground">
-                        <Calendar className="h-3 w-3" />{new Date(c.launch_date).toLocaleDateString()}
+                        <CalendarIcon className="h-3 w-3" />{new Date(c.launch_date).toLocaleDateString()}
                       </div>
                     )}
                   </CardContent>
