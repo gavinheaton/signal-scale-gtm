@@ -10,6 +10,16 @@ const NOTION_PARENT_PAGE_ID = Deno.env.get("NOTION_CAMPAIGN_BRIEFS_PAGE_ID")!;
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
+function extractNotionId(input: string): string {
+  if (/^[0-9a-f]{8}-/.test(input)) return input;
+  const match = input.match(/([0-9a-f]{32})/);
+  if (match) {
+    const h = match[1];
+    return `${h.slice(0,8)}-${h.slice(8,12)}-${h.slice(12,16)}-${h.slice(16,20)}-${h.slice(20)}`;
+  }
+  return input;
+}
+
 function markdownToNotionBlocks(markdown: string): any[] {
   const blocks: any[] = [];
   const lines = markdown.split('\n');
