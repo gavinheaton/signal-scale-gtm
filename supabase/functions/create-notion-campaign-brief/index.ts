@@ -189,10 +189,9 @@ Deno.serve(async (req) => {
           : "Demand Creation (95%)";
         properties["Demand Type"] = { select: { name: demandType } };
 
-        // Dates
-        if (item.week || item.publish_date) {
-          properties["Publish Date"] = { date: { start: item.publish_date || item.week } };
-        }
+        // Dates — always set to anchor on the Notion calendar
+        const today = new Date().toISOString().split("T")[0];
+        properties["Publish Date"] = { date: { start: item.publish_date || item.week || today } };
 
         // Persona
         if (item.persona) {
