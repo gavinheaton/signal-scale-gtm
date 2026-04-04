@@ -242,6 +242,25 @@ Deno.serve(async (req) => {
       documentText = await extractDocumentText(supabase, file_url);
     }
 
+    // Build pre-seeded target_audiences from ICPs/personas
+    const hasAudienceContext = icps.length > 0 || personas.length > 0;
+    let preSeededDraft: Record<string, any> = {};
+    if (hasAudienceContext) {
+      const seededAudiences: Array<{ segment: string; tone_adjustment: string }> = [];
+      for (const icp of icps) {
+        seededAudiences.push({ segment: icp.segment_name, tone_adjustment: "" });
+      }
+      for (const p of personas) {
+        seededAudiences.push({ segment: `${p.persona_name} (${p.role_in_buying})`, tone_adjustment: "" });
+      }
+      preSeededDraft = { target_audiences: seededAudiences };
+    }
+
+    // Determine initial message based on context
+    const initialMessageText = hasAudienceContext
+      ? "I can see you've already defined your ICPs and personas — I'll use those to shape the audience sections. Let's start with your company name and how you want your brand to sound."
+      : INITIAL_MESSAGE;
+
     if (!sessionId) {
       // Determine initial user message based on whether a document was uploaded
       let initialUserMessage = message || "";
@@ -249,7 +268,7 @@ Deno.serve(async (req) => {
         initialUserMessage = `I've uploaded my existing brand voice document. Please analyse it and extract as much as you can.\n\n${DOCUMENT_ANALYSIS_PROMPT}${documentText}`;
       }
 
-      const initialMsg = { role: "assistant", content: documentText ? "I've received your brand voice document. Let me analyse it..." : INITIAL_MESSAGE, timestamp: new Date().toISOString() };
+      const initialMsg = { role: "assistant", content: documentText ? "I've received your brand voice document. Let me analyse it..." : initialMessageText, timestamp: new Date().toISOString() };
       messages = [initialMsg];
 
       if (initialUserMessage) {
@@ -258,7 +277,7 @@ Deno.serve(async (req) => {
 
       const { data: session, error: insertError } = await supabase
         .from("wizard_sessions")
-        .insert({ project_id, session_type: "brand_voice", messages, status: "in_progress" })
+        .insert({ project_id, session_type: "brand_voice", messages, draft_output: preSeededDraft, status: "in_progress" })
         .select("id").single();
 
       if (insertError) {
@@ -268,14 +287,16 @@ Deno.serve(async (req) => {
       }
 
       sessionId = session.id;
+      existingDraft = preSeededDraft;
 
       // Create initial brand_voices record
       await supabase.from("brand_voices").insert({
         project_id, status: "draft", wizard_session_id: sessionId,
+        ...(hasAudienceContext ? { target_audiences: preSeededDraft.target_audiences } : {}),
       });
 
       if (!initialUserMessage) {
-        return new Response(JSON.stringify({ reply: INITIAL_MESSAGE, updated_draft: {}, session_id: sessionId }), {
+        return new Response(JSON.stringify({ reply: initialMessageText, updated_draft: preSeededDraft, session_id: sessionId }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
