@@ -63,7 +63,8 @@ export default function AssetDetailDrawer({ asset, open, onOpenChange, onUpdated
       }
       onUpdated();
     } catch (err: any) {
-      toast.error(err.message || 'Push failed');
+      const msg = err?.context?.error || err?.message || 'Push failed';
+      toast.error(msg);
     } finally {
       setPushing(false);
     }
