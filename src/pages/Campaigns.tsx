@@ -133,6 +133,30 @@ export default function Campaigns() {
               <Badge variant="outline">{selectedCampaign.status}</Badge>
               <span className="text-sm text-muted-foreground">{assets.length} assets</span>
             </div>
+            <div className="flex items-center gap-3 mt-2">
+              <CampaignDatePicker
+                label="Launch"
+                value={selectedCampaign.launch_date}
+                onChange={async (date) => {
+                  const dateStr = date ? format(date, 'yyyy-MM-dd') : null;
+                  const { error } = await supabase.from('campaigns').update({ launch_date: dateStr }).eq('id', selectedCampaign.id);
+                  if (error) { toast.error('Failed to update launch date'); return; }
+                  setSelectedCampaign(prev => prev ? { ...prev, launch_date: dateStr } : null);
+                  setCampaigns(prev => prev.map(c => c.id === selectedCampaign.id ? { ...c, launch_date: dateStr } : c));
+                }}
+              />
+              <CampaignDatePicker
+                label="End"
+                value={selectedCampaign.end_date}
+                onChange={async (date) => {
+                  const dateStr = date ? format(date, 'yyyy-MM-dd') : null;
+                  const { error } = await supabase.from('campaigns').update({ end_date: dateStr }).eq('id', selectedCampaign.id);
+                  if (error) { toast.error('Failed to update end date'); return; }
+                  setSelectedCampaign(prev => prev ? { ...prev, end_date: dateStr } : null);
+                  setCampaigns(prev => prev.map(c => c.id === selectedCampaign.id ? { ...c, end_date: dateStr } : c));
+                }}
+              />
+            </div>
           </div>
           {selectedCampaign.notion_url && (
             <Button variant="outline" size="sm" asChild>

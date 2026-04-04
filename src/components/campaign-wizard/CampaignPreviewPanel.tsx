@@ -53,6 +53,16 @@ export function CampaignPreviewPanel({ draft, saving, onSave, onSaveDraft, onNam
         </div>
       )}
 
+      {/* Campaign Dates */}
+      {(draft.launch_date || draft.end_date) && (
+        <div className="flex items-center gap-3 text-xs text-muted-foreground">
+          <CalendarIcon className="h-3.5 w-3.5 shrink-0" />
+          {draft.launch_date && <span>Launch: {format(parseISO(draft.launch_date), 'MMM d, yyyy')}</span>}
+          {draft.launch_date && draft.end_date && <span>—</span>}
+          {draft.end_date && <span>End: {format(parseISO(draft.end_date), 'MMM d, yyyy')}</span>}
+        </div>
+      )}
+
       {/* Progress */}
       <p className="text-xs text-muted-foreground">{completedCount}/{CAMPAIGN_SECTIONS.length} sections complete</p>
 
