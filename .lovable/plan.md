@@ -1,69 +1,72 @@
 
 
-# Add Campaign Deletion
+# Auto-Update Methodology Progress from Actual Data
 
 ## Problem
-There is no way to delete a campaign from the UI. The `campaigns` table RLS doesn't even allow DELETE. Campaign assets can be deleted (RLS exists), but campaign metrics cannot.
+The `methodology_progress` field on the `projects` table is never updated. It stays at the default (`not_started` for all 8 phases) regardless of how many ICPs, personas, campaigns, or assets exist. The Home page reads this stale data and shows everything as "not started."
 
 ## Solution
+Instead of relying on a manually-maintained JSON field, **compute methodology progress dynamically** on the Home page based on actual data counts. This is more reliable than trying to patch every wizard/creation flow to write back to the field.
 
-### 1. Database migration — enable campaign deletion
-Add RLS DELETE policies for `campaigns` and `campaign_metrics`, scoped to org access. Optionally create a `delete_campaign_cascade` security definer function (like `delete_project_cascade`) that deletes metrics, assets, then the campaign — ensuring clean ordering and admin-level permission checks.
+### Phase → data mapping
 
-**Migration SQL:**
-```sql
--- Delete policy for campaigns (admin/manager+)
-CREATE POLICY "Users can delete project campaigns"
-ON public.campaigns FOR DELETE TO authenticated
-USING (
-  EXISTS (
-    SELECT 1 FROM projects p
-    JOIN org_memberships om ON om.org_id = p.org_id
-    WHERE p.id = campaigns.project_id
-      AND om.user_id = auth.uid()
-      AND om.role IN ('owner', 'admin', 'superadmin', 'manager')
-  )
-);
+| Phase | Data source | not_started | in_progress | complete |
+|-------|-----------|-------------|-------------|----------|
+| ICP | `icps` count for project | 0 ICPs | ≥1 ICP but no complete wizard session | ≥1 ICP with complete wizard session |
+| Personas | `personas` count | 0 | ≥1 persona | ≥3 personas |
+| Customer Conversations | No table yet | Always not_started | — | — |
+| Competitor Mapping | No table yet | Always not_started | — | — |
+| Ecosystem Map | No table yet | Always not_started | — | — |
+| Value Proposition | `brand_voices` status | No brand voice | status = in_progress | status = complete |
+| Campaign Strategy | `campaigns` count | 0 | ≥1 campaign in brief/planning | ≥1 active/complete campaign |
+| Execution | `campaign_assets` count | 0 | ≥1 asset | ≥1 published asset |
 
--- Delete policy for campaign_metrics
-CREATE POLICY "Users can delete campaign metrics"
-ON public.campaign_metrics FOR DELETE TO authenticated
-USING (
-  EXISTS (
-    SELECT 1 FROM campaigns c
-    JOIN projects p ON p.id = c.project_id
-    WHERE c.id = campaign_metrics.campaign_id
-      AND user_has_org_access(auth.uid(), p.org_id)
-  )
-);
-```
+### Implementation
 
-### 2. UI — Add delete option to campaign detail and kanban cards
+**File: `src/pages/Home.tsx`**
 
-**`src/pages/Campaigns.tsx`:**
+1. Add queries in the existing `useEffect` to fetch the additional counts needed (brand voice status, asset statuses, campaign statuses, wizard session completions).
 
-- Import `Trash2`, `MoreVertical` from lucide and `AlertDialog` components
-- Add state: `deleteTarget`, `deleting`
-- Add delete handler: deletes `campaign_metrics`, then `campaign_assets`, then `campaigns` row by id. On success, clear `selectedCampaign` and refresh list.
-- **Campaign detail view**: Add a delete button (with destructive styling) in the header area next to the Notion link button
-- **Kanban cards**: Add a `DropdownMenu` with a delete option (three-dot menu), similar to the Projects page pattern
-- Both trigger an `AlertDialog` confirmation: "Delete [campaign name]? This will permanently delete all assets and metrics."
+2. Add a `computedProgress` function that derives each phase status from real data using the mapping above — replacing the read from `currentProject.methodology_progress`.
 
-### Files changed
-1. **New migration** — RLS DELETE policies for `campaigns` and `campaign_metrics`
-2. **`src/pages/Campaigns.tsx`** — delete confirmation dialog, delete handler, UI triggers in detail header and kanban cards
+3. Optionally persist: after computing, if the computed progress differs from the stored value, fire a single `supabase.from('projects').update({ methodology_progress: computed })` call. This keeps the DB in sync for other consumers without being the source of truth for the UI.
 
-### Delete handler logic
+### Changes
+1. **`src/pages/Home.tsx`** — add data queries, compute progress dynamically, optionally sync back to DB
+
+### Technical detail
+
 ```typescript
-const handleDeleteCampaign = async (campaign: Campaign) => {
-  // Delete children first
-  await supabase.from('campaign_metrics').delete().eq('campaign_id', campaign.id);
-  await supabase.from('campaign_assets').delete().eq('campaign_id', campaign.id);
-  const { error } = await supabase.from('campaigns').delete().eq('id', campaign.id);
-  if (error) { toast.error(error.message); return; }
-  toast.success(`"${campaign.name}" deleted`);
-  setSelectedCampaign(null);
-  fetchData();
-};
+// New state
+const [brandVoiceStatus, setBrandVoiceStatus] = useState<string | null>(null);
+const [campaignStatuses, setCampaignStatuses] = useState<string[]>([]);
+const [assetStatuses, setAssetStatuses] = useState<string[]>([]);
+const [icpWizardComplete, setIcpWizardComplete] = useState(false);
+
+// In useEffect, add:
+supabase.from('brand_voices').select('status').eq('project_id', pid).limit(1).single()
+  .then(({ data }) => setBrandVoiceStatus(data?.status || null));
+
+supabase.from('wizard_sessions').select('status')
+  .eq('project_id', pid).eq('session_type', 'icp').eq('status', 'complete')
+  .then(({ data }) => setIcpWizardComplete((data?.length || 0) > 0));
+
+// Compute progress
+function derivePhaseStatus(): Record<string, string> {
+  return {
+    icp: icpCount === 0 ? 'not_started' : icpWizardComplete ? 'complete' : 'in_progress',
+    personas: personaCount === 0 ? 'not_started' : personaCount >= 3 ? 'complete' : 'in_progress',
+    customer_conversations: 'not_started',
+    competitor_mapping: 'not_started',
+    ecosystem_map: 'not_started',
+    value_proposition: !brandVoiceStatus ? 'not_started' : brandVoiceStatus === 'complete' ? 'complete' : 'in_progress',
+    campaign_strategy: activeCampaigns.length === 0 ? 'not_started' : 
+      activeCampaigns.some(c => ['active','complete'].includes(c.status)) ? 'complete' : 'in_progress',
+    execution: assetStatuses.length === 0 ? 'not_started' :
+      assetStatuses.includes('published') ? 'complete' : 'in_progress',
+  };
+}
 ```
+
+No migration needed — the existing `methodology_progress` column stays; we just stop relying on it as the sole source of truth.
 
