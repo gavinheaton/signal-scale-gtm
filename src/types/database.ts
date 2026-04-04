@@ -77,6 +77,7 @@ export interface Campaign {
   objective: string;
   launch_date: string;
   end_date: string;
+  notion_url: string | null;
 }
 
 export interface CampaignAsset {
