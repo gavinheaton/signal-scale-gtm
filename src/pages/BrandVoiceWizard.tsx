@@ -59,7 +59,7 @@ export default function BrandVoiceWizard() {
         .order('created_at', { ascending: false })
         .limit(1);
 
-      if (existingSessions && existingSessions.length > 0) {
+      if (existingSessions && existingSessions.length > 0 && !fileUrl) {
         const session = existingSessions[0];
         setSessionId(session.id);
         const sessionMessages = session.messages as Array<{ role: string; content: string }>;
@@ -78,8 +78,12 @@ export default function BrandVoiceWizard() {
         return;
       }
 
+      if (fileUrl) {
+        setMessages([{ role: 'assistant', content: 'Analysing your brand voice document... This may take a moment.' }]);
+      }
+
       const res = await supabase.functions.invoke('brand-voice-wizard', {
-        body: { project_id: currentProject!.id },
+        body: { project_id: currentProject!.id, ...(fileUrl ? { file_url: fileUrl } : {}) },
       });
       if (res.error) throw res.error;
       const data = res.data;
