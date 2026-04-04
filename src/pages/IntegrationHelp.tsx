@@ -82,9 +82,9 @@ export default function IntegrationHelp() {
                   <div>
                     <p className="font-medium text-sm">Open Settings → Connections</p>
                     <p className="text-xs text-muted-foreground">
-                      In Signal + Scale, go to{' '}
-                      <Link to="/project/settings" className="underline text-primary">Settings</Link>{' '}
-                      and find the <strong>Connections</strong> section.
+                      In Signal + Scale, select a project first, then go to{' '}
+                      <Link to="/project/settings" className="underline text-primary">Settings</Link>.
+                      The <strong>Connections</strong> section appears for admin users and above.
                     </p>
                   </div>
                 </div>
