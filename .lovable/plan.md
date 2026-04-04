@@ -1,98 +1,36 @@
 
 
-# Update Campaign Wizard for Sequenced Content Schedules
+# Add Campaign Dates — Wizard + Detail Page Editing
 
-## Overview
-Add sequence/timing fields to campaign_assets and update the wizard to populate them when saving a completed campaign draft.
+## Problem
+The `campaigns` table has `launch_date` and `end_date` columns, but nothing in the app populates them. The Timeline and Journey View components silently return null/empty when these are missing.
 
-## 1. Database Migration
+## Solution — Two entry points for setting dates
 
-Add five new columns to `campaign_assets`:
+### 1. Campaign Wizard: AI generates dates in the draft
 
-```sql
-ALTER TABLE campaign_assets 
-  ADD COLUMN IF NOT EXISTS sequence_order integer,
-  ADD COLUMN IF NOT EXISTS offset_days integer,
-  ADD COLUMN IF NOT EXISTS production_due date,
-  ADD COLUMN IF NOT EXISTS depends_on uuid REFERENCES campaign_assets(id),
-  ADD COLUMN IF NOT EXISTS rationale text;
-```
+**`src/components/campaign-wizard/types.ts`** — Add `launch_date?: string` and `end_date?: string` to `CampaignDraft`.
 
-No RLS changes needed — existing policies cover all CRUD on campaign_assets.
+**`supabase/functions/campaign-wizard/index.ts`** — Update the DRAFT FORMAT INSTRUCTIONS to tell Claude to include `launch_date` (YYYY-MM-DD) and `end_date` (YYYY-MM-DD) in the draft JSON, derived from the content calendar span (earliest publish_date minus a buffer, latest publish_date plus a buffer) or from explicit user input.
 
-## 2. TypeScript Types
+**`src/pages/CampaignWizard.tsx`** — In both `saveDraft()` and `saveCampaign()`, include `launch_date: draft.launch_date || null` and `end_date: draft.end_date || null` in the campaign payload.
 
-Update `src/types/database.ts` — add the five fields to the `CampaignAsset` interface:
-- `sequence_order: number | null`
-- `offset_days: number | null`
-- `production_due: string | null`
-- `depends_on: string | null`
-- `rationale: string | null`
+**`src/components/campaign-wizard/CampaignPreviewPanel.tsx`** — Show the dates in the preview panel so the user can see them before saving.
 
-Update `src/components/campaign-wizard/types.ts` — extend `ContentCalendarItem` with:
-- `sequence_order?: number`
-- `offset_days?: number`
-- `publish_date?: string`
-- `production_due?: string`
-- `depends_on?: number` (references another item's sequence_order)
-- `rationale?: string`
+### 2. Campaign Detail Page: inline date editing
 
-## 3. Campaign Wizard Save Logic
+**`src/pages/Campaigns.tsx`** — In the campaign detail header area (below the name/badges, around line 125-140), add two date picker popovers for Launch Date and End Date. On change, update the campaign in Supabase and refresh local state. Use the Shadcn Calendar + Popover pattern.
 
-In `src/pages/CampaignWizard.tsx`, update the asset creation block (~line 224-233):
+### Files changed
+1. `src/components/campaign-wizard/types.ts` — add date fields to CampaignDraft
+2. `supabase/functions/campaign-wizard/index.ts` — prompt update for dates
+3. `src/pages/CampaignWizard.tsx` — include dates in save payloads
+4. `src/components/campaign-wizard/CampaignPreviewPanel.tsx` — display dates in preview
+5. `src/pages/Campaigns.tsx` — add inline date pickers to campaign detail header
 
-**First pass** — insert assets with all new fields except `depends_on`:
-```typescript
-const assets = draft.content_calendar.map((item, idx) => ({
-  campaign_id: finalCampaignId,
-  title: item.title,
-  asset_type: FORMAT_TO_ASSET_TYPE[item.format?.toLowerCase()] || 'blog',
-  status: 'brief',
-  publish_date: item.publish_date || null,
-  sequence_order: item.sequence_order ?? idx + 1,
-  offset_days: item.offset_days ?? null,
-  production_due: item.production_due ?? null,
-  rationale: item.rationale ?? null,
-}));
-
-const { data: insertedAssets, error } = await supabase
-  .from('campaign_assets')
-  .insert(assets)
-  .select('id, sequence_order');
-```
-
-**Second pass** — resolve `depends_on` references. For each content_calendar item that has a numeric `depends_on` (a sequence_order value), look up the inserted asset with that sequence_order and set the UUID:
-```typescript
-if (insertedAssets) {
-  const seqMap = new Map(insertedAssets.map(a => [a.sequence_order, a.id]));
-  const updates = draft.content_calendar
-    .filter(item => item.depends_on != null)
-    .map(item => {
-      const assetId = seqMap.get(item.sequence_order);
-      const dependsOnId = seqMap.get(item.depends_on);
-      return assetId && dependsOnId ? { id: assetId, depends_on: dependsOnId } : null;
-    })
-    .filter(Boolean);
-  
-  for (const u of updates) {
-    await supabase.from('campaign_assets').update({ depends_on: u.depends_on }).eq('id', u.id);
-  }
-}
-```
-
-## 4. Edge Function System Prompt Update
-
-In `supabase/functions/campaign-wizard/index.ts`, update the draft format instructions (line 161) to tell Claude to include the new fields in content_calendar items:
-
-Add to the DRAFT FORMAT INSTRUCTIONS section:
-```
-Each content_calendar item should include: title, format, persona, week, sequence_order (integer starting at 1), offset_days (days from campaign start), publish_date (YYYY-MM-DD), production_due (YYYY-MM-DD, typically 7 days before publish), depends_on (sequence_order of a prerequisite item, or null), rationale (why this content at this point in the journey).
-```
-
-## Files Changed
-1. **Migration** — add 5 columns to campaign_assets
-2. `src/types/database.ts` — add fields to CampaignAsset interface
-3. `src/components/campaign-wizard/types.ts` — extend ContentCalendarItem
-4. `src/pages/CampaignWizard.tsx` — two-pass insert with new fields
-5. `supabase/functions/campaign-wizard/index.ts` — update draft format instructions
+### Technical details
+- Date pickers use Shadcn `Calendar` inside `Popover` with `pointer-events-auto`
+- On date change in detail page: `supabase.from('campaigns').update({ launch_date }).eq('id', campaign.id)` then update local state
+- Wizard draft format instruction addition: `"Include launch_date and end_date (YYYY-MM-DD) in the draft. Derive from the content calendar: launch_date = earliest publish_date minus 7 days prep, end_date = latest publish_date plus 7 days."`
+- No schema changes needed — columns already exist
 
