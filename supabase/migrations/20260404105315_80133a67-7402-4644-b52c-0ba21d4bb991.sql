@@ -1,0 +1,1 @@
+UPDATE projects SET notion_calendar_db_id = '3388e087-684e-81d3-91f6-fd4e01ddedad' WHERE id = '161cfc9d-4e01-4994-8407-f7cf7aa1bcf4';
