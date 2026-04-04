@@ -62,6 +62,8 @@ export default function Campaigns() {
   const [bulkGenerating, setBulkGenerating] = useState(false);
   const [bulkPushing, setBulkPushing] = useState(false);
   const [bulkProgress, setBulkProgress] = useState(0);
+  const [deleteTarget, setDeleteTarget] = useState<Campaign | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const fetchData = async () => {
     if (!currentProject) return;
