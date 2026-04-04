@@ -219,14 +219,21 @@ Deno.serve(async (req) => {
     let messages: Array<{ role: string; content: string; timestamp: string }> = [];
     let existingDraft: Record<string, any> = {};
 
-    // Load brand context
+    // Load brand context, ICPs, and personas
     let brandContext: Record<string, any> = {};
+    let icps: any[] = [];
+    let personas: any[] = [];
     if (project_id) {
-      const { data: project } = await supabase
-        .from("projects").select("brand_context").eq("id", project_id).single();
-      if (project?.brand_context && Object.keys(project.brand_context).length > 0) {
-        brandContext = project.brand_context as Record<string, any>;
+      const [projectRes, icpRes, personaRes] = await Promise.all([
+        supabase.from("projects").select("brand_context").eq("id", project_id).single(),
+        supabase.from("icps").select("segment_name, firmographics, psychographics, matrix_category, fit_score").eq("project_id", project_id),
+        supabase.from("personas").select("persona_name, role_in_buying, goals, pain_points, channel_preferences, icp_id").eq("project_id", project_id),
+      ]);
+      if (projectRes.data?.brand_context && Object.keys(projectRes.data.brand_context).length > 0) {
+        brandContext = projectRes.data.brand_context as Record<string, any>;
       }
+      icps = icpRes.data || [];
+      personas = personaRes.data || [];
     }
 
     // Extract document text if file_url provided
