@@ -4,7 +4,19 @@ const corsHeaders = {
 };
 
 const NOTION_API_KEY = Deno.env.get("NOTION_API_KEY")!;
-const NOTION_PARENT_PAGE_ID = Deno.env.get("NOTION_CAMPAIGN_BRIEFS_PAGE_ID")!;
+const NOTION_PARENT_PAGE_ID_RAW = Deno.env.get("NOTION_CAMPAIGN_BRIEFS_PAGE_ID")!;
+
+function extractNotionId(input: string): string {
+  if (/^[0-9a-f]{8}-/.test(input)) return input;
+  const match = input.match(/([0-9a-f]{32})/);
+  if (match) {
+    const h = match[1];
+    return `${h.slice(0,8)}-${h.slice(8,12)}-${h.slice(12,16)}-${h.slice(16,20)}-${h.slice(20)}`;
+  }
+  return input;
+}
+
+const NOTION_PARENT_PAGE_ID = extractNotionId(NOTION_PARENT_PAGE_ID_RAW);
 
 function textBlock(content: string) {
   return {
@@ -211,7 +223,18 @@ Deno.serve(async (req) => {
     if (!notionRes.ok) {
       const errText = await notionRes.text();
       console.error("Notion API error:", errText);
-      return new Response(JSON.stringify({ error: "Notion API error", details: errText }), {
+      let userMessage = "Notion API error";
+      try {
+        const parsed = JSON.parse(errText);
+        if (parsed.code === "object_not_found") {
+          userMessage = "The target Notion page is not shared with the Signal2Scale integration. Open the page in Notion → Share → Add the integration.";
+        } else if (parsed.code === "unauthorized") {
+          userMessage = "The Notion API key is invalid or expired. Check NOTION_API_KEY in Supabase secrets.";
+        } else {
+          userMessage = parsed.message || userMessage;
+        }
+      } catch {}
+      return new Response(JSON.stringify({ error: userMessage, details: errText }), {
         status: 502,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });

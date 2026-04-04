@@ -56,14 +56,23 @@ export default function AssetDetailDrawer({ asset, open, onOpenChange, onUpdated
       const { data, error } = await supabase.functions.invoke('push-asset-to-notion', {
         body: { asset_id: asset.id },
       });
-      if (error) throw error;
+      if (error) {
+        // Try to extract the detailed error from the response
+        let msg = 'Push failed';
+        try {
+          const parsed = typeof error === 'object' && error.context ? await error.context.json?.() : null;
+          if (parsed?.error) msg = parsed.error;
+        } catch {}
+        if (data?.error) msg = data.error;
+        throw new Error(msg);
+      }
       toast.success('Pushed to Notion');
       if (data?.notion_url) {
         window.open(data.notion_url, '_blank');
       }
       onUpdated();
     } catch (err: any) {
-      toast.error(err.message || 'Push failed');
+      toast.error(err?.message || 'Push failed');
     } finally {
       setPushing(false);
     }

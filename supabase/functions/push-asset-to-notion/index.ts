@@ -125,7 +125,18 @@ Deno.serve(async (req) => {
     if (!notionRes.ok) {
       const errText = await notionRes.text();
       console.error("Notion API error:", errText);
-      return new Response(JSON.stringify({ error: "Notion API error", details: errText }), {
+      let userMessage = "Notion API error";
+      try {
+        const parsed = JSON.parse(errText);
+        if (parsed.code === "object_not_found") {
+          userMessage = "The target Notion page is not shared with the Signal2Scale integration. Open the page in Notion → Share → Add the integration.";
+        } else if (parsed.code === "unauthorized") {
+          userMessage = "The Notion API key is invalid or expired. Check NOTION_API_KEY in Supabase secrets.";
+        } else {
+          userMessage = parsed.message || userMessage;
+        }
+      } catch {}
+      return new Response(JSON.stringify({ error: userMessage, details: errText }), {
         status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
