@@ -1,0 +1,1 @@
+ALTER TABLE public.projects ADD COLUMN notion_last_synced_at timestamp with time zone;

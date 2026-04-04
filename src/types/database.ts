@@ -38,6 +38,7 @@ export interface Project {
   notion_calendar_db_id?: string | null;
   notion_pillars_db_id?: string | null;
   notion_foundations_db_id?: string | null;
+  notion_last_synced_at?: string | null;
   created_at: string;
 }
 

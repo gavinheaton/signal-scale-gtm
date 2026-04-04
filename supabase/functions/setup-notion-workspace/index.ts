@@ -481,6 +481,7 @@ Deno.serve(async (req) => {
         notion_calendar_db_id: calendarDbId,
         notion_pillars_db_id: pillarsDbId,
         notion_foundations_db_id: foundationsDbId,
+        notion_last_synced_at: new Date().toISOString(),
       })
       .eq("id", project_id);
 

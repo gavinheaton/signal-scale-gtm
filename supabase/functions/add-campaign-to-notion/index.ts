@@ -240,6 +240,12 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Update last synced timestamp
+    await adminClient
+      .from("projects")
+      .update({ notion_last_synced_at: new Date().toISOString() })
+      .eq("id", campaign.project_id);
+
     return new Response(
       JSON.stringify({ success: true, items_pushed: itemsPushed }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
