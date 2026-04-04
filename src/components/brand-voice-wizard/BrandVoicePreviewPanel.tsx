@@ -153,8 +153,14 @@ export function BrandVoicePreviewPanel({ draft, saving, onSave, hasAnyData }: Pr
 function SectionContent({ sectionKey, data }: { sectionKey: string; data: any }) {
   if (!data) return null;
 
+  const safeString = (val: any): string => {
+    if (typeof val === 'string') return val;
+    if (val == null) return '';
+    return JSON.stringify(val);
+  };
+
   if (sectionKey === 'personality_adjectives' && Array.isArray(data)) {
-    return <div className="flex flex-wrap gap-1">{data.map((a: string, i: number) => <Badge key={i} variant="outline" className="text-[10px]">{a}</Badge>)}</div>;
+    return <div className="flex flex-wrap gap-1">{data.map((a: any, i: number) => <Badge key={i} variant="outline" className="text-[10px]">{safeString(a)}</Badge>)}</div>;
   }
   if (sectionKey === 'tone_description' && typeof data === 'string') {
     return <p className="leading-relaxed">{data}</p>;
@@ -164,23 +170,23 @@ function SectionContent({ sectionKey, data }: { sectionKey: string; data: any })
       <div className="space-y-2">
         {data.map((p: any, i: number) => (
           <div key={i} className="border-l-2 border-primary/30 pl-2">
-            <p className="font-medium text-foreground">{p.principle}</p>
-            <p>{p.explanation}</p>
-            {p.bad_example && <p className="text-destructive">✗ {p.bad_example}</p>}
-            {p.good_example && <p className="text-green-600">✓ {p.good_example}</p>}
+            <p className="font-medium text-foreground">{safeString(p.principle)}</p>
+            <p>{safeString(p.explanation)}</p>
+            {p.bad_example && <p className="text-destructive">✗ {safeString(p.bad_example)}</p>}
+            {p.good_example && <p className="text-green-600">✓ {safeString(p.good_example)}</p>}
           </div>
         ))}
       </div>
     );
   }
   if ((sectionKey === 'banned_phrases' || sectionKey === 'formatting_rules') && Array.isArray(data)) {
-    return <div className="flex flex-wrap gap-1">{data.map((p: string, i: number) => <Badge key={i} variant="outline" className="text-[10px]">{p}</Badge>)}</div>;
+    return <div className="flex flex-wrap gap-1">{data.map((p: any, i: number) => <Badge key={i} variant="outline" className="text-[10px]">{safeString(p)}</Badge>)}</div>;
   }
   if (sectionKey === 'preferred_vocabulary' && Array.isArray(data)) {
     return (
       <div className="space-y-1">
         {data.map((v: any, i: number) => (
-          <p key={i}>Use "<span className="text-foreground font-medium">{v.use}</span>" instead of "<span className="line-through">{v.instead_of}</span>"</p>
+          <p key={i}>Use "<span className="text-foreground font-medium">{safeString(v.use || v.phrase)}</span>" instead of "<span className="line-through">{safeString(v.instead_of || v.alternative)}</span>"</p>
         ))}
       </div>
     );
