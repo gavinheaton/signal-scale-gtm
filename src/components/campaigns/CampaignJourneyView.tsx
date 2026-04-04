@@ -63,6 +63,9 @@ export default function CampaignJourneyView({ campaign, assets, onAssetClick, on
       new Date(a.publish_date!).getTime() - new Date(b.publish_date!).getTime()
     ), [assets]);
 
+  const undatedAssets = useMemo(() =>
+    assets.filter(a => !a.publish_date), [assets]);
+
   // Summary stats
   const stats = useMemo(() => {
     const total = datedAssets.length;
@@ -180,10 +183,11 @@ export default function CampaignJourneyView({ campaign, assets, onAssetClick, on
     );
   }
 
-  if (datedAssets.length < 3) {
+  const hasNoAssets = assets.length === 0;
+  if (hasNoAssets) {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-center">
-        <p className="text-muted-foreground mb-4">Add publish dates to your assets to see the journey view.</p>
+        <p className="text-muted-foreground mb-4">Add assets to this campaign to see the journey view.</p>
         {onSwitchTab && <Button variant="outline" onClick={onSwitchTab}>Go to Pipeline</Button>}
       </div>
     );
@@ -323,6 +327,38 @@ export default function CampaignJourneyView({ campaign, assets, onAssetClick, on
           })}
         </div>
       </div>
+
+      {/* Unscheduled assets tray */}
+      {undatedAssets.length > 0 && (
+        <div className="border-2 border-dashed border-border rounded-lg p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <h4 className="text-sm font-semibold text-foreground">
+              Unscheduled ({undatedAssets.length})
+            </h4>
+            <span className="text-xs text-muted-foreground">
+              Drag onto a lane above to schedule
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {undatedAssets.map(asset => (
+              <div
+                key={asset.id}
+                draggable
+                onDragStart={e => e.dataTransfer.setData('assetId', asset.id)}
+                className="cursor-grab active:cursor-grabbing"
+                onClick={() => onAssetClick(asset)}
+              >
+                <Card className={`p-2 border-2 ${STATUS_BORDER[asset.status]} bg-card w-[140px]`}>
+                  <p className="text-[11px] font-medium truncate">{asset.title}</p>
+                  <Badge className="text-[9px] mt-1" variant="outline">
+                    {asset.asset_type.replace(/_/g, ' ')}
+                  </Badge>
+                </Card>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
