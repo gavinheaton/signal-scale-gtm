@@ -1,71 +1,100 @@
 
 
-# Archive & Delete Projects for Admins
+# Brand Voice Module
 
-## What It Does
+A complete Brand Voice feature mirroring the ICP Wizard pattern: database table, edge function, wizard page, detail page, export button, and sidebar navigation.
 
-Adds two project management actions for admin+ users on the `/projects` page:
+## 1. Database Migration
 
-- **Archive**: Soft-deletes a project by changing its status to `archived`. Archived projects are hidden from the default view but can be restored.
-- **Permanently Delete**: Hard-deletes a project and all associated data (ICPs, personas, campaigns, assets, metrics, wizard sessions, connections) via a cascading database function.
+**Single migration** with:
 
-An "Archived" toggle/tab lets admins view and restore archived projects.
+- **Add `slug` column to `projects`** — `text`, generated from name (lowercase, hyphens). Needed for the export filename. Populate existing rows with a trigger or default.
+- **Create `brand_voices` table** — as specified, with RLS using the same `user_has_org_access` pattern.
+- **Add `'brand_voice'` to `wizard_session_type` enum** so wizard sessions can track brand voice conversations.
+- **RLS policies on `brand_voices`**: SELECT, INSERT, UPDATE for authenticated users via org access check on `project_id`.
 
-## Database Changes
+Note: The spec uses a CHECK constraint for status — I'll use a validation trigger instead per Supabase guidelines.
 
-1. **Add `archived` to `project_status` enum**:
-   ```sql
-   ALTER TYPE project_status ADD VALUE 'archived';
-   ```
+## 2. Edge Function: `brand-voice-wizard`
 
-2. **Create a `delete_project_cascade` security definer function** that deletes all child records then the project itself. This runs as the function owner (bypasses RLS) so we don't need DELETE policies on every child table:
-   ```sql
-   CREATE OR REPLACE FUNCTION delete_project_cascade(_project_id uuid)
-   RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
-   BEGIN
-     -- Verify caller is admin/owner/superadmin for the project's org
-     IF NOT EXISTS (
-       SELECT 1 FROM projects p
-       JOIN org_memberships om ON om.org_id = p.org_id
-       WHERE p.id = _project_id AND om.user_id = auth.uid()
-         AND om.role IN ('admin','owner','superadmin')
-     ) THEN
-       RAISE EXCEPTION 'Unauthorized';
-     END IF;
-     -- Delete children
-     DELETE FROM campaign_metrics WHERE campaign_id IN (SELECT id FROM campaigns WHERE project_id = _project_id);
-     DELETE FROM campaign_assets WHERE campaign_id IN (SELECT id FROM campaigns WHERE project_id = _project_id);
-     DELETE FROM campaigns WHERE project_id = _project_id;
-     DELETE FROM personas WHERE project_id = _project_id;
-     DELETE FROM icps WHERE project_id = _project_id;
-     DELETE FROM wizard_sessions WHERE project_id = _project_id;
-     DELETE FROM project_connections WHERE project_id = _project_id;
-     DELETE FROM projects WHERE id = _project_id;
-   END;
-   $$;
-   ```
+**File**: `supabase/functions/brand-voice-wizard/index.ts`
 
-3. **Add DELETE policy on projects** for admin+ users (needed for the archive/restore UPDATE, which already has a policy).
+Same structure as `icp-wizard`:
+- Auth via JWT token validation
+- Reads `ANTHROPIC_API_KEY` and `ANTHROPIC_BRAND_VOICE_SYSTEM_PROMPT` from env (the prompt secret will need to be set by the user separately)
+- Creates/resumes `wizard_sessions` with `session_type: 'brand_voice'`
+- Calls Claude claude-sonnet-4-6, max_tokens 2048
+- Parses `<draft>` tags from response, merges into existing draft
+- Upserts `brand_voices` record on each turn (status: `in_progress`)
+- When `is_complete: true`, sets status to `complete`
+- Returns `{ reply, updated_draft, session_id }`
 
-## TypeScript Changes
+**Config**: Add to `supabase/config.toml` with `verify_jwt = false`.
 
-- **`src/types/database.ts`**: Add `'archived'` to `ProjectStatus`.
+## 3. Navigation
 
-## UI Changes (`src/pages/Projects.tsx`)
+**`AppSidebar.tsx`**: Add "Brand Voice" nav item between "ICP & Personas" and "Campaigns" with a `Mic` icon. Route: `/project/brand-voice`.
 
-- Filter default project list to exclude `archived` status.
-- Add a "Show archived" toggle (visible to admin+) that reveals archived projects with a muted style.
-- Each project card gets a `...` dropdown menu (admin+ only) with:
-  - **Archive** — sets status to `archived`, with confirmation.
-  - **Restore** (on archived cards) — sets status back to `setup`.
-  - **Delete permanently** — calls `delete_project_cascade` RPC, with a destructive confirmation dialog requiring the user to type the project name.
-- Add `archived` to the `statusColors` map with a grey style.
+**`App.tsx`**: Add routes:
+- `/project/brand-voice` — Brand Voice index page
+- `/project/brand-voice-wizard` — Wizard page
 
-## Files to Change
+## 4. Brand Voice Index Page
 
-| File | Change |
+**File**: `src/pages/BrandVoice.tsx`
+
+- Fetches `brand_voices` for current project
+- **No record**: Empty state with "Define your brand voice" headline + "Start Brand Voice Wizard" CTA
+- **Draft/in-progress record**: Summary card with status badge, personality adjectives as tags, "Continue" button (navigates to wizard with session resumption)
+- **Complete record**: Summary card with status badge, personality tags, "View" button (navigates to detail page), "Export for Cowork" button
+
+## 5. Brand Voice Wizard
+
+**File**: `src/pages/BrandVoiceWizard.tsx`
+
+60/40 split layout matching ICP Wizard:
+- **Left (60%)**: Chat interface with message history, input, send button
+- **Right (40%)**: Live preview panel showing brand voice sections populating
+
+**Preview panel component**: `src/components/brand-voice-wizard/BrandVoicePreviewPanel.tsx`
+- Sections: Personality, Tone, Writing Principles, Banned Phrases, Preferred Vocabulary, Formatting Rules, Content Type Guidance, Writing Samples, Target Audiences, Brand Identity
+- Each section shows status indicators (empty/partial/complete)
+- "Save Brand Voice" button appears when `is_complete: true`
+
+**Types file**: `src/components/brand-voice-wizard/types.ts` — Draft interface and section definitions.
+
+## 6. Brand Voice Detail Page
+
+**File**: `src/pages/BrandVoiceDetail.tsx`
+
+- Read-only view of completed brand voice
+- Sections rendered as cards matching the preview panel layout
+- Header actions: "Edit" (reopens wizard) + "Export for Cowork" (only when status = complete)
+
+**Export logic**: Client-side JSON blob download using project slug as filename. After download, shows dismissible info banner with instructions.
+
+## 7. TypeScript Types
+
+**`src/types/database.ts`**: Add `BrandVoice` interface and update `WizardSessionType` to include `'brand_voice'`.
+
+## Files to Create/Modify
+
+| File | Action |
 |------|--------|
-| Migration SQL | Add enum value, create `delete_project_cascade` function |
-| `src/types/database.ts` | Add `'archived'` to `ProjectStatus` |
-| `src/pages/Projects.tsx` | Add dropdown menu, archive/restore/delete actions, archived toggle |
+| Migration SQL | Create `brand_voices` table, add `slug` to `projects`, add enum value |
+| `supabase/functions/brand-voice-wizard/index.ts` | New edge function |
+| `supabase/config.toml` | Add brand-voice-wizard config |
+| `src/pages/BrandVoice.tsx` | New — index page |
+| `src/pages/BrandVoiceWizard.tsx` | New — wizard page |
+| `src/pages/BrandVoiceDetail.tsx` | New — detail/view page |
+| `src/components/brand-voice-wizard/BrandVoicePreviewPanel.tsx` | New — preview panel |
+| `src/components/brand-voice-wizard/types.ts` | New — types and section defs |
+| `src/types/database.ts` | Add BrandVoice interface |
+| `src/components/AppSidebar.tsx` | Add Brand Voice nav item |
+| `src/App.tsx` | Add routes |
+| `src/integrations/supabase/types.ts` | Will auto-update after migration |
+
+## Secret Required
+
+The user must set `ANTHROPIC_BRAND_VOICE_SYSTEM_PROMPT` as a Supabase edge function secret. The edge function will read it from env. A fallback system prompt will be hardcoded for development.
 
