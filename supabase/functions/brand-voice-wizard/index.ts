@@ -355,6 +355,28 @@ Deno.serve(async (req) => {
       systemPrompt += `\n\nBRAND CONTEXT (from previous analysis of ${brandContext.website_url || "company website"}):\n${brandContext.crawled_content}\n\nUse this to inform your brand voice questions.`;
     }
 
+    // Inject ICP & Persona context
+    if (icps.length > 0) {
+      const icpSummary = icps.map((icp: any) => {
+        const firmSummary = icp.firmographics ? ` — ${JSON.stringify(icp.firmographics)}` : '';
+        return `- ${icp.segment_name} (${icp.matrix_category}, fit: ${icp.fit_score ?? 'N/A'})${firmSummary}`;
+      }).join('\n');
+      systemPrompt += `\n\nPROJECT ICPs (already defined — do NOT ask the user to describe their target audience from scratch):\n${icpSummary}`;
+    }
+
+    if (personas.length > 0) {
+      const personaSummary = personas.map((p: any) => {
+        const goals = p.goals ? ` Goals: ${JSON.stringify(p.goals)}` : '';
+        const pains = p.pain_points ? ` Pain points: ${JSON.stringify(p.pain_points)}` : '';
+        return `- ${p.persona_name} (${p.role_in_buying})${goals}${pains}`;
+      }).join('\n');
+      systemPrompt += `\n\nPROJECT PERSONAS (already defined):\n${personaSummary}`;
+    }
+
+    if (hasAudienceContext) {
+      systemPrompt += `\n\nIMPORTANT: Since ICPs and personas are already defined, pre-populate the target_audiences section using these segments. Do NOT ask "Who is your audience?" — instead ask nuanced questions about how tone should shift for each segment/persona (e.g., "How should your tone differ when addressing a ${personas[0]?.persona_name || 'champion'} vs an ${personas[1]?.persona_name || 'economic buyer'}?").`;
+    }
+
     const anthropicMessages = messages.map((m) => ({
       role: m.role as "user" | "assistant",
       content: m.role === "assistant"
