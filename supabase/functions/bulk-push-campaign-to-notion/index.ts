@@ -1,58 +1,49 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { corsHeaders } from "../_shared/cors.ts";
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+const NOTION_API = "https://api.notion.com/v1";
+
+const CHANNEL_MAP: Record<string, string> = {
+  blog: "Blog",
+  video: "YouTube",
+  podcast: "Podcast",
+  linkedin_post: "LinkedIn",
+  email: "Email",
+  webinar: "Blog",
+  whitepaper: "Blog",
+  press_release: "PR",
 };
 
-const NOTION_API_KEY = Deno.env.get("NOTION_API_KEY")!;
-const NOTION_PARENT_PAGE_ID = Deno.env.get("NOTION_CAMPAIGN_BRIEFS_PAGE_ID")!;
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const CONTENT_TYPE_MAP: Record<string, string> = {
+  blog: "Article",
+  video: "Video",
+  podcast: "Audio",
+  linkedin_post: "Post",
+  email: "Email",
+  webinar: "Video",
+  whitepaper: "Report",
+  press_release: "Article",
+};
 
-function extractNotionId(input: string): string {
-  if (/^[0-9a-f]{8}-/.test(input)) return input;
-  const match = input.match(/([0-9a-f]{32})/);
-  if (match) {
-    const h = match[1];
-    return `${h.slice(0,8)}-${h.slice(8,12)}-${h.slice(12,16)}-${h.slice(16,20)}-${h.slice(20)}`;
-  }
-  return input;
+function text(content: string) {
+  return [{ type: "text", text: { content } }];
 }
 
-function textBlock(content: string) {
-  return {
-    object: "block", type: "paragraph",
-    paragraph: { rich_text: [{ type: "text", text: { content: content || "" } }] },
-  };
-}
-
-function heading2(text: string) {
-  return {
-    object: "block", type: "heading_2",
-    heading_2: { rich_text: [{ type: "text", text: { content: text } }] },
-  };
-}
-
-function divider() {
-  return { object: "block", type: "divider", divider: {} };
-}
-
-function markdownToBlocks(markdown: string): any[] {
-  const blocks: any[] = [];
-  for (const line of markdown.split('\n')) {
+function markdownToBlocks(markdown: string): unknown[] {
+  const blocks: unknown[] = [];
+  for (const line of markdown.split("\n")) {
     const t = line.trim();
     if (!t) continue;
-    if (t.startsWith('### ')) {
-      blocks.push({ object: "block", type: "heading_3", heading_3: { rich_text: [{ type: "text", text: { content: t.slice(4) } }] } });
-    } else if (t.startsWith('## ')) {
-      blocks.push({ object: "block", type: "heading_2", heading_2: { rich_text: [{ type: "text", text: { content: t.slice(3) } }] } });
-    } else if (t.startsWith('# ')) {
-      blocks.push({ object: "block", type: "heading_1", heading_1: { rich_text: [{ type: "text", text: { content: t.slice(2) } }] } });
-    } else if (t.startsWith('- ') || t.startsWith('* ')) {
-      blocks.push({ object: "block", type: "bulleted_list_item", bulleted_list_item: { rich_text: [{ type: "text", text: { content: t.slice(2) } }] } });
+    if (t.startsWith("### ")) {
+      blocks.push({ object: "block", type: "heading_3", heading_3: { rich_text: text(t.slice(4)) } });
+    } else if (t.startsWith("## ")) {
+      blocks.push({ object: "block", type: "heading_2", heading_2: { rich_text: text(t.slice(3)) } });
+    } else if (t.startsWith("# ")) {
+      blocks.push({ object: "block", type: "heading_1", heading_1: { rich_text: text(t.slice(2)) } });
+    } else if (t.startsWith("- ") || t.startsWith("* ")) {
+      blocks.push({ object: "block", type: "bulleted_list_item", bulleted_list_item: { rich_text: text(t.slice(2)) } });
     } else {
-      blocks.push(textBlock(t));
+      blocks.push({ object: "block", type: "paragraph", paragraph: { rich_text: text(t) } });
     }
   }
   return blocks;
@@ -65,39 +56,79 @@ Deno.serve(async (req) => {
 
   try {
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: "Missing authorization" }), {
-        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    if (!authHeader?.startsWith("Bearer ")) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_ANON_KEY")!,
+      { global: { headers: { Authorization: authHeader } } }
+    );
+
     const token = authHeader.replace("Bearer ", "");
     const { data: { user }, error: authError } = await supabase.auth.getUser(token);
     if (authError || !user) {
-      return new Response(JSON.stringify({ error: "Invalid token" }), {
-        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     const { campaign_id } = await req.json();
     if (!campaign_id) {
       return new Response(JSON.stringify({ error: "campaign_id required" }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
+    const adminClient = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+    );
+
     // Fetch campaign
-    const { data: campaign } = await supabase
-      .from("campaigns").select("*").eq("id", campaign_id).single();
+    const { data: campaign } = await adminClient
+      .from("campaigns")
+      .select("id, name, track, project_id, objective")
+      .eq("id", campaign_id)
+      .single();
+
     if (!campaign) {
       return new Response(JSON.stringify({ error: "Campaign not found" }), {
-        status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 404,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Get project's notion_calendar_db_id
+    const { data: project } = await adminClient
+      .from("projects")
+      .select("notion_calendar_db_id")
+      .eq("id", campaign.project_id)
+      .single();
+
+    if (!project?.notion_calendar_db_id) {
+      return new Response(
+        JSON.stringify({ error: "Notion workspace not set up for this project. Run Setup Notion Workspace first." }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const NOTION_TOKEN = Deno.env.get("NOTION_API_KEY");
+    if (!NOTION_TOKEN) {
+      return new Response(JSON.stringify({ error: "Notion API key not configured" }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     // Fetch all assets with content that haven't been pushed yet
-    const { data: assets } = await supabase
+    const { data: assets } = await adminClient
       .from("campaign_assets")
       .select("*")
       .eq("campaign_id", campaign_id)
@@ -106,92 +137,108 @@ Deno.serve(async (req) => {
 
     if (!assets || assets.length === 0) {
       return new Response(JSON.stringify({ error: "No assets with content to push" }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Build a single Notion page with all assets as sections
-    const children: any[] = [];
-    children.push(textBlock(`Track: ${campaign.track?.replace(/_/g, ' ')} | Status: ${campaign.status} | Assets: ${assets.length}`));
-    if (campaign.objective) {
-      children.push(heading2("Campaign Objective"));
-      children.push(textBlock(campaign.objective));
-    }
-    children.push(divider());
+    const notionHeaders = {
+      Authorization: `Bearer ${NOTION_TOKEN}`,
+      "Content-Type": "application/json",
+      "Notion-Version": "2022-06-28",
+    };
 
+    const demandType = campaign.track === "demand_creation"
+      ? "Demand Creation (95%)"
+      : "Demand Capture (5%)";
+
+    let itemsPushed = 0;
+
+    // Create individual database entries per asset
     for (const asset of assets) {
-      children.push(heading2(`${asset.title} — ${asset.asset_type.replace(/_/g, ' ')}`));
-      const contentBlocks = markdownToBlocks(asset.content || "");
-      // Notion max 100 blocks per request, so limit per asset
-      children.push(...contentBlocks.slice(0, 20));
-      children.push(divider());
-    }
+      const properties: Record<string, unknown> = {
+        Content: { title: text(asset.title) },
+        Status: { select: { name: "Brief" } },
+        Campaign: { rich_text: text(campaign.name) },
+        "Demand Type": { select: { name: demandType } },
+      };
 
-    // Notion limits to 100 children per page creation
-    const notionRes = await fetch("https://api.notion.com/v1/pages", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${NOTION_API_KEY}`,
-        "Notion-Version": "2022-06-28",
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        parent: { page_id: extractNotionId(NOTION_PARENT_PAGE_ID) },
-        properties: {
-          title: { title: [{ text: { content: `${campaign.name} — Content Assets` } }] },
-        },
-        children: children.slice(0, 100),
-      }),
-    });
+      const channel = CHANNEL_MAP[asset.asset_type];
+      if (channel) properties.Channel = { select: { name: channel } };
 
-    if (!notionRes.ok) {
-      const errText = await notionRes.text();
-      console.error("Notion API error:", errText);
-      let userMessage = "Notion API error";
-      try {
-        const parsed = JSON.parse(errText);
-        if (parsed.code === "object_not_found") {
-          userMessage = "The target Notion page is not shared with the Signal2Scale integration. Open the page in Notion → Share → Add the integration.";
-        } else if (parsed.code === "unauthorized") {
-          userMessage = "The Notion API key is invalid or expired. Check NOTION_API_KEY in Supabase secrets.";
-        } else {
-          userMessage = parsed.message || userMessage;
+      const contentType = CONTENT_TYPE_MAP[asset.asset_type];
+      if (contentType) properties["Content Type"] = { select: { name: contentType } };
+
+      if (asset.publish_date) {
+        properties["Publish Date"] = { date: { start: asset.publish_date } };
+      }
+
+      // Resolve persona names
+      if (asset.persona_target_ids && asset.persona_target_ids.length > 0) {
+        const { data: personas } = await adminClient
+          .from("personas")
+          .select("persona_name")
+          .in("id", asset.persona_target_ids);
+        if (personas && personas.length > 0) {
+          properties.Persona = { rich_text: text(personas.map(p => p.persona_name).join(", ")) };
         }
-      } catch {}
-      return new Response(JSON.stringify({ error: userMessage, details: errText }), {
-        status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      }
+
+      // Content as page body
+      const contentBlocks = markdownToBlocks(asset.content || "");
+      const children = contentBlocks.slice(0, 100);
+
+      try {
+        const res = await fetch(`${NOTION_API}/pages`, {
+          method: "POST",
+          headers: notionHeaders,
+          body: JSON.stringify({
+            parent: { database_id: project.notion_calendar_db_id },
+            properties,
+            children,
+          }),
+        });
+
+        if (res.ok) {
+          itemsPushed++;
+          const notionPage = await res.json();
+          const pageUrl = notionPage.url || null;
+          if (pageUrl) {
+            await adminClient
+              .from("campaign_assets")
+              .update({ notion_url: pageUrl })
+              .eq("id", asset.id);
+          }
+        } else {
+          const errText = await res.text();
+          console.error(`Failed to push "${asset.title}" to Notion:`, errText);
+        }
+      } catch (e) {
+        console.error(`Error pushing "${asset.title}":`, e);
+      }
     }
 
-    const notionData = await notionRes.json();
-    const notionUrl = notionData.url || null;
-
-    // Store notion_url on campaign and all pushed assets
-    await supabase
+    // Update campaign notion_url to the calendar DB link
+    const calendarUrl = `https://notion.so/${project.notion_calendar_db_id.replace(/-/g, "")}`;
+    await adminClient
       .from("campaigns")
-      .update({ notion_url: notionUrl })
+      .update({ notion_url: calendarUrl })
       .eq("id", campaign_id);
 
-    // Mark each asset as pushed
-    const assetIds = assets.map(a => a.id);
-    await supabase
-      .from("campaign_assets")
-      .update({ notion_url: notionUrl })
-      .in("id", assetIds);
-
     // Update last synced timestamp
-    await supabase
+    await adminClient
       .from("projects")
       .update({ notion_last_synced_at: new Date().toISOString() })
       .eq("id", campaign.project_id);
 
-    return new Response(JSON.stringify({ notion_url: notionUrl, assets_pushed: assets.length }), {
+    return new Response(JSON.stringify({ success: true, assets_pushed: itemsPushed }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {
     console.error("bulk-push-campaign-to-notion error:", err);
-    return new Response(JSON.stringify({ error: "Internal server error" }), {
-      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    return new Response(JSON.stringify({ error: err.message || "Internal server error" }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });
