@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Badge } from '@/components/ui/badge';
-import { Bot, FileText, AlertTriangle, ArrowLeft } from 'lucide-react';
+import { Bot, FileText, AlertTriangle, ArrowLeft, Key } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 function StepBadge({ n }: { n: number }) {
@@ -184,6 +184,78 @@ export default function IntegrationHelp() {
         </CardContent>
       </Card>
 
+      {/* API Access */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Key className="h-5 w-5" />
+            API Access (Cowork Sync)
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            Allows external tools like <strong>Cowork</strong> to pull your completed brand voice data via API.
+          </p>
+
+          <Accordion type="single" collapsible defaultValue="api-steps">
+            <AccordionItem value="api-steps">
+              <AccordionTrigger>Setup steps</AccordionTrigger>
+              <AccordionContent className="space-y-4">
+                <div className="flex gap-3">
+                  <StepBadge n={1} />
+                  <div>
+                    <p className="font-medium text-sm">Go to Settings → API Access</p>
+                    <p className="text-xs text-muted-foreground">
+                      In Signal + Scale, open{' '}
+                      <Link to="/project/settings" className="underline text-primary">Settings</Link>{' '}
+                      and scroll to the <strong>API Access</strong> section.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex gap-3">
+                  <StepBadge n={2} />
+                  <div>
+                    <p className="font-medium text-sm">Generate an API Key</p>
+                    <p className="text-xs text-muted-foreground">
+                      Click <strong>Generate API Key</strong>. The key (prefixed <Code>gtm_</Code>) is shown once in a modal.
+                      Copy it immediately — it cannot be retrieved later.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex gap-3">
+                  <StepBadge n={3} />
+                  <div>
+                    <p className="font-medium text-sm">Configure Cowork</p>
+                    <p className="text-xs text-muted-foreground">
+                      In Cowork, paste the key as a Bearer token. The endpoint is{' '}
+                      <Code>GET /functions/v1/get-brand-voices</Code> with header{' '}
+                      <Code>Authorization: Bearer gtm_xxxxx</Code>.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex gap-3">
+                  <StepBadge n={4} />
+                  <div>
+                    <p className="font-medium text-sm">Verify the sync</p>
+                    <p className="text-xs text-muted-foreground">
+                      Cowork will pull all completed brand voices from your organisation's projects automatically.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="rounded-md border bg-muted/50 p-3 text-xs text-muted-foreground">
+                  <strong>Note:</strong> You can revoke a key at any time from Settings → API Access.
+                  Revoking a key immediately blocks all requests using it.
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
+        </CardContent>
+      </Card>
+
       {/* Troubleshooting */}
       <Card>
         <CardHeader>
@@ -227,6 +299,15 @@ export default function IntegrationHelp() {
                   notion.so/my-integrations
                 </a>{' '}
                 and update the connection in Settings.
+              </AccordionContent>
+            </AccordionItem>
+
+            <AccordionItem value="t5">
+              <AccordionTrigger>"unauthorized" when calling the brand voice API</AccordionTrigger>
+              <AccordionContent className="text-sm text-muted-foreground">
+                The API key is invalid, revoked, or missing. Generate a new key in{' '}
+                <Link to="/project/settings" className="underline text-primary">Settings → API Access</Link>{' '}
+                and update the Bearer token in Cowork.
               </AccordionContent>
             </AccordionItem>
           </Accordion>
