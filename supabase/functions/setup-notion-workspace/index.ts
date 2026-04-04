@@ -180,7 +180,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { project_id } = await req.json();
+    const { project_id, parent_page_id: customParentPageId } = await req.json();
     if (!project_id) {
       return new Response(JSON.stringify({ error: "project_id required" }), {
         status: 400,
