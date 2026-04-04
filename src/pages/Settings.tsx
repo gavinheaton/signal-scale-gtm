@@ -264,29 +264,32 @@ export default function SettingsPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             {notionWorkspaceId ? (
-              <div className="flex items-center justify-between p-4 rounded-lg border bg-card">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-500/10">
-                    <CheckCircle2 className="h-5 w-5 text-green-500" />
+              <>
+                <div className="flex items-center justify-between p-4 rounded-lg border bg-card">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-500/10">
+                      <CheckCircle2 className="h-5 w-5 text-green-500" />
+                    </div>
+                    <div>
+                      <p className="font-medium text-foreground">Workspace Ready</p>
+                      <p className="text-xs text-muted-foreground">Content calendar database is set up in Notion</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="font-medium text-foreground">Workspace Ready</p>
-                    <p className="text-xs text-muted-foreground">Content calendar database is set up in Notion</p>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="default" className="bg-green-500/20 text-green-600 border-green-500/30">Connected</Badge>
+                    <Button size="sm" variant="outline" asChild>
+                      <a href={notionWorkspaceUrl || '#'} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1">
+                        Open in Notion <ExternalLink className="h-3 w-3" />
+                      </a>
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={handleSetupNotionWorkspace} disabled={settingUpNotion}>
+                      {settingUpNotion ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Re-sync'}
+                    </Button>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Badge variant="default" className="bg-green-500/20 text-green-600 border-green-500/30">Connected</Badge>
-                  <Button size="sm" variant="outline" asChild>
-                    <a href={notionWorkspaceUrl || '#'} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1">
-                      Open in Notion <ExternalLink className="h-3 w-3" />
-                    </a>
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={handleSetupNotionWorkspace} disabled={settingUpNotion}>
-                    {settingUpNotion ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Re-sync'}
-                  </Button>
-                </div>
-              </div>
-              <NotionSyncStatus projectId={currentProject.id} lastSyncedAt={(currentProject as any).notion_last_synced_at} />
+                <NotionSyncStatus projectId={currentProject.id} lastSyncedAt={(currentProject as any).notion_last_synced_at} />
+              </>
+            ) : (
               <div className="flex items-center justify-between p-4 rounded-lg border bg-card">
                 <div className="flex items-center gap-3">
                   <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted">
