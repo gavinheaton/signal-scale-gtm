@@ -197,13 +197,18 @@ export default function Campaigns() {
               />
             </div>
           </div>
-          {selectedCampaign.notion_url && (
-            <Button variant="outline" size="sm" asChild>
-              <a href={selectedCampaign.notion_url} target="_blank" rel="noopener noreferrer">
-                <ExternalLink className="h-4 w-4 mr-1" /> View in Notion
-              </a>
+          <div className="flex items-center gap-2">
+            {selectedCampaign.notion_url && (
+              <Button variant="outline" size="sm" asChild>
+                <a href={selectedCampaign.notion_url} target="_blank" rel="noopener noreferrer">
+                  <ExternalLink className="h-4 w-4 mr-1" /> View in Notion
+                </a>
+              </Button>
+            )}
+            <Button variant="destructive" size="sm" onClick={() => setDeleteTarget(selectedCampaign)}>
+              <Trash2 className="h-4 w-4 mr-1" /> Delete
             </Button>
-          )}
+          </div>
         </div>
 
         {selectedCampaign.objective && (
