@@ -20,6 +20,7 @@ import {
 const navItems = [
   { title: 'Home', url: '/project/home', icon: Home },
   { title: 'ICP & Personas', url: '/project/icp-personas', icon: Users },
+  { title: 'Brand Voice', url: '/project/brand-voice', icon: Mic },
   { title: 'Campaigns', url: '/project/campaigns', icon: Megaphone },
   { title: 'Content Pipeline', url: '/project/content', icon: FileText },
   { title: 'Analytics', url: '/project/analytics', icon: BarChart3 },

@@ -44,6 +44,9 @@ const App = () => (
                 <Route path="/project/icp-personas" element={<ICPPersonas />} />
                 <Route path="/project/icp-wizard" element={<ICPWizard />} />
                 <Route path="/project/persona-wizard" element={<PersonaWizard />} />
+                <Route path="/project/brand-voice" element={<BrandVoice />} />
+                <Route path="/project/brand-voice-wizard" element={<BrandVoiceWizard />} />
+                <Route path="/project/brand-voice-detail" element={<BrandVoiceDetail />} />
                 <Route path="/project/campaigns" element={<Campaigns />} />
                 <Route path="/project/campaign-wizard" element={<CampaignWizard />} />
                 <Route path="/project/content" element={<ContentPipeline />} />

@@ -15,3 +15,5 @@ project_id = "xiufgczyecwgnkbyroow"
     verify_jwt = false
   [functions.create-notion-campaign-brief]
     verify_jwt = false
+  [functions.brand-voice-wizard]
+    verify_jwt = false
