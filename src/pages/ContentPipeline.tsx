@@ -86,7 +86,7 @@ export default function ContentPipeline() {
           {filtered.map(a => (
             <TableRow key={a.id} className="cursor-pointer" onClick={() => setSelected(a)}>
               <TableCell className="font-medium">{a.title}</TableCell>
-              <TableCell><Badge variant="outline">{a.asset_type.replace('_', ' ')}</Badge></TableCell>
+              <TableCell><Badge variant="outline">{a.asset_type.replace(/_/g, ' ')}</Badge></TableCell>
               <TableCell className="text-sm">{(a as any).campaign_name}</TableCell>
               <TableCell><Badge className={statusColors[a.status]}>{a.status}</Badge></TableCell>
               <TableCell className="text-sm">{a.publish_date ? new Date(a.publish_date).toLocaleDateString() : '—'}</TableCell>
