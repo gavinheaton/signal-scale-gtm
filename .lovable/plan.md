@@ -1,74 +1,44 @@
 
 
-# Document Upload for Brand Voice Wizard
+# Pre-load ICP & Persona Context into Brand Voice Wizard
 
-Allow users to upload an existing tone of voice document (PDF, DOCX, or plain text), have it analyzed by AI, and use it to pre-populate the brand voice wizard sections.
+## Problem
+The brand voice wizard asks about target audiences from scratch, even when the project already has defined ICPs and personas. This creates redundant questions and a disjointed experience.
 
-## User Flow
+## Solution
+Fetch ICPs and personas for the project in the edge function, inject them into the system prompt as known context, and adjust the prompt instructions so Claude treats audiences as pre-filled and focuses on tone nuance per segment instead.
 
-1. On the **Brand Voice index page** (empty state), show two CTAs side by side:
-   - "Start Brand Voice Wizard" (existing) — guided chat from scratch
-   - "Upload Existing Document" — new option with an Upload icon
+## Changes
 
-2. User clicks "Upload Existing Document" → file picker opens (accepts `.pdf`, `.docx`, `.txt`, `.md`)
+### 1. Edge Function (`supabase/functions/brand-voice-wizard/index.ts`)
 
-3. File is uploaded to a Supabase Storage bucket (`brand-voice-uploads`), then the wizard opens with a special first message: the edge function receives the file content and the system prompt instructs Claude to analyze it and pre-populate as many brand voice sections as possible.
+**Fetch ICP + persona data** alongside the existing `brand_context` fetch (around line 222):
+- Query `icps` table for `segment_name, firmographics, psychographics, matrix_category, fit_score`
+- Query `personas` table for `persona_name, role_in_buying, goals, pain_points, channel_preferences`
+- Both filtered by `project_id`
 
-4. Claude responds with its analysis, pre-fills the draft panel on the right, and asks follow-up questions about any sections that couldn't be inferred from the document.
+**Inject into system prompt** (around line 325):
+- If ICPs exist, append a structured block listing each ICP segment with key firmographic/psychographic details
+- If personas exist, append a block listing each persona with their role, goals, and pain points
+- Include instruction: "These ICPs and personas are already defined for this project. Do NOT ask the user to describe their target audience from scratch. Instead, use these to pre-populate the target_audiences section and ask nuanced questions about how tone should shift for each segment/persona."
 
-5. From there, the normal wizard conversation continues — but with a head start.
+**Pre-seed the draft**: When ICPs/personas exist and it's a new session, auto-populate `target_audiences` in the initial draft with segments derived from the ICP/persona data, so the preview panel shows partial completion immediately.
 
-## Implementation
+### 2. System Prompt Adjustment
 
-### 1. Storage Bucket
+Update the `FALLBACK_SYSTEM_PROMPT` section about Target Audiences:
+- Current: "Target Audiences — Key audience segments with tone adjustments per segment"
+- Updated: Add conditional instruction that when ICP/persona data is provided, the AI should reference those segments by name and ask about tone nuance (e.g., "How should your tone shift when addressing a CTO champion vs an economic buyer?") rather than asking "Who is your audience?"
 
-Migration to create a `brand-voice-uploads` bucket with RLS policies scoped to authenticated users via org membership.
+### 3. Initial Message
 
-### 2. Edge Function Changes (`brand-voice-wizard`)
+Update `INITIAL_MESSAGE` logic: when ICPs/personas exist, adjust the opening message to acknowledge them, e.g.: "I can see you've already defined your ICPs and personas — I'll use those to shape the audience sections. Let's start with your company name and how you want your brand to sound."
 
-- Accept an optional `file_url` parameter in the request body
-- When `file_url` is provided, fetch the file content from Supabase Storage (using service role key)
-- For PDF files: extract text server-side (basic text extraction)
-- For DOCX: extract raw text content
-- For TXT/MD: use content directly
-- Prepend the extracted document content to the system prompt context, with instructions like: "The user has uploaded their existing brand voice document. Analyze it thoroughly and extract as much structured brand voice data as possible into the draft. Then ask about any gaps."
-- The first AI turn will analyze the document and output a heavily pre-filled `<draft>` block
+## Files to Modify
 
-### 3. Frontend Changes
-
-**BrandVoice.tsx** (index page):
-- Add "Upload Existing Document" button next to the existing wizard CTA
-- On click: open a file input dialog (accept PDF, DOCX, TXT, MD; max 10MB)
-- Upload to `brand-voice-uploads/{project_id}/{filename}`
-- Get the public/signed URL
-- Navigate to the wizard page, passing the file URL as state
-
-**BrandVoiceWizard.tsx**:
-- Accept optional `fileUrl` from router location state
-- On init, if `fileUrl` is present, call the edge function with `file_url` parameter instead of the default empty init
-- Show a "Analyzing your document..." loading state with a document icon
-
-### 4. File Processing (Edge Function)
-
-For PDF extraction in Deno, use a lightweight approach:
-- Fetch the file as ArrayBuffer from storage
-- For PDFs: use basic text extraction (regex-based from the raw content, or a Deno-compatible PDF library)
-- For DOCX: unzip and parse `word/document.xml` for text nodes
-- Truncate to ~8000 chars to stay within context limits
-- Pass as additional context in the user's first message
-
-## Files to Create/Modify
-
-| File | Action |
+| File | Change |
 |------|--------|
-| Migration SQL | Create `brand-voice-uploads` storage bucket + RLS |
-| `supabase/functions/brand-voice-wizard/index.ts` | Add `file_url` parameter handling and document text extraction |
-| `src/pages/BrandVoice.tsx` | Add "Upload Existing Document" button |
-| `src/pages/BrandVoiceWizard.tsx` | Accept file URL from router state, pass to edge function |
+| `supabase/functions/brand-voice-wizard/index.ts` | Fetch ICPs + personas, inject into system prompt, pre-seed target_audiences draft |
 
-## Limitations to Note
-
-- PDF text extraction will be basic (no OCR for scanned documents)
-- Very large documents will be truncated to fit context limits
-- The AI analysis is a best-effort mapping — some sections may still need manual input
+No frontend changes needed — the preview panel already renders `target_audiences` dynamically.
 
