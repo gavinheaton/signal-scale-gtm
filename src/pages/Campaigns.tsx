@@ -5,7 +5,7 @@ import { Campaign, ICP, CampaignAsset, AssetStatus, CampaignStatus } from '@/typ
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Plus, Calendar, Sparkles, ExternalLink, Loader2, ChevronRight } from 'lucide-react';
+import { Plus, Calendar as CalendarIcon, Sparkles, ExternalLink, Loader2, ChevronRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Progress } from '@/components/ui/progress';
@@ -14,6 +14,10 @@ import CampaignTimeline from '@/components/campaigns/CampaignTimeline';
 import CampaignMetricsSummary from '@/components/campaigns/CampaignMetricsSummary';
 import CampaignJourneyView from '@/components/campaigns/CampaignJourneyView';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { format, parseISO } from 'date-fns';
+import { cn } from '@/lib/utils';
 
 const statusColumns: CampaignStatus[] = ['brief', 'planning', 'active', 'complete'];
 const trackColors = { demand_capture: 'bg-orange-100 text-orange-800', demand_creation: 'bg-purple-100 text-purple-800' };
