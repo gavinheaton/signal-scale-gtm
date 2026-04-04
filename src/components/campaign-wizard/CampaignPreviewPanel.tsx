@@ -2,8 +2,9 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { ExternalLink, Save, Loader2, CheckCircle2, Circle, CircleDot, Download } from 'lucide-react';
+import { ExternalLink, Save, Loader2, CheckCircle2, Circle, CircleDot, Download, CalendarIcon } from 'lucide-react';
 import { CampaignDraft, CAMPAIGN_SECTIONS, getCampaignSectionStatus } from './types';
+import { format, parseISO } from 'date-fns';
 
 interface CampaignPreviewPanelProps {
   draft: CampaignDraft;
@@ -49,6 +50,16 @@ export function CampaignPreviewPanel({ draft, saving, onSave, onSaveDraft, onNam
               Demand Creation (95%)
             </Badge>
           )}
+        </div>
+      )}
+
+      {/* Campaign Dates */}
+      {(draft.launch_date || draft.end_date) && (
+        <div className="flex items-center gap-3 text-xs text-muted-foreground">
+          <CalendarIcon className="h-3.5 w-3.5 shrink-0" />
+          {draft.launch_date && <span>Launch: {format(parseISO(draft.launch_date), 'MMM d, yyyy')}</span>}
+          {draft.launch_date && draft.end_date && <span>—</span>}
+          {draft.end_date && <span>End: {format(parseISO(draft.end_date), 'MMM d, yyyy')}</span>}
         </div>
       )}
 

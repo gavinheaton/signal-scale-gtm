@@ -10,6 +10,8 @@ export interface CampaignDraft {
   is_complete?: boolean;
   notion_brief_ready?: boolean;
   sections_complete?: string[];
+  launch_date?: string;
+  end_date?: string;
 }
 
 export interface ContentCalendarItem {

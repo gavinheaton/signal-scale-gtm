@@ -5,7 +5,7 @@ import { Campaign, ICP, CampaignAsset, AssetStatus, CampaignStatus } from '@/typ
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Plus, Calendar, Sparkles, ExternalLink, Loader2, ChevronRight } from 'lucide-react';
+import { Plus, Calendar as CalendarIcon, Sparkles, ExternalLink, Loader2, ChevronRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Progress } from '@/components/ui/progress';
@@ -14,6 +14,10 @@ import CampaignTimeline from '@/components/campaigns/CampaignTimeline';
 import CampaignMetricsSummary from '@/components/campaigns/CampaignMetricsSummary';
 import CampaignJourneyView from '@/components/campaigns/CampaignJourneyView';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { format, parseISO } from 'date-fns';
+import { cn } from '@/lib/utils';
 
 const statusColumns: CampaignStatus[] = ['brief', 'planning', 'active', 'complete'];
 const trackColors = { demand_capture: 'bg-orange-100 text-orange-800', demand_creation: 'bg-purple-100 text-purple-800' };
@@ -25,6 +29,23 @@ const assetStatusColors: Record<AssetStatus, string> = {
   approved: 'bg-green-100 text-green-800',
   published: 'bg-purple-100 text-purple-800',
 };
+
+function CampaignDatePicker({ label, value, onChange }: { label: string; value: string | null; onChange: (date: Date | undefined) => void }) {
+  const parsed = value ? parseISO(value) : undefined;
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="outline" size="sm" className={cn('h-7 text-xs gap-1', !value && 'text-muted-foreground')}>
+          <CalendarIcon className="h-3 w-3" />
+          {value ? `${label}: ${format(parsed!, 'MMM d, yyyy')}` : `Set ${label} Date`}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-auto p-0" align="start">
+        <Calendar mode="single" selected={parsed} onSelect={onChange} initialFocus className={cn('p-3 pointer-events-auto')} />
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 export default function Campaigns() {
   const { currentProject } = useProject();
@@ -128,6 +149,30 @@ export default function Campaigns() {
               <Badge className={trackColors[selectedCampaign.track]}>{selectedCampaign.track.replace(/_/g, ' ')}</Badge>
               <Badge variant="outline">{selectedCampaign.status}</Badge>
               <span className="text-sm text-muted-foreground">{assets.length} assets</span>
+            </div>
+            <div className="flex items-center gap-3 mt-2">
+              <CampaignDatePicker
+                label="Launch"
+                value={selectedCampaign.launch_date}
+                onChange={async (date) => {
+                  const dateStr = date ? format(date, 'yyyy-MM-dd') : null;
+                  const { error } = await supabase.from('campaigns').update({ launch_date: dateStr }).eq('id', selectedCampaign.id);
+                  if (error) { toast.error('Failed to update launch date'); return; }
+                  setSelectedCampaign(prev => prev ? { ...prev, launch_date: dateStr } : null);
+                  setCampaigns(prev => prev.map(c => c.id === selectedCampaign.id ? { ...c, launch_date: dateStr } : c));
+                }}
+              />
+              <CampaignDatePicker
+                label="End"
+                value={selectedCampaign.end_date}
+                onChange={async (date) => {
+                  const dateStr = date ? format(date, 'yyyy-MM-dd') : null;
+                  const { error } = await supabase.from('campaigns').update({ end_date: dateStr }).eq('id', selectedCampaign.id);
+                  if (error) { toast.error('Failed to update end date'); return; }
+                  setSelectedCampaign(prev => prev ? { ...prev, end_date: dateStr } : null);
+                  setCampaigns(prev => prev.map(c => c.id === selectedCampaign.id ? { ...c, end_date: dateStr } : c));
+                }}
+              />
             </div>
           </div>
           {selectedCampaign.notion_url && (
