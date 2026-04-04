@@ -1,4 +1,4 @@
-import { Home, Users, Mic, Megaphone, FileText, BarChart3, Settings, LogOut, FolderOpen, Shield } from 'lucide-react';
+import { Home, Users, Mic, Megaphone, FileText, BarChart3, Settings, LogOut, FolderOpen, Shield, HelpCircle } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -25,6 +25,7 @@ const navItems = [
   { title: 'Content Pipeline', url: '/project/content', icon: FileText },
   { title: 'Analytics', url: '/project/analytics', icon: BarChart3 },
   { title: 'Settings', url: '/project/settings', icon: Settings },
+  { title: 'Help', url: '/project/help', icon: HelpCircle },
 ];
 
 export function AppSidebar() {
