@@ -425,6 +425,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      delete_project_cascade: {
+        Args: { _project_id: string }
+        Returns: undefined
+      }
       is_superadmin: { Args: { _user_id: string }; Returns: boolean }
       user_has_org_access: {
         Args: { _org_id: string; _user_id: string }
@@ -466,7 +470,7 @@ export type Database = {
         | "analyst"
         | "client"
       org_type: "disruptors_own" | "disruptors_client" | "independent"
-      project_status: "setup" | "active" | "review" | "complete"
+      project_status: "setup" | "active" | "review" | "complete" | "archived"
       role_in_buying:
         | "champion"
         | "economic_buyer"
@@ -630,7 +634,7 @@ export const Constants = {
         "client",
       ],
       org_type: ["disruptors_own", "disruptors_client", "independent"],
-      project_status: ["setup", "active", "review", "complete"],
+      project_status: ["setup", "active", "review", "complete", "archived"],
       role_in_buying: [
         "champion",
         "economic_buyer",
