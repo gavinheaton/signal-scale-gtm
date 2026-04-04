@@ -9,8 +9,9 @@ export type AssetType = 'blog' | 'video' | 'podcast' | 'linkedin_post' | 'email'
 export type AssetStatus = 'brief' | 'draft' | 'review' | 'approved' | 'published';
 export type MethodologyPhase = 'icp' | 'personas' | 'customer_conversations' | 'competitor_mapping' | 'ecosystem_map' | 'value_proposition' | 'campaign_strategy' | 'execution';
 export type PhaseStatus = 'not_started' | 'in_progress' | 'complete';
-export type WizardSessionType = 'icp' | 'persona' | 'competitor' | 'campaign';
+export type WizardSessionType = 'icp' | 'persona' | 'competitor' | 'campaign' | 'brand_voice';
 export type WizardSessionStatus = 'in_progress' | 'complete';
+export type BrandVoiceStatus = 'draft' | 'in_progress' | 'complete';
 
 export interface Organisation {
   id: string;
