@@ -10,4 +10,5 @@ Multi-tenant via org_memberships table with RLS security definer functions.
 - [Design tokens](mem://design/tokens) — Full color palette, sidebar, cards, badges
 - [Database schema](mem://features/schema) — All tables, enums, RLS pattern
 - [Auth flow](mem://features/auth) — Magic link + email/password, org membership context
-- [Brand Voice](mem://features/brand-voice) — Brand voice wizard, detail page, export for Cowork
+- [Brand Voice](mem://features/brand-voice) — AI wizard, detail view, Cowork export
+- [API Access](mem://features/api-access) — API keys table, get-brand-voices edge function for Cowork sync
