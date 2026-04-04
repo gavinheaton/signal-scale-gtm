@@ -14,6 +14,8 @@ import { BRAND_VOICE_SECTIONS, getSectionStatus, type BrandVoiceDraft, type Chat
 export default function BrandVoiceWizard() {
   const { currentProject } = useProject();
   const navigate = useNavigate();
+  const location = useLocation();
+  const fileUrl = (location.state as any)?.fileUrl as string | undefined;
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
