@@ -166,9 +166,8 @@ Deno.serve(async (req) => {
     const contentType = CONTENT_TYPE_MAP[asset.asset_type];
     if (contentType) properties["Content Type"] = { select: { name: contentType } };
 
-    if (asset.publish_date) {
-      properties["Publish Date"] = { date: { start: asset.publish_date } };
-    }
+    const today = new Date().toISOString().split("T")[0];
+    properties["Publish Date"] = { date: { start: asset.publish_date || today } };
 
     // Resolve persona names
     if (asset.persona_target_ids && asset.persona_target_ids.length > 0) {
