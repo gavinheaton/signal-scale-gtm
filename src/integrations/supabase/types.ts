@@ -564,6 +564,11 @@ export type Database = {
         Returns: boolean
       }
       user_org_id: { Args: { _user_id: string }; Returns: string }
+      vault_create_secret: {
+        Args: { new_description: string; new_name: string; new_secret: string }
+        Returns: string
+      }
+      vault_delete_secret: { Args: { secret_id: string }; Returns: undefined }
     }
     Enums: {
       asset_status: "brief" | "draft" | "review" | "approved" | "published"
