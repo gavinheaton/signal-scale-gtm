@@ -1,38 +1,48 @@
 
+Root cause
 
-# Fix: Notion Push 502 — Page ID is a URL, not a UUID
+- The browser shows a 502, but the actual Notion error in the edge-function logs is:
+  `404 object_not_found`
+- Notion is saying it cannot access page `3378e087-684e-80bb-a019-da1244601619` and explicitly says to share it with the integration `Signal2Scale`.
+- So the UUID parsing fix is working. The request is reaching Notion now. The remaining problem is Notion access/configuration.
 
-## Root Cause
+Do we need Notion MCP?
 
-The edge function logs show the exact error from Notion's API:
+- No. MCP is for helping the Lovable agent access Notion while building.
+- Your app runtime still needs the Notion API via Supabase edge functions.
+- So the correct approach is to keep the current Notion API integration, not switch to MCP.
 
-> `body.parent.page_id should be a valid uuid, instead was "https://www.notion.so/DC-Campaign-Briefs-3378e087684e8..."`
+Plan
 
-The `NOTION_CAMPAIGN_BRIEFS_PAGE_ID` secret contains a full Notion URL instead of a raw UUID. The Notion API requires a plain UUID for `parent.page_id`.
+1. Keep the current Notion API flow and fix the real issue: parent-page access.
+2. Harden these edge functions so they return actionable errors instead of a generic 502:
+   - `supabase/functions/push-asset-to-notion/index.ts`
+   - `supabase/functions/bulk-push-campaign-to-notion/index.ts`
+   - `supabase/functions/create-notion-campaign-brief/index.ts`
+3. Map Notion `object_not_found` / permission failures to a clearer message such as:
+   - “The target Notion page is not shared with the Signal2Scale integration.”
+   - “Update `NOTION_CAMPAIGN_BRIEFS_PAGE_ID` if it points to the wrong page.”
+4. Update `src/components/campaigns/AssetDetailDrawer.tsx` so the toast surfaces the returned Notion details instead of only “Push failed”.
+5. Align all Notion functions to use the same parent-ID normalization logic. `create-notion-campaign-brief` still uses the raw secret and should be brought in line with the other Notion functions.
+6. Verify all affected flows:
+   - single asset push
+   - bulk campaign push
+   - campaign brief creation
 
-## Fix
+Required Notion setup
 
-**File: `supabase/functions/push-asset-to-notion/index.ts`**
+1. Open the target Notion page referenced by `NOTION_CAMPAIGN_BRIEFS_PAGE_ID`
+2. Click `Share`
+3. Add the `Signal2Scale` integration to that page (or its parent database/workspace, depending on how it is organized)
+4. If that page was moved, duplicated, or belongs to another workspace, replace the secret with the correct shared page URL/ID
 
-Add a helper that extracts a UUID from either a raw UUID string or a Notion URL, then apply it to both `NOTION_PARENT_PAGE_ID` and the `parent_page_id` request parameter.
+If the target is actually a database
 
-```typescript
-function extractNotionId(input: string): string {
-  // If it's already a UUID, return as-is
-  if (/^[0-9a-f]{8}-/.test(input)) return input;
-  // Extract 32-char hex from URL and format as UUID
-  const match = input.match(/([0-9a-f]{32})/);
-  if (match) {
-    const h = match[1];
-    return `${h.slice(0,8)}-${h.slice(8,12)}-${h.slice(12,16)}-${h.slice(16,20)}-${h.slice(20)}`;
-  }
-  return input; // fallback
-}
-```
+- Then these functions should use `parent.database_id` instead of `parent.page_id`.
+- I would keep the current page-based setup unless you confirm the destination is meant to be a database, because the existing payload is structured for child pages under a page.
 
-Then use `extractNotionId(parent_page_id || NOTION_PARENT_PAGE_ID)` when building the Notion API request body.
+Technical details
 
-**Also update: `supabase/functions/bulk-push-campaign-to-notion/index.ts`** — apply the same fix there since it also uses `NOTION_CAMPAIGN_BRIEFS_PAGE_ID`.
-
-No database or UI changes needed. Two edge function files updated.
-
+- Real upstream error from logs:
+  `Could not find page with ID ... Make sure the relevant pages and databases are shared with your integration "Signal2Scale".`
+- That means this is no longer a formatting issue and not an MCP issue; it is a Notion permission/target issue.
