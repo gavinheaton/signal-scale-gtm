@@ -5,7 +5,7 @@ import { Campaign, ICP, CampaignAsset, AssetStatus, CampaignStatus } from '@/typ
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Plus, Calendar as CalendarIcon, Sparkles, ExternalLink, Loader2, ChevronRight } from 'lucide-react';
+import { Plus, Calendar as CalendarIcon, Sparkles, ExternalLink, Loader2, ChevronRight, Trash2, MoreVertical } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Progress } from '@/components/ui/progress';
@@ -16,6 +16,8 @@ import CampaignJourneyView from '@/components/campaigns/CampaignJourneyView';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { format, parseISO } from 'date-fns';
 import { cn } from '@/lib/utils';
 
@@ -60,6 +62,8 @@ export default function Campaigns() {
   const [bulkGenerating, setBulkGenerating] = useState(false);
   const [bulkPushing, setBulkPushing] = useState(false);
   const [bulkProgress, setBulkProgress] = useState(0);
+  const [deleteTarget, setDeleteTarget] = useState<Campaign | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const fetchData = async () => {
     if (!currentProject) return;
@@ -126,6 +130,24 @@ export default function Campaigns() {
     }
   };
 
+  const handleDeleteCampaign = async (campaign: Campaign) => {
+    setDeleting(true);
+    try {
+      await supabase.from('campaign_metrics').delete().eq('campaign_id', campaign.id);
+      await supabase.from('campaign_assets').delete().eq('campaign_id', campaign.id);
+      const { error } = await supabase.from('campaigns').delete().eq('id', campaign.id);
+      if (error) throw error;
+      toast.success(`"${campaign.name}" deleted`);
+      if (selectedCampaign?.id === campaign.id) setSelectedCampaign(null);
+      fetchData();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to delete campaign');
+    } finally {
+      setDeleting(false);
+      setDeleteTarget(null);
+    }
+  };
+
   const briefCount = assets.filter(a => a.status === 'brief').length;
   const pushableCount = assets.filter(a => a.content && !a.notion_url).length;
   const alreadyPushed = assets.filter(a => a.notion_url).length;
@@ -175,13 +197,18 @@ export default function Campaigns() {
               />
             </div>
           </div>
-          {selectedCampaign.notion_url && (
-            <Button variant="outline" size="sm" asChild>
-              <a href={selectedCampaign.notion_url} target="_blank" rel="noopener noreferrer">
-                <ExternalLink className="h-4 w-4 mr-1" /> View in Notion
-              </a>
+          <div className="flex items-center gap-2">
+            {selectedCampaign.notion_url && (
+              <Button variant="outline" size="sm" asChild>
+                <a href={selectedCampaign.notion_url} target="_blank" rel="noopener noreferrer">
+                  <ExternalLink className="h-4 w-4 mr-1" /> View in Notion
+                </a>
+              </Button>
+            )}
+            <Button variant="destructive" size="sm" onClick={() => setDeleteTarget(selectedCampaign)}>
+              <Trash2 className="h-4 w-4 mr-1" /> Delete
             </Button>
-          )}
+          </div>
         </div>
 
         {selectedCampaign.objective && (
@@ -333,7 +360,24 @@ export default function Campaigns() {
               {campaigns.filter(c => c.status === status).map(c => (
                 <Card key={c.id} className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setSelectedCampaign(c)}>
                   <CardContent className="pt-4 pb-3">
-                    <p className="font-medium text-sm mb-2">{c.name}</p>
+                    <div className="flex items-start justify-between">
+                      <p className="font-medium text-sm mb-2">{c.name}</p>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                          <Button variant="ghost" size="icon" className="h-6 w-6 -mt-1 -mr-1">
+                            <MoreVertical className="h-3.5 w-3.5" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            className="text-destructive focus:text-destructive"
+                            onClick={(e) => { e.stopPropagation(); setDeleteTarget(c); }}
+                          >
+                            <Trash2 className="h-3.5 w-3.5 mr-2" /> Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
                     <Badge className={`${trackColors[c.track]} text-[10px]`}>{c.track.replace(/_/g, ' ')}</Badge>
                     {c.launch_date && (
                       <div className="flex items-center gap-1 mt-2 text-xs text-muted-foreground">
@@ -347,6 +391,28 @@ export default function Campaigns() {
           </div>
         ))}
       </div>
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete "{deleteTarget?.name}"?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete this campaign along with all its assets and metrics. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => deleteTarget && handleDeleteCampaign(deleteTarget)}
+            >
+              {deleting ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Trash2 className="h-4 w-4 mr-1" />}
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
