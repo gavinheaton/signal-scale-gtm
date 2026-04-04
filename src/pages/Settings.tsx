@@ -35,6 +35,11 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [disconnecting, setDisconnecting] = useState<string | null>(null);
 
+  // Notion workspace state
+  const [settingUpNotion, setSettingUpNotion] = useState(false);
+  const [notionWorkspaceId, setNotionWorkspaceId] = useState<string | null>(null);
+  const [notionWorkspaceUrl, setNotionWorkspaceUrl] = useState<string | null>(null);
+
   const canInvite = hasMinRole('admin');
   const canManageConnections = hasMinRole('admin');
 
