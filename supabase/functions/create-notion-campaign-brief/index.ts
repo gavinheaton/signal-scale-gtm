@@ -153,6 +153,7 @@ Deno.serve(async (req) => {
               Campaign: { rich_text: text(campaignName) },
               "Content Type": { select: { name: "Report" } },
               "Demand Type": { select: { name: demandTypeDefault } },
+              "Publish Date": { date: { start: new Date().toISOString().split("T")[0] } },
             },
             children: briefBody.slice(0, 100),
           }),
