@@ -27,3 +27,7 @@ project_id = "xiufgczyecwgnkbyroow"
     verify_jwt = false
   [functions.get-brand-voices]
     verify_jwt = false
+  [functions.setup-notion-workspace]
+    verify_jwt = false
+  [functions.add-campaign-to-notion]
+    verify_jwt = false
