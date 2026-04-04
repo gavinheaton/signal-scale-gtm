@@ -17,3 +17,11 @@ project_id = "xiufgczyecwgnkbyroow"
     verify_jwt = false
   [functions.brand-voice-wizard]
     verify_jwt = false
+  [functions.generate-campaign-content]
+    verify_jwt = false
+  [functions.bulk-generate-campaign-content]
+    verify_jwt = false
+  [functions.push-asset-to-notion]
+    verify_jwt = false
+  [functions.bulk-push-campaign-to-notion]
+    verify_jwt = false

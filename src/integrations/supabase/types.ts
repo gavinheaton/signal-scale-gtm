@@ -90,7 +90,9 @@ export type Database = {
         Row: {
           asset_type: Database["public"]["Enums"]["asset_type"]
           campaign_id: string
+          content: string | null
           id: string
+          notion_url: string | null
           persona_target_ids: string[] | null
           publish_date: string | null
           status: Database["public"]["Enums"]["asset_status"]
@@ -99,7 +101,9 @@ export type Database = {
         Insert: {
           asset_type: Database["public"]["Enums"]["asset_type"]
           campaign_id: string
+          content?: string | null
           id?: string
+          notion_url?: string | null
           persona_target_ids?: string[] | null
           publish_date?: string | null
           status?: Database["public"]["Enums"]["asset_status"]
@@ -108,7 +112,9 @@ export type Database = {
         Update: {
           asset_type?: Database["public"]["Enums"]["asset_type"]
           campaign_id?: string
+          content?: string | null
           id?: string
+          notion_url?: string | null
           persona_target_ids?: string[] | null
           publish_date?: string | null
           status?: Database["public"]["Enums"]["asset_status"]
@@ -175,6 +181,7 @@ export type Database = {
           id: string
           launch_date: string | null
           name: string
+          notion_url: string | null
           objective: string | null
           project_id: string
           status: Database["public"]["Enums"]["campaign_status"]
@@ -187,6 +194,7 @@ export type Database = {
           id?: string
           launch_date?: string | null
           name: string
+          notion_url?: string | null
           objective?: string | null
           project_id: string
           status?: Database["public"]["Enums"]["campaign_status"]
@@ -199,6 +207,7 @@ export type Database = {
           id?: string
           launch_date?: string | null
           name?: string
+          notion_url?: string | null
           objective?: string | null
           project_id?: string
           status?: Database["public"]["Enums"]["campaign_status"]

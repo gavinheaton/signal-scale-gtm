@@ -77,6 +77,7 @@ export interface Campaign {
   objective: string;
   launch_date: string;
   end_date: string;
+  notion_url: string | null;
 }
 
 export interface CampaignAsset {
@@ -87,6 +88,8 @@ export interface CampaignAsset {
   status: AssetStatus;
   publish_date: string;
   persona_target_ids: string[];
+  content: string | null;
+  notion_url: string | null;
 }
 
 export interface ProjectConnection {

@@ -1,16 +1,26 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useProject } from '@/contexts/ProjectContext';
-import { Campaign, ICP, CampaignAsset, CampaignTrack, CampaignStatus } from '@/types/database';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Campaign, ICP, CampaignAsset, AssetStatus, CampaignStatus } from '@/types/database';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Plus, Calendar } from 'lucide-react';
-import { Navigate, useNavigate } from 'react-router-dom';
+import { Plus, Calendar, Sparkles, ExternalLink, Loader2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
+import { Progress } from '@/components/ui/progress';
+import AssetDetailDrawer from '@/components/campaigns/AssetDetailDrawer';
 
 const statusColumns: CampaignStatus[] = ['brief', 'planning', 'active', 'complete'];
 const trackColors = { demand_capture: 'bg-orange-100 text-orange-800', demand_creation: 'bg-purple-100 text-purple-800' };
+
+const assetStatusColors: Record<AssetStatus, string> = {
+  brief: 'bg-muted text-muted-foreground',
+  draft: 'bg-blue-100 text-blue-800',
+  review: 'bg-orange-100 text-orange-800',
+  approved: 'bg-green-100 text-green-800',
+  published: 'bg-purple-100 text-purple-800',
+};
 
 export default function Campaigns() {
   const { currentProject } = useProject();
@@ -20,8 +30,11 @@ export default function Campaigns() {
   const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
   const [assets, setAssets] = useState<CampaignAsset[]>([]);
   const [loading, setLoading] = useState(true);
-
-
+  const [selectedAsset, setSelectedAsset] = useState<CampaignAsset | null>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [bulkGenerating, setBulkGenerating] = useState(false);
+  const [bulkPushing, setBulkPushing] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState(0);
 
   const fetchData = async () => {
     if (!currentProject) return;
@@ -36,15 +49,60 @@ export default function Campaigns() {
 
   useEffect(() => { fetchData(); }, [currentProject]);
 
-  useEffect(() => {
+  const fetchAssets = async () => {
     if (!selectedCampaign) return;
-    supabase.from('campaign_assets').select('*').eq('campaign_id', selectedCampaign.id).then(({ data }) => {
-      if (data) setAssets(data as unknown as CampaignAsset[]);
-    });
-  }, [selectedCampaign]);
+    const { data } = await supabase.from('campaign_assets').select('*').eq('campaign_id', selectedCampaign.id);
+    if (data) setAssets(data as unknown as CampaignAsset[]);
+  };
 
+  useEffect(() => { fetchAssets(); }, [selectedCampaign]);
 
+  const handleBulkGenerate = async () => {
+    if (!selectedCampaign) return;
+    setBulkGenerating(true);
+    setBulkProgress(10);
+    try {
+      const { data, error } = await supabase.functions.invoke('bulk-generate-campaign-content', {
+        body: { campaign_id: selectedCampaign.id },
+      });
+      if (error) throw error;
+      setBulkProgress(100);
+      toast.success(`Generated content for ${data.generated} assets${data.failed > 0 ? ` (${data.failed} failed)` : ''}`);
+      fetchAssets();
+    } catch (err: any) {
+      toast.error(err.message || 'Bulk generation failed');
+    } finally {
+      setBulkGenerating(false);
+      setTimeout(() => setBulkProgress(0), 1500);
+    }
+  };
 
+  const handleBulkPush = async () => {
+    if (!selectedCampaign) return;
+    setBulkPushing(true);
+    setBulkProgress(10);
+    try {
+      const { data, error } = await supabase.functions.invoke('bulk-push-campaign-to-notion', {
+        body: { campaign_id: selectedCampaign.id },
+      });
+      if (error) throw error;
+      setBulkProgress(100);
+      toast.success(`Pushed ${data.assets_pushed} assets to Notion`);
+      if (data.notion_url) {
+        // Update local campaign state
+        setSelectedCampaign(prev => prev ? { ...prev, notion_url: data.notion_url } : null);
+      }
+      fetchAssets();
+    } catch (err: any) {
+      toast.error(err.message || 'Bulk push failed');
+    } finally {
+      setBulkPushing(false);
+      setTimeout(() => setBulkProgress(0), 1500);
+    }
+  };
+
+  const briefCount = assets.filter(a => a.status === 'brief').length;
+  const withContent = assets.filter(a => a.content).length;
 
   const activeCampaigns = campaigns.filter(c => c.status === 'active');
   const captureActive = activeCampaigns.filter(c => c.track === 'demand_capture').length;
@@ -52,27 +110,82 @@ export default function Campaigns() {
   const total = captureActive + creationActive;
   const capturePercent = total > 0 ? (captureActive / total * 100) : 0;
 
+  // Campaign detail view
   if (selectedCampaign) {
-    const assetStatuses: CampaignAsset['status'][] = ['brief', 'draft', 'review', 'approved', 'published'];
+    const assetStatuses: AssetStatus[] = ['brief', 'draft', 'review', 'approved', 'published'];
     return (
       <div className="space-y-6">
         <Button variant="ghost" onClick={() => setSelectedCampaign(null)}>← Back to Campaigns</Button>
-        <div>
-          <h1 className="text-2xl font-bold">{selectedCampaign.name}</h1>
-          <Badge className={trackColors[selectedCampaign.track]}>{selectedCampaign.track.replace(/_/g, ' ')}</Badge>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold">{selectedCampaign.name}</h1>
+            <div className="flex items-center gap-2 mt-1">
+              <Badge className={trackColors[selectedCampaign.track]}>{selectedCampaign.track.replace(/_/g, ' ')}</Badge>
+              <Badge variant="outline">{selectedCampaign.status}</Badge>
+              <span className="text-sm text-muted-foreground">{assets.length} assets</span>
+            </div>
+          </div>
+          {selectedCampaign.notion_url && (
+            <Button variant="outline" size="sm" asChild>
+              <a href={selectedCampaign.notion_url} target="_blank" rel="noopener noreferrer">
+                <ExternalLink className="h-4 w-4 mr-1" /> View in Notion
+              </a>
+            </Button>
+          )}
         </div>
-        {selectedCampaign.objective && <Card><CardContent className="pt-6"><p className="text-sm">{selectedCampaign.objective}</p></CardContent></Card>}
+
+        {selectedCampaign.objective && (
+          <Card><CardContent className="pt-6"><p className="text-sm">{selectedCampaign.objective}</p></CardContent></Card>
+        )}
+
+        {/* Bulk actions toolbar */}
+        <div className="flex items-center gap-3 flex-wrap">
+          <Button onClick={handleBulkGenerate} disabled={bulkGenerating || briefCount === 0}>
+            {bulkGenerating ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Sparkles className="h-4 w-4 mr-1" />}
+            Generate All Content {briefCount > 0 && `(${briefCount})`}
+          </Button>
+          <Button variant="outline" onClick={handleBulkPush} disabled={bulkPushing || withContent === 0}>
+            {bulkPushing ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <ExternalLink className="h-4 w-4 mr-1" />}
+            Push All to Notion {withContent > 0 && `(${withContent})`}
+          </Button>
+          {(bulkGenerating || bulkPushing) && (
+            <div className="flex-1 min-w-[120px]">
+              <Progress value={bulkProgress} className="h-2" />
+            </div>
+          )}
+        </div>
+
+        {/* Asset pipeline kanban */}
         <h2 className="text-lg font-semibold" style={{ color: 'hsl(var(--orange))' }}>Asset Pipeline</h2>
         <div className="grid grid-cols-5 gap-3">
           {assetStatuses.map(s => (
             <div key={s} className="space-y-2">
               <h3 className="text-xs font-semibold uppercase text-muted-foreground">{s}</h3>
               {assets.filter(a => a.status === s).map(a => (
-                <Card key={a.id} className="p-3"><p className="text-sm font-medium">{a.title}</p><Badge variant="outline" className="text-[10px] mt-1">{a.asset_type.replace(/_/g, ' ')}</Badge></Card>
+                <Card
+                  key={a.id}
+                  className="p-3 cursor-pointer hover:shadow-md transition-shadow"
+                  onClick={() => { setSelectedAsset(a); setDrawerOpen(true); }}
+                >
+                  <p className="text-sm font-medium">{a.title}</p>
+                  <div className="flex items-center gap-1 mt-1">
+                    <Badge variant="outline" className="text-[10px]">{a.asset_type.replace(/_/g, ' ')}</Badge>
+                    <Badge className={`${assetStatusColors[a.status]} text-[10px]`}>{a.status}</Badge>
+                  </div>
+                  {a.content && <span className="text-[10px] text-green-600 mt-1 block">✓ Content</span>}
+                  {a.notion_url && <span className="text-[10px] text-blue-600 block">✓ Notion</span>}
+                </Card>
               ))}
             </div>
           ))}
         </div>
+
+        <AssetDetailDrawer
+          asset={selectedAsset}
+          open={drawerOpen}
+          onOpenChange={setDrawerOpen}
+          onUpdated={() => { fetchAssets(); }}
+        />
       </div>
     );
   }
@@ -86,7 +199,6 @@ export default function Campaigns() {
         <Button onClick={() => navigate('/project/campaign-wizard')}><Plus className="h-4 w-4 mr-1" /> New Campaign</Button>
       </div>
 
-      {/* 95-5 Split */}
       {total > 0 && (
         <Card>
           <CardContent className="pt-6">
@@ -103,7 +215,6 @@ export default function Campaigns() {
         </Card>
       )}
 
-      {/* Kanban */}
       <div className="grid grid-cols-4 gap-4">
         {statusColumns.map(status => (
           <div key={status}>
