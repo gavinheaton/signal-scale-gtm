@@ -207,10 +207,10 @@ Deno.serve(async (req) => {
     }
 
     const NOTION_TOKEN = Deno.env.get("NOTION_API_KEY");
-    const PARENT_PAGE_ID = Deno.env.get("NOTION_CAMPAIGN_BRIEFS_PAGE_ID");
+    const PARENT_PAGE_ID = customParentPageId || Deno.env.get("NOTION_CAMPAIGN_BRIEFS_PAGE_ID");
 
     if (!NOTION_TOKEN || !PARENT_PAGE_ID) {
-      return new Response(JSON.stringify({ error: "Notion secrets not configured" }), {
+      return new Response(JSON.stringify({ error: "Notion secrets not configured. Provide parent_page_id or set NOTION_CAMPAIGN_BRIEFS_PAGE_ID." }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
