@@ -103,7 +103,7 @@ export default function ContentPipeline() {
             <>
               <SheetHeader><SheetTitle>{selected.title}</SheetTitle></SheetHeader>
               <div className="space-y-3 mt-4 text-sm">
-                <div><strong>Type:</strong> {selected.asset_type.replace('_', ' ')}</div>
+                <div><strong>Type:</strong> {selected.asset_type.replace(/_/g, ' ')}</div>
                 <div><strong>Status:</strong> <Badge className={statusColors[selected.status]}>{selected.status}</Badge></div>
                 <div><strong>Publish Date:</strong> {selected.publish_date ? new Date(selected.publish_date).toLocaleDateString() : '—'}</div>
               </div>

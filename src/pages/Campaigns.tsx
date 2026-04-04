@@ -59,7 +59,7 @@ export default function Campaigns() {
         <Button variant="ghost" onClick={() => setSelectedCampaign(null)}>← Back to Campaigns</Button>
         <div>
           <h1 className="text-2xl font-bold">{selectedCampaign.name}</h1>
-          <Badge className={trackColors[selectedCampaign.track]}>{selectedCampaign.track.replace('_', ' ')}</Badge>
+          <Badge className={trackColors[selectedCampaign.track]}>{selectedCampaign.track.replace(/_/g, ' ')}</Badge>
         </div>
         {selectedCampaign.objective && <Card><CardContent className="pt-6"><p className="text-sm">{selectedCampaign.objective}</p></CardContent></Card>}
         <h2 className="text-lg font-semibold" style={{ color: 'hsl(var(--orange))' }}>Asset Pipeline</h2>
@@ -68,7 +68,7 @@ export default function Campaigns() {
             <div key={s} className="space-y-2">
               <h3 className="text-xs font-semibold uppercase text-muted-foreground">{s}</h3>
               {assets.filter(a => a.status === s).map(a => (
-                <Card key={a.id} className="p-3"><p className="text-sm font-medium">{a.title}</p><Badge variant="outline" className="text-[10px] mt-1">{a.asset_type.replace('_', ' ')}</Badge></Card>
+                <Card key={a.id} className="p-3"><p className="text-sm font-medium">{a.title}</p><Badge variant="outline" className="text-[10px] mt-1">{a.asset_type.replace(/_/g, ' ')}</Badge></Card>
               ))}
             </div>
           ))}
@@ -113,7 +113,7 @@ export default function Campaigns() {
                 <Card key={c.id} className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setSelectedCampaign(c)}>
                   <CardContent className="pt-4 pb-3">
                     <p className="font-medium text-sm mb-2">{c.name}</p>
-                    <Badge className={`${trackColors[c.track]} text-[10px]`}>{c.track.replace('_', ' ')}</Badge>
+                    <Badge className={`${trackColors[c.track]} text-[10px]`}>{c.track.replace(/_/g, ' ')}</Badge>
                     {c.launch_date && (
                       <div className="flex items-center gap-1 mt-2 text-xs text-muted-foreground">
                         <Calendar className="h-3 w-3" />{new Date(c.launch_date).toLocaleDateString()}
