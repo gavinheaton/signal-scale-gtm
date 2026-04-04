@@ -120,6 +120,16 @@ export interface BrandVoice {
   updated_at: string;
 }
 
+export interface ApiKey {
+  id: string;
+  user_id: string;
+  key_hash: string;
+  key_prefix: string;
+  label: string;
+  created_at: string;
+  last_used_at: string | null;
+}
+
 export interface CampaignMetric {
   id: string;
   campaign_id: string;
