@@ -12,6 +12,8 @@ import { Progress } from '@/components/ui/progress';
 import AssetDetailDrawer from '@/components/campaigns/AssetDetailDrawer';
 import CampaignTimeline from '@/components/campaigns/CampaignTimeline';
 import CampaignMetricsSummary from '@/components/campaigns/CampaignMetricsSummary';
+import CampaignJourneyView from '@/components/campaigns/CampaignJourneyView';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 
 const statusColumns: CampaignStatus[] = ['brief', 'planning', 'active', 'complete'];
 const trackColors = { demand_capture: 'bg-orange-100 text-orange-800', demand_creation: 'bg-purple-100 text-purple-800' };
@@ -161,69 +163,87 @@ export default function Campaigns() {
           )}
         </div>
 
-        {/* Campaign Timeline */}
-        <CampaignTimeline campaign={selectedCampaign} assets={assets} />
+        <Tabs defaultValue="pipeline" className="w-full">
+          <TabsList>
+            <TabsTrigger value="pipeline">Asset Pipeline</TabsTrigger>
+            <TabsTrigger value="journey">Journey View</TabsTrigger>
+          </TabsList>
 
-        {/* Metrics Summary */}
-        <CampaignMetricsSummary assets={assets} />
+          <TabsContent value="pipeline" className="space-y-6">
+            {/* Campaign Timeline */}
+            <CampaignTimeline campaign={selectedCampaign} assets={assets} />
 
-        {/* Asset pipeline kanban */}
-        <h2 className="text-lg font-semibold" style={{ color: 'hsl(var(--orange))' }}>Asset Pipeline</h2>
-        <div className="grid grid-cols-5 gap-3">
-          {assetStatuses.map((s, i) => {
-            const columnColors: Record<AssetStatus, string> = {
-              brief: 'border-muted-foreground/30 bg-muted/30',
-              draft: 'border-blue-400/30 bg-blue-50/50 dark:bg-blue-950/20',
-              review: 'border-amber-400/30 bg-amber-50/50 dark:bg-amber-950/20',
-              approved: 'border-green-400/30 bg-green-50/50 dark:bg-green-950/20',
-              published: 'border-teal-400/30 bg-teal-50/50 dark:bg-teal-950/20',
-            };
-            const headerColors: Record<AssetStatus, string> = {
-              brief: 'bg-muted text-muted-foreground',
-              draft: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300',
-              review: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300',
-              approved: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300',
-              published: 'bg-teal-100 text-teal-800 dark:bg-teal-900/40 dark:text-teal-300',
-            };
-            const colAssets = assets.filter(a => a.status === s);
-            return (
-              <div key={s} className="space-y-2 relative">
-                <div className={`flex items-center justify-between rounded-md px-2 py-1.5 ${headerColors[s]}`}>
-                  <h3 className="text-xs font-semibold uppercase">{s}</h3>
-                  <span className="text-[10px] font-medium">{colAssets.length}</span>
-                </div>
-                {i < assetStatuses.length - 1 && (
-                  <ChevronRight className="absolute -right-2.5 top-1.5 h-3.5 w-3.5 text-muted-foreground/50 z-10" />
-                )}
-                <div className={`rounded-lg border p-1.5 min-h-[120px] space-y-2 ${columnColors[s]}`}>
-                  {colAssets.map(a => (
-                    <Card
-                      key={a.id}
-                      className="p-3 cursor-pointer hover:shadow-md transition-shadow"
-                      onClick={() => { setSelectedAsset(a); setDrawerOpen(true); }}
-                    >
-                      <p className="text-sm font-medium">{a.title}</p>
-                      <div className="flex items-center gap-1 mt-1 flex-wrap">
-                        <Badge variant="outline" className="text-[10px]">{a.asset_type.replace(/_/g, ' ')}</Badge>
-                        <Badge className={`${assetStatusColors[a.status]} text-[10px]`}>{a.status}</Badge>
-                      </div>
-                      {a.publish_date && (
-                        <div className="flex items-center gap-1 mt-1 text-[10px] text-muted-foreground">
-                          <Calendar className="h-2.5 w-2.5" />
-                          {new Date(a.publish_date).toLocaleDateString()}
-                        </div>
-                      )}
-                      <div className="flex gap-2 mt-1">
-                        {a.content && <span className="text-[10px] text-green-600">✓ Content</span>}
-                        {a.notion_url && <span className="text-[10px] text-blue-600">✓ Notion</span>}
-                      </div>
-                    </Card>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
-        </div>
+            {/* Metrics Summary */}
+            <CampaignMetricsSummary assets={assets} />
+
+            {/* Asset pipeline kanban */}
+            <h2 className="text-lg font-semibold" style={{ color: 'hsl(var(--orange))' }}>Asset Pipeline</h2>
+            <div className="grid grid-cols-5 gap-3">
+              {assetStatuses.map((s, i) => {
+                const columnColors: Record<AssetStatus, string> = {
+                  brief: 'border-muted-foreground/30 bg-muted/30',
+                  draft: 'border-blue-400/30 bg-blue-50/50 dark:bg-blue-950/20',
+                  review: 'border-amber-400/30 bg-amber-50/50 dark:bg-amber-950/20',
+                  approved: 'border-green-400/30 bg-green-50/50 dark:bg-green-950/20',
+                  published: 'border-teal-400/30 bg-teal-50/50 dark:bg-teal-950/20',
+                };
+                const headerColors: Record<AssetStatus, string> = {
+                  brief: 'bg-muted text-muted-foreground',
+                  draft: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300',
+                  review: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300',
+                  approved: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300',
+                  published: 'bg-teal-100 text-teal-800 dark:bg-teal-900/40 dark:text-teal-300',
+                };
+                const colAssets = assets.filter(a => a.status === s);
+                return (
+                  <div key={s} className="space-y-2 relative">
+                    <div className={`flex items-center justify-between rounded-md px-2 py-1.5 ${headerColors[s]}`}>
+                      <h3 className="text-xs font-semibold uppercase">{s}</h3>
+                      <span className="text-[10px] font-medium">{colAssets.length}</span>
+                    </div>
+                    {i < assetStatuses.length - 1 && (
+                      <ChevronRight className="absolute -right-2.5 top-1.5 h-3.5 w-3.5 text-muted-foreground/50 z-10" />
+                    )}
+                    <div className={`rounded-lg border p-1.5 min-h-[120px] space-y-2 ${columnColors[s]}`}>
+                      {colAssets.map(a => (
+                        <Card
+                          key={a.id}
+                          className="p-3 cursor-pointer hover:shadow-md transition-shadow"
+                          onClick={() => { setSelectedAsset(a); setDrawerOpen(true); }}
+                        >
+                          <p className="text-sm font-medium">{a.title}</p>
+                          <div className="flex items-center gap-1 mt-1 flex-wrap">
+                            <Badge variant="outline" className="text-[10px]">{a.asset_type.replace(/_/g, ' ')}</Badge>
+                            <Badge className={`${assetStatusColors[a.status]} text-[10px]`}>{a.status}</Badge>
+                          </div>
+                          {a.publish_date && (
+                            <div className="flex items-center gap-1 mt-1 text-[10px] text-muted-foreground">
+                              <Calendar className="h-2.5 w-2.5" />
+                              {new Date(a.publish_date).toLocaleDateString()}
+                            </div>
+                          )}
+                          <div className="flex gap-2 mt-1">
+                            {a.content && <span className="text-[10px] text-green-600">✓ Content</span>}
+                            {a.notion_url && <span className="text-[10px] text-blue-600">✓ Notion</span>}
+                          </div>
+                        </Card>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </TabsContent>
+
+          <TabsContent value="journey">
+            <CampaignJourneyView
+              campaign={selectedCampaign}
+              assets={assets}
+              onAssetClick={(a) => { setSelectedAsset(a); setDrawerOpen(true); }}
+              onRefresh={fetchAssets}
+            />
+          </TabsContent>
+        </Tabs>
 
         <AssetDetailDrawer
           asset={selectedAsset}
