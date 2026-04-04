@@ -222,15 +222,40 @@ export default function CampaignWizard() {
 
       // Bulk insert campaign assets from content calendar
       if (draft.content_calendar && draft.content_calendar.length > 0 && finalCampaignId) {
-        const assets = draft.content_calendar.map(item => ({
+        const assets = draft.content_calendar.map((item, idx) => ({
           campaign_id: finalCampaignId!,
           title: item.title,
           asset_type: (FORMAT_TO_ASSET_TYPE[item.format?.toLowerCase()] || 'blog') as AssetType,
           status: 'brief' as const,
+          publish_date: item.publish_date || null,
+          sequence_order: item.sequence_order ?? idx + 1,
+          offset_days: item.offset_days ?? null,
+          production_due: item.production_due ?? null,
+          rationale: item.rationale ?? null,
         }));
 
-        const { error: assetsError } = await supabase.from('campaign_assets').insert(assets);
+        const { data: insertedAssets, error: assetsError } = await supabase
+          .from('campaign_assets')
+          .insert(assets)
+          .select('id, sequence_order');
         if (assetsError) console.error('Failed to insert some assets:', assetsError.message);
+
+        // Second pass: resolve depends_on references (sequence_order → UUID)
+        if (insertedAssets) {
+          const seqMap = new Map(insertedAssets.map((a: any) => [a.sequence_order, a.id]));
+          const dependencyUpdates = draft.content_calendar
+            .filter(item => item.depends_on != null)
+            .map(item => {
+              const assetId = seqMap.get(item.sequence_order ?? 0);
+              const dependsOnId = seqMap.get(item.depends_on!);
+              return assetId && dependsOnId ? { id: assetId, depends_on: dependsOnId } : null;
+            })
+            .filter(Boolean) as { id: string; depends_on: string }[];
+
+          for (const u of dependencyUpdates) {
+            await supabase.from('campaign_assets').update({ depends_on: u.depends_on }).eq('id', u.id);
+          }
+        }
       }
 
       // Mark session complete
