@@ -1,30 +1,25 @@
 
 
-# Update Integration Help Page with API Access / Brand Voice Sync
+# Fix Help Page to Match Settings Reality
 
-## What
-Add a new "API Access (Cowork Sync)" section to the Integration Help page explaining how to generate API keys and use the brand voice sync endpoint.
+## Problem
+The help page describes setup steps for Claude and Notion that don't precisely match what users see in the Settings page. Key mismatches:
+- The Connections section only appears for **admin+** users who have a **project selected** — the help page doesn't mention this.
+- Step 3 for Claude says "Open Settings → Connections" but the actual card heading is just "Connections" under Settings.
+- Step 4 says "Configure Claude" which matches the button text — this is fine.
 
 ## Changes
 
 ### `src/pages/IntegrationHelp.tsx`
 
-Add a new Card between the Notion card and the Troubleshooting card:
+1. **Claude section — Step 3** (line 79-85): Add a note that the Connections section is only visible to admin+ roles and requires a project to be selected first. Update wording to: "In Signal + Scale, select a project, then go to Settings. The **Connections** section appears for admin users and above."
 
-**API Access (Cowork Sync) section** with a `Key` icon:
-- Description: "Allows external tools like Cowork to pull your completed brand voice data via API."
-- Setup steps:
-  1. **Go to Settings → API Access** — link to `/project/settings`
-  2. **Generate an API Key** — click "Generate API Key". The key (prefixed `gtm_`) is shown once in a modal. Copy it immediately — it cannot be retrieved later.
-  3. **Configure Cowork** — in Cowork, paste the key as a Bearer token. The endpoint is `GET /functions/v1/get-brand-voices` with header `Authorization: Bearer gtm_xxxxx`.
-  4. **Verify the sync** — Cowork will pull all completed brand voices from your organisation's projects automatically.
-- Note box: "You can revoke a key at any time from Settings → API Access. Revoking a key immediately blocks all requests using it."
+2. **Notion section — Step 3** (line 149-155): Same update — mention admin role requirement and project selection.
 
-Also add a new troubleshooting accordion item:
-- **"unauthorized" when calling the brand voice API** — The API key is invalid, revoked, or missing. Generate a new key in Settings → API Access and update the Bearer token in Cowork.
+3. **Troubleshooting — Permission errors** (line 287-291): Already covers this. No change needed.
 
-Add `Key` to the lucide-react import.
+4. **Add a callout** at the top of the page (after the intro paragraph) noting: "You must have an **admin** or higher role and a project selected to see the Connections section in Settings."
 
 ## Files changed
-1. `src/pages/IntegrationHelp.tsx` — add API Access card + troubleshooting item
+1. `src/pages/IntegrationHelp.tsx` — update Claude step 3, Notion step 3, add role/project callout
 
