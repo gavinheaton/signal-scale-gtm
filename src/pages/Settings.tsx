@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { OrgRole } from '@/types/database';
 import { Bot, FileText, Settings2, Trash2, Eye, EyeOff } from 'lucide-react';
+import ApiAccessCard from '@/components/settings/ApiAccessCard';
 
 const PROVIDERS = [
   { id: 'claude' as const, name: 'Claude (Anthropic)', icon: Bot, description: 'Powers AI wizards for ICP & Persona generation' },
