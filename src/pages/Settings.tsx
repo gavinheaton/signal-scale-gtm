@@ -286,7 +286,7 @@ export default function SettingsPage() {
                   </Button>
                 </div>
               </div>
-            ) : (
+              <NotionSyncStatus projectId={currentProject.id} lastSyncedAt={(currentProject as any).notion_last_synced_at} />
               <div className="flex items-center justify-between p-4 rounded-lg border bg-card">
                 <div className="flex items-center gap-3">
                   <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted">
