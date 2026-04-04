@@ -121,6 +121,32 @@ export default function SettingsPage() {
     }
   };
 
+  const handleSetupNotionWorkspace = async () => {
+    if (!currentProject) return;
+    setSettingUpNotion(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('setup-notion-workspace', {
+        body: { project_id: currentProject.id },
+      });
+      if (error || data?.error) {
+        toast.error(data?.error || error?.message || 'Failed to set up Notion workspace');
+        return;
+      }
+      setNotionWorkspaceId(data.workspace_id);
+      setNotionWorkspaceUrl(data.workspace_url);
+      // Update project context
+      if (currentProject) {
+        currentProject.notion_workspace_id = data.workspace_id;
+        currentProject.notion_calendar_db_id = data.calendar_db_id;
+      }
+      toast.success('Notion workspace created!');
+    } catch (err: any) {
+      toast.error('Error: ' + (err.message || 'Unknown error'));
+    } finally {
+      setSettingUpNotion(false);
+    }
+  };
+
   return (
     <div className="space-y-6 max-w-2xl">
       <h1 className="text-2xl font-bold text-foreground">Settings</h1>
