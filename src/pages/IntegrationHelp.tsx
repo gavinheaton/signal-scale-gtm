@@ -32,6 +32,10 @@ export default function IntegrationHelp() {
         You need <Badge variant="secondary">admin</Badge> or higher role to manage connections.
       </p>
 
+      <div className="rounded-md border border-primary/20 bg-primary/5 p-3 text-sm text-foreground">
+        <strong>Prerequisite:</strong> You must have an <Badge variant="secondary">admin</Badge> or higher role <strong>and</strong> a project selected to see the <strong>Connections</strong> section in Settings.
+      </div>
+
       {/* Claude */}
       <Card>
         <CardHeader>
