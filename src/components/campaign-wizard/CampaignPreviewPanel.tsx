@@ -2,8 +2,9 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { ExternalLink, Save, Loader2, CheckCircle2, Circle, CircleDot, Download } from 'lucide-react';
+import { ExternalLink, Save, Loader2, CheckCircle2, Circle, CircleDot, Download, CalendarIcon } from 'lucide-react';
 import { CampaignDraft, CAMPAIGN_SECTIONS, getCampaignSectionStatus } from './types';
+import { format, parseISO } from 'date-fns';
 
 interface CampaignPreviewPanelProps {
   draft: CampaignDraft;
