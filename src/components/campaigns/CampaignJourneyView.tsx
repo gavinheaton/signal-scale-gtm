@@ -183,10 +183,11 @@ export default function CampaignJourneyView({ campaign, assets, onAssetClick, on
     );
   }
 
-  if (datedAssets.length < 3) {
+  const hasNoAssets = assets.length === 0;
+  if (hasNoAssets) {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-center">
-        <p className="text-muted-foreground mb-4">Add publish dates to your assets to see the journey view.</p>
+        <p className="text-muted-foreground mb-4">Add assets to this campaign to see the journey view.</p>
         {onSwitchTab && <Button variant="outline" onClick={onSwitchTab}>Go to Pipeline</Button>}
       </div>
     );
