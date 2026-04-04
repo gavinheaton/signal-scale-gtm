@@ -95,11 +95,12 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Fetch campaign assets
+    // Fetch campaign assets that haven't been pushed yet
     const { data: assets } = await adminClient
       .from("campaign_assets")
       .select("*")
-      .eq("campaign_id", campaign_id);
+      .eq("campaign_id", campaign_id)
+      .is("notion_url", null);
 
     if (!assets || assets.length === 0) {
       return new Response(
