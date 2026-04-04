@@ -63,6 +63,9 @@ export default function CampaignJourneyView({ campaign, assets, onAssetClick, on
       new Date(a.publish_date!).getTime() - new Date(b.publish_date!).getTime()
     ), [assets]);
 
+  const undatedAssets = useMemo(() =>
+    assets.filter(a => !a.publish_date), [assets]);
+
   // Summary stats
   const stats = useMemo(() => {
     const total = datedAssets.length;
