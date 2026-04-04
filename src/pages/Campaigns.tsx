@@ -360,7 +360,24 @@ export default function Campaigns() {
               {campaigns.filter(c => c.status === status).map(c => (
                 <Card key={c.id} className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setSelectedCampaign(c)}>
                   <CardContent className="pt-4 pb-3">
-                    <p className="font-medium text-sm mb-2">{c.name}</p>
+                    <div className="flex items-start justify-between">
+                      <p className="font-medium text-sm mb-2">{c.name}</p>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                          <Button variant="ghost" size="icon" className="h-6 w-6 -mt-1 -mr-1">
+                            <MoreVertical className="h-3.5 w-3.5" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            className="text-destructive focus:text-destructive"
+                            onClick={(e) => { e.stopPropagation(); setDeleteTarget(c); }}
+                          >
+                            <Trash2 className="h-3.5 w-3.5 mr-2" /> Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
                     <Badge className={`${trackColors[c.track]} text-[10px]`}>{c.track.replace(/_/g, ' ')}</Badge>
                     {c.launch_date && (
                       <div className="flex items-center gap-1 mt-2 text-xs text-muted-foreground">
@@ -374,6 +391,28 @@ export default function Campaigns() {
           </div>
         ))}
       </div>
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete "{deleteTarget?.name}"?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete this campaign along with all its assets and metrics. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => deleteTarget && handleDeleteCampaign(deleteTarget)}
+            >
+              {deleting ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Trash2 className="h-4 w-4 mr-1" />}
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
