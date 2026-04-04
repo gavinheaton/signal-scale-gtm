@@ -95,11 +95,12 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Fetch campaign assets
+    // Fetch campaign assets that haven't been pushed yet
     const { data: assets } = await adminClient
       .from("campaign_assets")
       .select("*")
-      .eq("campaign_id", campaign_id);
+      .eq("campaign_id", campaign_id)
+      .is("notion_url", null);
 
     if (!assets || assets.length === 0) {
       return new Response(
@@ -171,7 +172,14 @@ Deno.serve(async (req) => {
 
         if (res.ok) {
           itemsPushed++;
-          await res.json();
+          const notionPage = await res.json();
+          const pageUrl = notionPage.url || null;
+          if (pageUrl) {
+            await adminClient
+              .from("campaign_assets")
+              .update({ notion_url: pageUrl })
+              .eq("id", asset.id);
+          }
         } else {
           const errText = await res.text();
           console.error(`Failed to create Notion page for "${asset.title}":`, errText);

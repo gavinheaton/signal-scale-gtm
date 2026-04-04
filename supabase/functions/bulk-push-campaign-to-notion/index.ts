@@ -96,12 +96,13 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Fetch all assets with content
+    // Fetch all assets with content that haven't been pushed yet
     const { data: assets } = await supabase
       .from("campaign_assets")
       .select("*")
       .eq("campaign_id", campaign_id)
-      .not("content", "is", null);
+      .not("content", "is", null)
+      .is("notion_url", null);
 
     if (!assets || assets.length === 0) {
       return new Response(JSON.stringify({ error: "No assets with content to push" }), {
@@ -165,11 +166,18 @@ Deno.serve(async (req) => {
     const notionData = await notionRes.json();
     const notionUrl = notionData.url || null;
 
-    // Store notion_url on campaign
+    // Store notion_url on campaign and all pushed assets
     await supabase
       .from("campaigns")
       .update({ notion_url: notionUrl })
       .eq("id", campaign_id);
+
+    // Mark each asset as pushed
+    const assetIds = assets.map(a => a.id);
+    await supabase
+      .from("campaign_assets")
+      .update({ notion_url: notionUrl })
+      .in("id", assetIds);
 
     return new Response(JSON.stringify({ notion_url: notionUrl, assets_pushed: assets.length }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
