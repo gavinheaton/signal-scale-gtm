@@ -1,29 +1,54 @@
 
 
-# Fix: Calendar Component Rendering Inside Campaign Cards
+# Fix Journey View: Show Unscheduled Assets + Lower Threshold
 
 ## Problem
-The lucide `Calendar` icon is imported as `CalendarIcon` (line 8), and the Shadcn `Calendar` date picker component is imported as `Calendar` (line 18). However, on lines 266 and 340, the code uses `<Calendar className="h-3 w-3" />` intending to show a small icon — but this renders the full interactive date picker component instead.
+Assets without a `publish_date` are invisible in the Journey View. The view requires at least 3 dated assets before rendering anything. This creates a chicken-and-egg problem: you can't drag assets onto the timeline because they don't appear until they already have dates.
 
-## Fix
-In `src/pages/Campaigns.tsx`, replace the two occurrences of `<Calendar>` used as decorative icons (lines 266 and 340) with `<CalendarIcon>`, which is the lucide icon alias already imported on line 8.
+## Solution
+Add an **unscheduled assets tray** below the swimlane timeline, and lower the minimum threshold from 3 to 0 dated assets (as long as the campaign has start/end dates).
 
-### Line 266 (asset publish date in kanban)
-```tsx
-// Before
-<Calendar className="h-2.5 w-2.5" />
-// After
-<CalendarIcon className="h-2.5 w-2.5" />
+### Changes to `src/components/campaigns/CampaignJourneyView.tsx`
+
+**1. Compute unscheduled assets**
+Add a `useMemo` that filters assets *without* a `publish_date`:
+```typescript
+const undatedAssets = useMemo(() =>
+  assets.filter(a => !a.publish_date), [assets]);
 ```
 
-### Line 340 (campaign launch date in kanban)
-```tsx
-// Before
-<Calendar className="h-3 w-3" />
-// After
-<CalendarIcon className="h-3 w-3" />
+**2. Lower the empty-state threshold**
+Remove the `datedAssets.length < 3` guard entirely. If we have start/end dates, always render the timeline — even if empty. The unscheduled tray gives users something to drag from.
+
+**3. Add unscheduled tray UI**
+Below the swimlanes container, render a horizontal tray of draggable asset cards for undated assets:
+- Label: "Unscheduled ({count})" with a muted subheading "Drag onto a lane to schedule"
+- Each card is draggable (same `onDragStart` pattern setting `assetId`)
+- Cards show title, asset_type badge, and status border color
+- Styled as a flex-wrap row with a dashed border
+
+**4. Keep existing drop handlers**
+The `handleDrop` function already works — it calculates the date from drop position and updates `publish_date` in Supabase. No changes needed there.
+
+### Visual layout
+
+```text
+┌─────────────────────────────────────────┐
+│  Summary bar (touchpoints, gaps, etc.)  │
+├─────────────────────────────────────────┤
+│  Awareness │ Nurture │ Conversion       │
+├─────────────────────────────────────────┤
+│  Week markers + swimlane timeline       │
+│  (LinkedIn, Email, etc. with cards)     │
+├─────────────────────────────────────────┤
+│  Unscheduled (5)                        │
+│  ┌──────┐ ┌──────┐ ┌──────┐ ┌──────┐   │
+│  │Blog  │ │Email │ │Video │ │Post  │   │
+│  └──────┘ └──────┘ └──────┘ └──────┘   │
+│  Drag onto a lane above to schedule     │
+└─────────────────────────────────────────┘
 ```
 
-### Files changed
-1. `src/pages/Campaigns.tsx` — two lines changed
+## Files changed
+1. `src/components/campaigns/CampaignJourneyView.tsx` — add unscheduled tray, remove minimum threshold
 
