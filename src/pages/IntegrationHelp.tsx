@@ -301,6 +301,15 @@ export default function IntegrationHelp() {
                 and update the connection in Settings.
               </AccordionContent>
             </AccordionItem>
+
+            <AccordionItem value="t5">
+              <AccordionTrigger>"unauthorized" when calling the brand voice API</AccordionTrigger>
+              <AccordionContent className="text-sm text-muted-foreground">
+                The API key is invalid, revoked, or missing. Generate a new key in{' '}
+                <Link to="/project/settings" className="underline text-primary">Settings → API Access</Link>{' '}
+                and update the connection in Settings.
+              </AccordionContent>
+            </AccordionItem>
           </Accordion>
         </CardContent>
       </Card>
