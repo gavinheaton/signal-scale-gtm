@@ -458,6 +458,7 @@ export type Database = {
           name: string
           notion_calendar_db_id: string | null
           notion_foundations_db_id: string | null
+          notion_last_synced_at: string | null
           notion_pillars_db_id: string | null
           notion_workspace_id: string | null
           org_id: string
@@ -472,6 +473,7 @@ export type Database = {
           name: string
           notion_calendar_db_id?: string | null
           notion_foundations_db_id?: string | null
+          notion_last_synced_at?: string | null
           notion_pillars_db_id?: string | null
           notion_workspace_id?: string | null
           org_id: string
@@ -486,6 +488,7 @@ export type Database = {
           name?: string
           notion_calendar_db_id?: string | null
           notion_foundations_db_id?: string | null
+          notion_last_synced_at?: string | null
           notion_pillars_db_id?: string | null
           notion_workspace_id?: string | null
           org_id?: string
