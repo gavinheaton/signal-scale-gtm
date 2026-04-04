@@ -457,6 +457,8 @@ export type Database = {
           methodology_progress: Json | null
           name: string
           notion_calendar_db_id: string | null
+          notion_foundations_db_id: string | null
+          notion_pillars_db_id: string | null
           notion_workspace_id: string | null
           org_id: string
           slug: string | null
@@ -469,6 +471,8 @@ export type Database = {
           methodology_progress?: Json | null
           name: string
           notion_calendar_db_id?: string | null
+          notion_foundations_db_id?: string | null
+          notion_pillars_db_id?: string | null
           notion_workspace_id?: string | null
           org_id: string
           slug?: string | null
@@ -481,6 +485,8 @@ export type Database = {
           methodology_progress?: Json | null
           name?: string
           notion_calendar_db_id?: string | null
+          notion_foundations_db_id?: string | null
+          notion_pillars_db_id?: string | null
           notion_workspace_id?: string | null
           org_id?: string
           slug?: string | null
