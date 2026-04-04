@@ -82,7 +82,7 @@ Deno.serve(async (req) => {
 
       // Store new key in vault
       const secretName = `project_${project_id}_${provider}_api_key`;
-      const { data: vaultResult, error: vaultError } = await serviceClient
+      const { data: secretId, error: vaultError } = await serviceClient
         .rpc("vault_create_secret", {
           new_secret: api_key,
           new_name: secretName,
@@ -90,28 +90,10 @@ Deno.serve(async (req) => {
         });
 
       if (vaultError) {
-        // Fallback: try vault.create_secret
-        const { data: fallbackResult, error: fallbackError } = await serviceClient
-          .rpc("create_secret" as any, {
-            secret: api_key,
-            name: secretName,
-            description: `${provider} API key for project ${project_id}`,
-          });
-
-        if (fallbackError) {
-          console.error("Vault error:", vaultError, fallbackError);
-          throw new Error("Failed to store secret in vault");
-        }
-
-        const secretId = fallbackResult;
-        await upsertConnection(serviceClient, existing, project_id, provider, secretId);
-
-        return new Response(JSON.stringify({ success: true }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        console.error("Vault error:", vaultError);
+        throw new Error("Failed to store secret in vault");
       }
 
-      const secretId = vaultResult;
       await upsertConnection(serviceClient, existing, project_id, provider, secretId);
 
       return new Response(JSON.stringify({ success: true }), {
