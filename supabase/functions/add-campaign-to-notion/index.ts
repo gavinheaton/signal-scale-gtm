@@ -25,6 +25,10 @@ const CONTENT_TYPE_MAP: Record<string, string> = {
   press_release: "Article",
 };
 
+function text(content: string) {
+  return [{ type: "text", text: { content } }];
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -45,9 +49,10 @@ Deno.serve(async (req) => {
       { global: { headers: { Authorization: authHeader } } }
     );
 
+    // Fix: use getUser instead of getClaims
     const token = authHeader.replace("Bearer ", "");
-    const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(token);
-    if (claimsError || !claimsData?.claims) {
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    if (authError || !user) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -70,7 +75,7 @@ Deno.serve(async (req) => {
     // Fetch campaign with project info
     const { data: campaign, error: campErr } = await adminClient
       .from("campaigns")
-      .select("id, name, track, project_id")
+      .select("id, name, track, project_id, objective, target_icp_ids")
       .eq("id", campaign_id)
       .single();
 
@@ -81,10 +86,10 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Get project's notion_calendar_db_id
+    // Get project's Notion database IDs
     const { data: project } = await adminClient
       .from("projects")
-      .select("notion_calendar_db_id")
+      .select("notion_calendar_db_id, notion_foundations_db_id")
       .eq("id", campaign.project_id)
       .single();
 
@@ -92,20 +97,6 @@ Deno.serve(async (req) => {
       return new Response(
         JSON.stringify({ error: "Notion workspace not set up for this project" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // Fetch campaign assets that haven't been pushed yet
-    const { data: assets } = await adminClient
-      .from("campaign_assets")
-      .select("*")
-      .eq("campaign_id", campaign_id)
-      .is("notion_url", null);
-
-    if (!assets || assets.length === 0) {
-      return new Response(
-        JSON.stringify({ success: true, items_pushed: 0, message: "No assets to push" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
@@ -128,22 +119,80 @@ Deno.serve(async (req) => {
         ? "Demand Creation (95%)"
         : "Demand Capture (5%)";
 
+    // ── Seed Foundations database (if available) ──
+    if (project.notion_foundations_db_id) {
+      // Seed personas as Audience foundation pages
+      if (campaign.target_icp_ids && campaign.target_icp_ids.length > 0) {
+        const { data: personas } = await adminClient
+          .from("personas")
+          .select("persona_name")
+          .in("icp_id", campaign.target_icp_ids);
+
+        if (personas && personas.length > 0) {
+          for (const persona of personas) {
+            try {
+              await fetch(`${NOTION_API}/pages`, {
+                method: "POST",
+                headers: notionHeaders,
+                body: JSON.stringify({
+                  parent: { database_id: project.notion_foundations_db_id },
+                  properties: {
+                    Foundation: { title: text(persona.persona_name) },
+                    Type: { select: { name: "Audience" } },
+                    Detail: { rich_text: text(`Persona from campaign: ${campaign.name}`) },
+                  },
+                }),
+              });
+            } catch (e) {
+              console.error(`Failed to seed persona foundation "${persona.persona_name}":`, e);
+            }
+          }
+        }
+      }
+
+      // Seed Growth Goal from campaign objective
+      if (campaign.objective) {
+        try {
+          await fetch(`${NOTION_API}/pages`, {
+            method: "POST",
+            headers: notionHeaders,
+            body: JSON.stringify({
+              parent: { database_id: project.notion_foundations_db_id },
+              properties: {
+                Foundation: { title: text(`Growth Goal: ${campaign.name}`) },
+                Type: { select: { name: "Growth Goal" } },
+                Detail: { rich_text: text(campaign.objective) },
+              },
+            }),
+          });
+        } catch (e) {
+          console.error("Failed to seed growth goal foundation:", e);
+        }
+      }
+    }
+
+    // ── Push campaign assets to Content Calendar ──
+    const { data: assets } = await adminClient
+      .from("campaign_assets")
+      .select("*")
+      .eq("campaign_id", campaign_id)
+      .is("notion_url", null);
+
+    if (!assets || assets.length === 0) {
+      return new Response(
+        JSON.stringify({ success: true, items_pushed: 0, message: "No assets to push" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     let itemsPushed = 0;
 
     for (const asset of assets) {
       const properties: Record<string, unknown> = {
-        Content: {
-          title: [{ text: { content: asset.title } }],
-        },
-        Status: {
-          select: { name: "Brief" },
-        },
-        Campaign: {
-          rich_text: [{ text: { content: campaign.name } }],
-        },
-        "Demand Type": {
-          select: { name: demandType },
-        },
+        Content: { title: text(asset.title) },
+        Status: { select: { name: "Brief" } },
+        Campaign: { rich_text: text(campaign.name) },
+        "Demand Type": { select: { name: demandType } },
       };
 
       const channel = CHANNEL_MAP[asset.asset_type];
@@ -159,6 +208,8 @@ Deno.serve(async (req) => {
       if (asset.publish_date) {
         properties["Publish Date"] = { date: { start: asset.publish_date } };
       }
+
+      // Pillar left blank — user assigns manually
 
       try {
         const res = await fetch(`${NOTION_API}/pages`, {

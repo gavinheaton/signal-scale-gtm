@@ -36,6 +36,8 @@ export interface Project {
   methodology_progress: Record<MethodologyPhase, PhaseStatus>;
   notion_workspace_id?: string | null;
   notion_calendar_db_id?: string | null;
+  notion_pillars_db_id?: string | null;
+  notion_foundations_db_id?: string | null;
   created_at: string;
 }
 
