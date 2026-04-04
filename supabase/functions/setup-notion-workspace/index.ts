@@ -3,6 +3,16 @@ import { corsHeaders } from "../_shared/cors.ts";
 
 const NOTION_API = "https://api.notion.com/v1";
 
+function extractNotionId(input: string): string {
+  if (/^[0-9a-f]{8}-/.test(input)) return input;
+  const match = input.match(/([0-9a-f]{32})/);
+  if (match) {
+    const h = match[1];
+    return `${h.slice(0,8)}-${h.slice(8,12)}-${h.slice(12,16)}-${h.slice(16,20)}-${h.slice(20)}`;
+  }
+  return input;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
