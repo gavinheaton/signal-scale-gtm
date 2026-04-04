@@ -4,7 +4,19 @@ const corsHeaders = {
 };
 
 const NOTION_API_KEY = Deno.env.get("NOTION_API_KEY")!;
-const NOTION_PARENT_PAGE_ID = Deno.env.get("NOTION_CAMPAIGN_BRIEFS_PAGE_ID")!;
+const NOTION_PARENT_PAGE_ID_RAW = Deno.env.get("NOTION_CAMPAIGN_BRIEFS_PAGE_ID")!;
+
+function extractNotionId(input: string): string {
+  if (/^[0-9a-f]{8}-/.test(input)) return input;
+  const match = input.match(/([0-9a-f]{32})/);
+  if (match) {
+    const h = match[1];
+    return `${h.slice(0,8)}-${h.slice(8,12)}-${h.slice(12,16)}-${h.slice(16,20)}-${h.slice(20)}`;
+  }
+  return input;
+}
+
+const NOTION_PARENT_PAGE_ID = extractNotionId(NOTION_PARENT_PAGE_ID_RAW);
 
 function textBlock(content: string) {
   return {
