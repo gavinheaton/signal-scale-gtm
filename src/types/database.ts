@@ -97,6 +97,25 @@ export interface ProjectConnection {
   updated_at: string;
 }
 
+export interface BrandVoice {
+  id: string;
+  project_id: string;
+  status: BrandVoiceStatus;
+  personality_adjectives: string[];
+  tone_description: string | null;
+  writing_principles: Record<string, any>[];
+  banned_phrases: string[];
+  preferred_vocabulary: Record<string, any>[];
+  formatting_rules: string[];
+  content_type_guidance: Record<string, any>;
+  writing_samples: Record<string, any>[];
+  target_audiences: Record<string, any>[];
+  brand_identity: Record<string, any>;
+  wizard_session_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface CampaignMetric {
   id: string;
   campaign_id: string;
