@@ -59,7 +59,7 @@ export default function Campaigns() {
         <Button variant="ghost" onClick={() => setSelectedCampaign(null)}>← Back to Campaigns</Button>
         <div>
           <h1 className="text-2xl font-bold">{selectedCampaign.name}</h1>
-          <Badge className={trackColors[selectedCampaign.track]}>{selectedCampaign.track.replace('_', ' ')}</Badge>
+          <Badge className={trackColors[selectedCampaign.track]}>{selectedCampaign.track.replace(/_/g, ' ')}</Badge>
         </div>
         {selectedCampaign.objective && <Card><CardContent className="pt-6"><p className="text-sm">{selectedCampaign.objective}</p></CardContent></Card>}
         <h2 className="text-lg font-semibold" style={{ color: 'hsl(var(--orange))' }}>Asset Pipeline</h2>
