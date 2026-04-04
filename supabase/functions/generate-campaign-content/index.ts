@@ -148,7 +148,10 @@ Deno.serve(async (req) => {
         const samples = brandVoice.writing_samples.slice(0, 2);
         systemPrompt += `\n### Writing Style Reference\n`;
         samples.forEach((s: any) => {
-          systemPrompt += `[${s.type}]: "${s.sample.substring(0, 500)}"\n`;
+          const text = s.sample || s.content || s.text || '';
+          if (text) {
+            systemPrompt += `[${s.type || 'sample'}]: "${text.substring(0, 500)}"\n`;
+          }
         });
       }
 
