@@ -1,54 +1,69 @@
 
 
-# Fix Journey View: Show Unscheduled Assets + Lower Threshold
+# Add Campaign Deletion
 
 ## Problem
-Assets without a `publish_date` are invisible in the Journey View. The view requires at least 3 dated assets before rendering anything. This creates a chicken-and-egg problem: you can't drag assets onto the timeline because they don't appear until they already have dates.
+There is no way to delete a campaign from the UI. The `campaigns` table RLS doesn't even allow DELETE. Campaign assets can be deleted (RLS exists), but campaign metrics cannot.
 
 ## Solution
-Add an **unscheduled assets tray** below the swimlane timeline, and lower the minimum threshold from 3 to 0 dated assets (as long as the campaign has start/end dates).
 
-### Changes to `src/components/campaigns/CampaignJourneyView.tsx`
+### 1. Database migration — enable campaign deletion
+Add RLS DELETE policies for `campaigns` and `campaign_metrics`, scoped to org access. Optionally create a `delete_campaign_cascade` security definer function (like `delete_project_cascade`) that deletes metrics, assets, then the campaign — ensuring clean ordering and admin-level permission checks.
 
-**1. Compute unscheduled assets**
-Add a `useMemo` that filters assets *without* a `publish_date`:
+**Migration SQL:**
+```sql
+-- Delete policy for campaigns (admin/manager+)
+CREATE POLICY "Users can delete project campaigns"
+ON public.campaigns FOR DELETE TO authenticated
+USING (
+  EXISTS (
+    SELECT 1 FROM projects p
+    JOIN org_memberships om ON om.org_id = p.org_id
+    WHERE p.id = campaigns.project_id
+      AND om.user_id = auth.uid()
+      AND om.role IN ('owner', 'admin', 'superadmin', 'manager')
+  )
+);
+
+-- Delete policy for campaign_metrics
+CREATE POLICY "Users can delete campaign metrics"
+ON public.campaign_metrics FOR DELETE TO authenticated
+USING (
+  EXISTS (
+    SELECT 1 FROM campaigns c
+    JOIN projects p ON p.id = c.project_id
+    WHERE c.id = campaign_metrics.campaign_id
+      AND user_has_org_access(auth.uid(), p.org_id)
+  )
+);
+```
+
+### 2. UI — Add delete option to campaign detail and kanban cards
+
+**`src/pages/Campaigns.tsx`:**
+
+- Import `Trash2`, `MoreVertical` from lucide and `AlertDialog` components
+- Add state: `deleteTarget`, `deleting`
+- Add delete handler: deletes `campaign_metrics`, then `campaign_assets`, then `campaigns` row by id. On success, clear `selectedCampaign` and refresh list.
+- **Campaign detail view**: Add a delete button (with destructive styling) in the header area next to the Notion link button
+- **Kanban cards**: Add a `DropdownMenu` with a delete option (three-dot menu), similar to the Projects page pattern
+- Both trigger an `AlertDialog` confirmation: "Delete [campaign name]? This will permanently delete all assets and metrics."
+
+### Files changed
+1. **New migration** — RLS DELETE policies for `campaigns` and `campaign_metrics`
+2. **`src/pages/Campaigns.tsx`** — delete confirmation dialog, delete handler, UI triggers in detail header and kanban cards
+
+### Delete handler logic
 ```typescript
-const undatedAssets = useMemo(() =>
-  assets.filter(a => !a.publish_date), [assets]);
+const handleDeleteCampaign = async (campaign: Campaign) => {
+  // Delete children first
+  await supabase.from('campaign_metrics').delete().eq('campaign_id', campaign.id);
+  await supabase.from('campaign_assets').delete().eq('campaign_id', campaign.id);
+  const { error } = await supabase.from('campaigns').delete().eq('id', campaign.id);
+  if (error) { toast.error(error.message); return; }
+  toast.success(`"${campaign.name}" deleted`);
+  setSelectedCampaign(null);
+  fetchData();
+};
 ```
-
-**2. Lower the empty-state threshold**
-Remove the `datedAssets.length < 3` guard entirely. If we have start/end dates, always render the timeline — even if empty. The unscheduled tray gives users something to drag from.
-
-**3. Add unscheduled tray UI**
-Below the swimlanes container, render a horizontal tray of draggable asset cards for undated assets:
-- Label: "Unscheduled ({count})" with a muted subheading "Drag onto a lane to schedule"
-- Each card is draggable (same `onDragStart` pattern setting `assetId`)
-- Cards show title, asset_type badge, and status border color
-- Styled as a flex-wrap row with a dashed border
-
-**4. Keep existing drop handlers**
-The `handleDrop` function already works — it calculates the date from drop position and updates `publish_date` in Supabase. No changes needed there.
-
-### Visual layout
-
-```text
-┌─────────────────────────────────────────┐
-│  Summary bar (touchpoints, gaps, etc.)  │
-├─────────────────────────────────────────┤
-│  Awareness │ Nurture │ Conversion       │
-├─────────────────────────────────────────┤
-│  Week markers + swimlane timeline       │
-│  (LinkedIn, Email, etc. with cards)     │
-├─────────────────────────────────────────┤
-│  Unscheduled (5)                        │
-│  ┌──────┐ ┌──────┐ ┌──────┐ ┌──────┐   │
-│  │Blog  │ │Email │ │Video │ │Post  │   │
-│  └──────┘ └──────┘ └──────┘ └──────┘   │
-│  Drag onto a lane above to schedule     │
-└─────────────────────────────────────────┘
-```
-
-## Files changed
-1. `src/components/campaigns/CampaignJourneyView.tsx` — add unscheduled tray, remove minimum threshold
 
