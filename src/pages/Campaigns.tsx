@@ -263,7 +263,7 @@ export default function Campaigns() {
                           </div>
                           {a.publish_date && (
                             <div className="flex items-center gap-1 mt-1 text-[10px] text-muted-foreground">
-                              <Calendar className="h-2.5 w-2.5" />
+                              <CalendarIcon className="h-2.5 w-2.5" />
                               {new Date(a.publish_date).toLocaleDateString()}
                             </div>
                           )}
@@ -337,7 +337,7 @@ export default function Campaigns() {
                     <Badge className={`${trackColors[c.track]} text-[10px]`}>{c.track.replace(/_/g, ' ')}</Badge>
                     {c.launch_date && (
                       <div className="flex items-center gap-1 mt-2 text-xs text-muted-foreground">
-                        <Calendar className="h-3 w-3" />{new Date(c.launch_date).toLocaleDateString()}
+                        <CalendarIcon className="h-3 w-3" />{new Date(c.launch_date).toLocaleDateString()}
                       </div>
                     )}
                   </CardContent>
