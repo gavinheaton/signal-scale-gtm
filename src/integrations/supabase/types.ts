@@ -456,6 +456,8 @@ export type Database = {
           id: string
           methodology_progress: Json | null
           name: string
+          notion_calendar_db_id: string | null
+          notion_workspace_id: string | null
           org_id: string
           slug: string | null
           status: Database["public"]["Enums"]["project_status"]
@@ -466,6 +468,8 @@ export type Database = {
           id?: string
           methodology_progress?: Json | null
           name: string
+          notion_calendar_db_id?: string | null
+          notion_workspace_id?: string | null
           org_id: string
           slug?: string | null
           status?: Database["public"]["Enums"]["project_status"]
@@ -476,6 +480,8 @@ export type Database = {
           id?: string
           methodology_progress?: Json | null
           name?: string
+          notion_calendar_db_id?: string | null
+          notion_workspace_id?: string | null
           org_id?: string
           slug?: string | null
           status?: Database["public"]["Enums"]["project_status"]
