@@ -1,36 +1,29 @@
 
 
-# Add Campaign Dates — Wizard + Detail Page Editing
+# Fix: Calendar Component Rendering Inside Campaign Cards
 
 ## Problem
-The `campaigns` table has `launch_date` and `end_date` columns, but nothing in the app populates them. The Timeline and Journey View components silently return null/empty when these are missing.
+The lucide `Calendar` icon is imported as `CalendarIcon` (line 8), and the Shadcn `Calendar` date picker component is imported as `Calendar` (line 18). However, on lines 266 and 340, the code uses `<Calendar className="h-3 w-3" />` intending to show a small icon — but this renders the full interactive date picker component instead.
 
-## Solution — Two entry points for setting dates
+## Fix
+In `src/pages/Campaigns.tsx`, replace the two occurrences of `<Calendar>` used as decorative icons (lines 266 and 340) with `<CalendarIcon>`, which is the lucide icon alias already imported on line 8.
 
-### 1. Campaign Wizard: AI generates dates in the draft
+### Line 266 (asset publish date in kanban)
+```tsx
+// Before
+<Calendar className="h-2.5 w-2.5" />
+// After
+<CalendarIcon className="h-2.5 w-2.5" />
+```
 
-**`src/components/campaign-wizard/types.ts`** — Add `launch_date?: string` and `end_date?: string` to `CampaignDraft`.
-
-**`supabase/functions/campaign-wizard/index.ts`** — Update the DRAFT FORMAT INSTRUCTIONS to tell Claude to include `launch_date` (YYYY-MM-DD) and `end_date` (YYYY-MM-DD) in the draft JSON, derived from the content calendar span (earliest publish_date minus a buffer, latest publish_date plus a buffer) or from explicit user input.
-
-**`src/pages/CampaignWizard.tsx`** — In both `saveDraft()` and `saveCampaign()`, include `launch_date: draft.launch_date || null` and `end_date: draft.end_date || null` in the campaign payload.
-
-**`src/components/campaign-wizard/CampaignPreviewPanel.tsx`** — Show the dates in the preview panel so the user can see them before saving.
-
-### 2. Campaign Detail Page: inline date editing
-
-**`src/pages/Campaigns.tsx`** — In the campaign detail header area (below the name/badges, around line 125-140), add two date picker popovers for Launch Date and End Date. On change, update the campaign in Supabase and refresh local state. Use the Shadcn Calendar + Popover pattern.
+### Line 340 (campaign launch date in kanban)
+```tsx
+// Before
+<Calendar className="h-3 w-3" />
+// After
+<CalendarIcon className="h-3 w-3" />
+```
 
 ### Files changed
-1. `src/components/campaign-wizard/types.ts` — add date fields to CampaignDraft
-2. `supabase/functions/campaign-wizard/index.ts` — prompt update for dates
-3. `src/pages/CampaignWizard.tsx` — include dates in save payloads
-4. `src/components/campaign-wizard/CampaignPreviewPanel.tsx` — display dates in preview
-5. `src/pages/Campaigns.tsx` — add inline date pickers to campaign detail header
-
-### Technical details
-- Date pickers use Shadcn `Calendar` inside `Popover` with `pointer-events-auto`
-- On date change in detail page: `supabase.from('campaigns').update({ launch_date }).eq('id', campaign.id)` then update local state
-- Wizard draft format instruction addition: `"Include launch_date and end_date (YYYY-MM-DD) in the draft. Derive from the content calendar: launch_date = earliest publish_date minus 7 days prep, end_date = latest publish_date plus 7 days."`
-- No schema changes needed — columns already exist
+1. `src/pages/Campaigns.tsx` — two lines changed
 
