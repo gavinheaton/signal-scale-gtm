@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 import { OrgRole } from '@/types/database';
 import { Bot, FileText, Settings2, Trash2, Eye, EyeOff, ExternalLink, Loader2, CheckCircle2 } from 'lucide-react';
 import ApiAccessCard from '@/components/settings/ApiAccessCard';
+import NotionSyncStatus from '@/components/settings/NotionSyncStatus';
 
 const PROVIDERS = [
   { id: 'claude' as const, name: 'Claude (Anthropic)', icon: Bot, description: 'Powers AI wizards for ICP & Persona generation' },
