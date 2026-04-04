@@ -1,48 +1,56 @@
 
-Root cause
 
-- The browser shows a 502, but the actual Notion error in the edge-function logs is:
-  `404 object_not_found`
-- Notion is saying it cannot access page `3378e087-684e-80bb-a019-da1244601619` and explicitly says to share it with the integration `Signal2Scale`.
-- So the UUID parsing fix is working. The request is reaching Notion now. The remaining problem is Notion access/configuration.
+# Add Integration Help Page
 
-Do we need Notion MCP?
+## What
+A new `/project/help` page documenting the step-by-step setup process for Claude (Anthropic) and Notion integrations, accessible from the sidebar and linked from the Settings connections section.
 
-- No. MCP is for helping the Lovable agent access Notion while building.
-- Your app runtime still needs the Notion API via Supabase edge functions.
-- So the correct approach is to keep the current Notion API integration, not switch to MCP.
+## Pages and Components
 
-Plan
+### 1. New page: `src/pages/IntegrationHelp.tsx`
 
-1. Keep the current Notion API flow and fix the real issue: parent-page access.
-2. Harden these edge functions so they return actionable errors instead of a generic 502:
-   - `supabase/functions/push-asset-to-notion/index.ts`
-   - `supabase/functions/bulk-push-campaign-to-notion/index.ts`
-   - `supabase/functions/create-notion-campaign-brief/index.ts`
-3. Map Notion `object_not_found` / permission failures to a clearer message such as:
-   - “The target Notion page is not shared with the Signal2Scale integration.”
-   - “Update `NOTION_CAMPAIGN_BRIEFS_PAGE_ID` if it points to the wrong page.”
-4. Update `src/components/campaigns/AssetDetailDrawer.tsx` so the toast surfaces the returned Notion details instead of only “Push failed”.
-5. Align all Notion functions to use the same parent-ID normalization logic. `create-notion-campaign-brief` still uses the raw secret and should be brought in line with the other Notion functions.
-6. Verify all affected flows:
-   - single asset push
-   - bulk campaign push
-   - campaign brief creation
+A clean documentation-style page with expandable sections for each integration:
 
-Required Notion setup
+**Claude (Anthropic) section:**
+- What it powers (ICP wizard, Persona wizard, Brand Voice wizard, Campaign content generation)
+- Step 1: Create an Anthropic account at console.anthropic.com
+- Step 2: Generate an API key under API Keys
+- Step 3: Go to Settings > Connections in Signal+Scale
+- Step 4: Click Configure on Claude, paste the key
+- Note about billing/credits on the Anthropic side
 
-1. Open the target Notion page referenced by `NOTION_CAMPAIGN_BRIEFS_PAGE_ID`
-2. Click `Share`
-3. Add the `Signal2Scale` integration to that page (or its parent database/workspace, depending on how it is organized)
-4. If that page was moved, duplicated, or belongs to another workspace, replace the secret with the correct shared page URL/ID
+**Notion section:**
+- What it powers (push campaign assets, create campaign briefs)
+- Step 1: Go to notion.so/my-integrations, create a new integration named "Signal2Scale"
+- Step 2: Copy the integration token (starts with `ntn_`)
+- Step 3: Go to Settings > Connections, configure Notion with the token
+- Step 4: Share target Notion pages with the integration (critical step — explain the Share > Add integration flow)
+- Step 5: Set the `NOTION_CAMPAIGN_BRIEFS_PAGE_ID` secret (admin/Supabase step)
+- Troubleshooting: "object_not_found" means the page isn't shared with the integration
 
-If the target is actually a database
+**General troubleshooting section:**
+- 502 errors → check if API key is valid and service is accessible
+- Permission errors → verify org role (admin+ required to manage connections)
+- Link to Settings page for quick access
 
-- Then these functions should use `parent.database_id` instead of `parent.page_id`.
-- I would keep the current page-based setup unless you confirm the destination is meant to be a database, because the existing payload is structured for child pages under a page.
+### 2. Update sidebar: `src/components/AppSidebar.tsx`
+- Add a "Help" nav item with `HelpCircle` icon pointing to `/project/help`
 
-Technical details
+### 3. Update router: `src/App.tsx`
+- Add route `<Route path="/project/help" element={<IntegrationHelp />} />`
 
-- Real upstream error from logs:
-  `Could not find page with ID ... Make sure the relevant pages and databases are shared with your integration "Signal2Scale".`
-- That means this is no longer a formatting issue and not an MCP issue; it is a Notion permission/target issue.
+### 4. Update Settings page: `src/pages/Settings.tsx`
+- Add a small "Need help setting up?" link below the Connections card description, linking to `/project/help`
+
+## Design
+- Uses existing Card, Accordion components for collapsible sections
+- Consistent with the app's existing styling (Poppins, navy/purple/orange palette)
+- Step numbers use orange accent badges
+- Code snippets (API key formats) in monospace with muted background
+
+## Files changed
+1. `src/pages/IntegrationHelp.tsx` — new file
+2. `src/components/AppSidebar.tsx` — add Help nav item
+3. `src/App.tsx` — add route
+4. `src/pages/Settings.tsx` — add help link
+
