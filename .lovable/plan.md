@@ -1,44 +1,25 @@
 
 
-# Pre-load ICP & Persona Context into Brand Voice Wizard
+# Fix: React Error #31 in Brand Voice Preview Panel
 
 ## Problem
-The brand voice wizard asks about target audiences from scratch, even when the project already has defined ICPs and personas. This creates redundant questions and a disjointed experience.
+React error #31: "Objects are not valid as a React child (keys: {phrase, alternative})". The AI sometimes returns `preferred_vocabulary` items as `{phrase, alternative}` instead of the expected `{use, instead_of}`. Similarly, `banned_phrases` items may come back as objects instead of strings. When the preview panel tries to render these directly, React crashes.
 
-## Solution
-Fetch ICPs and personas for the project in the edge function, inject them into the system prompt as known context, and adjust the prompt instructions so Claude treats audiences as pre-filled and focuses on tone nuance per segment instead.
+## Fix
 
-## Changes
+**File: `src/components/brand-voice-wizard/BrandVoicePreviewPanel.tsx`**
 
-### 1. Edge Function (`supabase/functions/brand-voice-wizard/index.ts`)
+Make the `SectionContent` renderer defensive against varying AI output shapes:
 
-**Fetch ICP + persona data** alongside the existing `brand_context` fetch (around line 222):
-- Query `icps` table for `segment_name, firmographics, psychographics, matrix_category, fit_score`
-- Query `personas` table for `persona_name, role_in_buying, goals, pain_points, channel_preferences`
-- Both filtered by `project_id`
+1. **`preferred_vocabulary`** (line ~183): Accept both `{use, instead_of}` and `{phrase, alternative}` key names:
+   ```
+   v.use || v.phrase  →  display text
+   v.instead_of || v.alternative  →  strikethrough text
+   ```
 
-**Inject into system prompt** (around line 325):
-- If ICPs exist, append a structured block listing each ICP segment with key firmographic/psychographic details
-- If personas exist, append a block listing each persona with their role, goals, and pain points
-- Include instruction: "These ICPs and personas are already defined for this project. Do NOT ask the user to describe their target audience from scratch. Instead, use these to pre-populate the target_audiences section and ask nuanced questions about how tone should shift for each segment/persona."
+2. **`banned_phrases`** (line ~177): Handle items that are objects (stringify them) instead of only expecting strings.
 
-**Pre-seed the draft**: When ICPs/personas exist and it's a new session, auto-populate `target_audiences` in the initial draft with segments derived from the ICP/persona data, so the preview panel shows partial completion immediately.
+3. **General fallback** (bottom of `SectionContent`): The JSON fallback is fine, but add a safety wrapper so any section with unexpected object items won't crash React — convert objects to strings before rendering in Badge/text contexts.
 
-### 2. System Prompt Adjustment
-
-Update the `FALLBACK_SYSTEM_PROMPT` section about Target Audiences:
-- Current: "Target Audiences — Key audience segments with tone adjustments per segment"
-- Updated: Add conditional instruction that when ICP/persona data is provided, the AI should reference those segments by name and ask about tone nuance (e.g., "How should your tone shift when addressing a CTO champion vs an economic buyer?") rather than asking "Who is your audience?"
-
-### 3. Initial Message
-
-Update `INITIAL_MESSAGE` logic: when ICPs/personas exist, adjust the opening message to acknowledge them, e.g.: "I can see you've already defined your ICPs and personas — I'll use those to shape the audience sections. Let's start with your company name and how you want your brand to sound."
-
-## Files to Modify
-
-| File | Change |
-|------|--------|
-| `supabase/functions/brand-voice-wizard/index.ts` | Fetch ICPs + personas, inject into system prompt, pre-seed target_audiences draft |
-
-No frontend changes needed — the preview panel already renders `target_audiences` dynamically.
+Single file change, no backend modifications needed.
 
