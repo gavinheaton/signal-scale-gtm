@@ -21,6 +21,7 @@ import BrandVoiceDetail from "@/pages/BrandVoiceDetail";
 import ContentPipeline from "@/pages/ContentPipeline";
 import Analytics from "@/pages/Analytics";
 import SettingsPage from "@/pages/Settings";
+import IntegrationHelp from "@/pages/IntegrationHelp";
 import AdminDashboard from "@/pages/AdminDashboard";
 import NotFound from "@/pages/NotFound";
 
