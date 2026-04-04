@@ -150,7 +150,8 @@ export default function SettingsPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              Configure API keys for external services used by this project's AI features.
+              Configure API keys for external services used by this project's AI features.{' '}
+              <a href="/project/help" className="underline text-primary">Need help setting up?</a>
             </p>
             {PROVIDERS.map(provider => {
               const isConnected = connections[provider.id];

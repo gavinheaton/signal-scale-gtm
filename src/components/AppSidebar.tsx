@@ -25,6 +25,7 @@ const navItems = [
   { title: 'Content Pipeline', url: '/project/content', icon: FileText },
   { title: 'Analytics', url: '/project/analytics', icon: BarChart3 },
   { title: 'Settings', url: '/project/settings', icon: Settings },
+  { title: 'Help', url: '/project/help', icon: HelpCircle },
 ];
 
 export function AppSidebar() {
