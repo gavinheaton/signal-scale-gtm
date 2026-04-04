@@ -172,7 +172,14 @@ Deno.serve(async (req) => {
 
         if (res.ok) {
           itemsPushed++;
-          await res.json();
+          const notionPage = await res.json();
+          const pageUrl = notionPage.url || null;
+          if (pageUrl) {
+            await adminClient
+              .from("campaign_assets")
+              .update({ notion_url: pageUrl })
+              .eq("id", asset.id);
+          }
         } else {
           const errText = await res.text();
           console.error(`Failed to create Notion page for "${asset.title}":`, errText);

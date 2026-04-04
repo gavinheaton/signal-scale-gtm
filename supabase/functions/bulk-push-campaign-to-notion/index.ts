@@ -96,12 +96,13 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Fetch all assets with content
+    // Fetch all assets with content that haven't been pushed yet
     const { data: assets } = await supabase
       .from("campaign_assets")
       .select("*")
       .eq("campaign_id", campaign_id)
-      .not("content", "is", null);
+      .not("content", "is", null)
+      .is("notion_url", null);
 
     if (!assets || assets.length === 0) {
       return new Response(JSON.stringify({ error: "No assets with content to push" }), {

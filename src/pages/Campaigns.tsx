@@ -145,10 +145,13 @@ export default function Campaigns() {
             {bulkGenerating ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Sparkles className="h-4 w-4 mr-1" />}
             Generate All Content {briefCount > 0 && `(${briefCount})`}
           </Button>
-          <Button variant="outline" onClick={handleBulkPush} disabled={bulkPushing || withContent === 0}>
+          <Button variant="outline" onClick={handleBulkPush} disabled={bulkPushing || pushableCount === 0}>
             {bulkPushing ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <ExternalLink className="h-4 w-4 mr-1" />}
-            Push All to Notion {withContent > 0 && `(${withContent})`}
+            Push to Notion {pushableCount > 0 && `(${pushableCount})`}
           </Button>
+          {alreadyPushed > 0 && (
+            <span className="text-xs text-muted-foreground">{alreadyPushed} already in Notion</span>
+          )}
           {(bulkGenerating || bulkPushing) && (
             <div className="flex-1 min-w-[120px]">
               <Progress value={bulkProgress} className="h-2" />
