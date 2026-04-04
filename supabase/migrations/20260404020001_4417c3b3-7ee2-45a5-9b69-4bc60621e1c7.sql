@@ -1,0 +1,1 @@
+UPDATE campaign_assets SET asset_type = 'press_release' WHERE title = 'Healthcare AI Press Release';
