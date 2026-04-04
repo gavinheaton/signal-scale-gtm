@@ -102,7 +102,8 @@ export default function Campaigns() {
   };
 
   const briefCount = assets.filter(a => a.status === 'brief').length;
-  const withContent = assets.filter(a => a.content).length;
+  const pushableCount = assets.filter(a => a.content && !a.notion_url).length;
+  const alreadyPushed = assets.filter(a => a.notion_url).length;
 
   const activeCampaigns = campaigns.filter(c => c.status === 'active');
   const captureActive = activeCampaigns.filter(c => c.track === 'demand_capture').length;
