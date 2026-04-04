@@ -43,7 +43,7 @@ export default function SettingsPage() {
   const canInvite = hasMinRole('admin');
   const canManageConnections = hasMinRole('admin');
 
-  // Fetch existing connections
+  // Fetch existing connections + Notion workspace state
   useEffect(() => {
     if (!currentProject) return;
     setLoadingConnections(true);
@@ -57,6 +57,15 @@ export default function SettingsPage() {
         setConnections(map);
         setLoadingConnections(false);
       });
+
+    // Check for existing Notion workspace
+    if (currentProject.notion_workspace_id) {
+      setNotionWorkspaceId(currentProject.notion_workspace_id);
+      setNotionWorkspaceUrl(`https://notion.so/${currentProject.notion_workspace_id.replace(/-/g, '')}`);
+    } else {
+      setNotionWorkspaceId(null);
+      setNotionWorkspaceUrl(null);
+    }
   }, [currentProject]);
 
   const handleInvite = async () => {
