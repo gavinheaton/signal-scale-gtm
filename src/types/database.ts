@@ -87,6 +87,8 @@ export interface CampaignAsset {
   status: AssetStatus;
   publish_date: string;
   persona_target_ids: string[];
+  content: string | null;
+  notion_url: string | null;
 }
 
 export interface ProjectConnection {
