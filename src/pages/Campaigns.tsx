@@ -12,6 +12,8 @@ import { Progress } from '@/components/ui/progress';
 import AssetDetailDrawer from '@/components/campaigns/AssetDetailDrawer';
 import CampaignTimeline from '@/components/campaigns/CampaignTimeline';
 import CampaignMetricsSummary from '@/components/campaigns/CampaignMetricsSummary';
+import CampaignJourneyView from '@/components/campaigns/CampaignJourneyView';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 
 const statusColumns: CampaignStatus[] = ['brief', 'planning', 'active', 'complete'];
 const trackColors = { demand_capture: 'bg-orange-100 text-orange-800', demand_creation: 'bg-purple-100 text-purple-800' };
