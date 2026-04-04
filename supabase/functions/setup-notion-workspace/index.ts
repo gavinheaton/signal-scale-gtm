@@ -80,6 +80,14 @@ Deno.serve(async (req) => {
       });
     }
 
+    const normalizedParentPageId = extractNotionId(PARENT_PAGE_ID);
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(normalizedParentPageId)) {
+      return new Response(JSON.stringify({ error: "NOTION_CAMPAIGN_BRIEFS_PAGE_ID must be a valid Notion page ID or URL" }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const notionHeaders = {
       Authorization: `Bearer ${NOTION_TOKEN}`,
       "Content-Type": "application/json",
@@ -91,7 +99,7 @@ Deno.serve(async (req) => {
       method: "POST",
       headers: notionHeaders,
       body: JSON.stringify({
-        parent: { page_id: PARENT_PAGE_ID },
+        parent: { page_id: normalizedParentPageId },
         icon: { type: "emoji", emoji: "🎯" },
         properties: {
           title: [{ text: { content: `${project.name} — GTM Workspace` } }],
