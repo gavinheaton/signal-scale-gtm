@@ -1,13 +1,14 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { CampaignAsset, AssetStatus } from '@/types/database';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Loader2, Sparkles, ExternalLink, RefreshCw } from 'lucide-react';
+import { Loader2, Sparkles, ExternalLink, RefreshCw, Pencil, Save, X } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 
 const statusColors: Record<AssetStatus, string> = {
@@ -31,8 +32,48 @@ export default function AssetDetailDrawer({ asset, open, onOpenChange, onUpdated
   const [generating, setGenerating] = useState(false);
   const [pushing, setPushing] = useState(false);
   const [promptOverride, setPromptOverride] = useState('');
+  const [editing, setEditing] = useState(false);
+  const [editContent, setEditContent] = useState('');
+  const [editTitle, setEditTitle] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!open) setEditing(false);
+  }, [open]);
 
   if (!asset) return null;
+
+  const startEditing = () => {
+    setEditContent(asset.content || '');
+    setEditTitle(asset.title);
+    setEditing(true);
+  };
+
+  const cancelEditing = () => {
+    setEditing(false);
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const updates: Record<string, unknown> = { content: editContent, title: editTitle };
+      if (asset.status === 'brief' && editContent.trim()) {
+        updates.status = 'draft';
+      }
+      const { error } = await supabase
+        .from('campaign_assets')
+        .update(updates)
+        .eq('id', asset.id);
+      if (error) throw error;
+      toast.success('Asset saved');
+      setEditing(false);
+      onUpdated();
+    } catch (err: any) {
+      toast.error(err.message || 'Save failed');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const handleGenerate = async () => {
     setGenerating(true);
@@ -57,7 +98,6 @@ export default function AssetDetailDrawer({ asset, open, onOpenChange, onUpdated
         body: { asset_id: asset.id },
       });
       if (error) {
-        // Try to extract the detailed error from the response
         let msg = 'Push failed';
         try {
           const parsed = typeof error === 'object' && error.context ? await error.context.json?.() : null;
@@ -93,9 +133,17 @@ export default function AssetDetailDrawer({ asset, open, onOpenChange, onUpdated
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full sm:max-w-lg overflow-y-auto">
+      <SheetContent side="right" className="w-full sm:max-w-2xl overflow-y-auto">
         <SheetHeader>
-          <SheetTitle>{asset.title}</SheetTitle>
+          {editing ? (
+            <Input
+              value={editTitle}
+              onChange={(e) => setEditTitle(e.target.value)}
+              className="text-lg font-semibold"
+            />
+          ) : (
+            <SheetTitle>{asset.title}</SheetTitle>
+          )}
           <SheetDescription className="flex items-center gap-2">
             <Badge variant="outline" className="text-xs">{asset.asset_type.replace(/_/g, ' ')}</Badge>
             <Badge className={statusColors[asset.status]}>{asset.status}</Badge>
@@ -114,11 +162,37 @@ export default function AssetDetailDrawer({ asset, open, onOpenChange, onUpdated
             </Select>
           </div>
 
-          {/* Content preview */}
+          {/* Content */}
           <div>
-            <label className="text-sm font-medium text-muted-foreground">Content</label>
-            {asset.content ? (
-              <div className="mt-2 prose prose-sm max-w-none bg-muted/50 rounded-md p-4 max-h-80 overflow-y-auto">
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-medium text-muted-foreground">Content</label>
+              {!editing && (
+                <Button variant="ghost" size="sm" onClick={startEditing}>
+                  <Pencil className="h-4 w-4 mr-1" /> Edit
+                </Button>
+              )}
+            </div>
+            {editing ? (
+              <div className="mt-2 space-y-2">
+                <Textarea
+                  value={editContent}
+                  onChange={(e) => setEditContent(e.target.value)}
+                  rows={16}
+                  className="font-mono text-sm"
+                  placeholder="Write your content in markdown..."
+                />
+                <div className="flex gap-2">
+                  <Button onClick={handleSave} disabled={saving} size="sm">
+                    {saving ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Save className="h-4 w-4 mr-1" />}
+                    Save
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={cancelEditing}>
+                    <X className="h-4 w-4 mr-1" /> Cancel
+                  </Button>
+                </div>
+              </div>
+            ) : asset.content ? (
+              <div className="mt-2 prose prose-sm max-w-none bg-muted/50 rounded-md p-4 max-h-96 overflow-y-auto">
                 <ReactMarkdown>{asset.content}</ReactMarkdown>
               </div>
             ) : (
