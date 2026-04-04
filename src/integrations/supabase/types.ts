@@ -14,6 +14,78 @@ export type Database = {
   }
   public: {
     Tables: {
+      brand_voices: {
+        Row: {
+          banned_phrases: string[] | null
+          brand_identity: Json | null
+          content_type_guidance: Json | null
+          created_at: string | null
+          formatting_rules: string[] | null
+          id: string
+          personality_adjectives: string[] | null
+          preferred_vocabulary: Json | null
+          project_id: string
+          status: string
+          target_audiences: Json | null
+          tone_description: string | null
+          updated_at: string | null
+          wizard_session_id: string | null
+          writing_principles: Json | null
+          writing_samples: Json | null
+        }
+        Insert: {
+          banned_phrases?: string[] | null
+          brand_identity?: Json | null
+          content_type_guidance?: Json | null
+          created_at?: string | null
+          formatting_rules?: string[] | null
+          id?: string
+          personality_adjectives?: string[] | null
+          preferred_vocabulary?: Json | null
+          project_id: string
+          status?: string
+          target_audiences?: Json | null
+          tone_description?: string | null
+          updated_at?: string | null
+          wizard_session_id?: string | null
+          writing_principles?: Json | null
+          writing_samples?: Json | null
+        }
+        Update: {
+          banned_phrases?: string[] | null
+          brand_identity?: Json | null
+          content_type_guidance?: Json | null
+          created_at?: string | null
+          formatting_rules?: string[] | null
+          id?: string
+          personality_adjectives?: string[] | null
+          preferred_vocabulary?: Json | null
+          project_id?: string
+          status?: string
+          target_audiences?: Json | null
+          tone_description?: string | null
+          updated_at?: string | null
+          wizard_session_id?: string | null
+          writing_principles?: Json | null
+          writing_samples?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "brand_voices_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "brand_voices_wizard_session_id_fkey"
+            columns: ["wizard_session_id"]
+            isOneToOne: false
+            referencedRelation: "wizard_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       campaign_assets: {
         Row: {
           asset_type: Database["public"]["Enums"]["asset_type"]
@@ -346,6 +418,7 @@ export type Database = {
           methodology_progress: Json | null
           name: string
           org_id: string
+          slug: string | null
           status: Database["public"]["Enums"]["project_status"]
         }
         Insert: {
@@ -355,6 +428,7 @@ export type Database = {
           methodology_progress?: Json | null
           name: string
           org_id: string
+          slug?: string | null
           status?: Database["public"]["Enums"]["project_status"]
         }
         Update: {
@@ -364,6 +438,7 @@ export type Database = {
           methodology_progress?: Json | null
           name?: string
           org_id?: string
+          slug?: string | null
           status?: Database["public"]["Enums"]["project_status"]
         }
         Relationships: [
@@ -429,6 +504,7 @@ export type Database = {
         Args: { _project_id: string }
         Returns: undefined
       }
+      generate_slug: { Args: { input: string }; Returns: string }
       is_superadmin: { Args: { _user_id: string }; Returns: boolean }
       user_has_org_access: {
         Args: { _org_id: string; _user_id: string }
@@ -478,7 +554,12 @@ export type Database = {
         | "end_user"
         | "blocker"
       wizard_session_status: "in_progress" | "complete"
-      wizard_session_type: "icp" | "persona" | "competitor" | "campaign"
+      wizard_session_type:
+        | "icp"
+        | "persona"
+        | "competitor"
+        | "campaign"
+        | "brand_voice"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -643,7 +724,13 @@ export const Constants = {
         "blocker",
       ],
       wizard_session_status: ["in_progress", "complete"],
-      wizard_session_type: ["icp", "persona", "competitor", "campaign"],
+      wizard_session_type: [
+        "icp",
+        "persona",
+        "competitor",
+        "campaign",
+        "brand_voice",
+      ],
     },
   },
 } as const
