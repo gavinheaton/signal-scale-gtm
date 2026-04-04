@@ -68,7 +68,7 @@ export default function ContentPipeline() {
           <SelectTrigger className="w-40"><SelectValue placeholder="Type" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Types</SelectItem>
-            {(['blog', 'video', 'podcast', 'linkedin_post', 'email', 'webinar', 'whitepaper'] as const).map(t => <SelectItem key={t} value={t}>{t.replace('_', ' ')}</SelectItem>)}
+            {(['blog', 'video', 'podcast', 'linkedin_post', 'email', 'webinar', 'whitepaper', 'press_release'] as const).map(t => <SelectItem key={t} value={t}>{t.replace(/_/g, ' ')}</SelectItem>)}
           </SelectContent>
         </Select>
       </div>
