@@ -1,49 +1,43 @@
 
 
-# Group Content Pipeline by Campaign
+# Auto-extract Generated Title + Inline Title Edit
 
-## What changes
+## Problem
 
-`/project/content` currently renders one flat table of all `campaign_assets`. Switch to a **campaign-grouped layout** with the most recent campaign first.
+When AI generates content (e.g. blog post), it writes a strong headline at the top of the markdown — but the asset's `title` field stays as the original placeholder (e.g. "Blog Post — Week 3"). Users have no quick way to fix this from the drawer; the existing edit button bundles title + body together.
 
-## Layout
+## Solution
+
+### 1. Auto-extract title server-side after generation
+
+In `supabase/functions/generate-campaign-content/index.ts`, after the AI returns content:
+
+- Parse the first markdown heading (`# Title` or `## Title`) from the generated content.
+- If found AND the existing asset title looks generic (matches patterns like `Blog Post`, `Email N`, `Untitled`, or equals the asset_type label), update `title` alongside `content`.
+- Strip that heading from the body before saving so it isn't rendered twice (the title is already shown in the drawer header).
+- Fallback: if no heading found, leave the existing title untouched.
+
+This means freshly generated assets land with a real headline without any user action. Existing custom titles are preserved.
+
+### 2. Inline title edit in `AssetDetailDrawer.tsx`
+
+Add a small **pencil button next to the title** in the sheet header, independent of the existing content editor:
 
 ```text
-┌─ Content Pipeline ─────────────────────────────────────────┐
-│  [Status filter] [Type filter]                             │
-│                                                            │
-│  ▼ Disruptors Co — 12-Week Newsletter Arc                  │
-│     planning · Apr 22 → Jul 22 · 36 assets                 │
-│     ┌──────────────────────────────────────────────────┐   │
-│     │ Title │ Type │ Status │ Publish Date             │   │
-│     │ ...   │ ...  │ ...    │ ...                      │   │
-│     └──────────────────────────────────────────────────┘   │
-│                                                            │
-│  ▶ Healthcare AI 90-Day Sprint                             │
-│     active · Mar 19 → ... · 13 assets                      │
-│                                                            │
-│  ▶ (campaigns with no assets — collapsed, muted)           │
-└────────────────────────────────────────────────────────────┘
+┌─ [Asset Title]  ✎  ─────────── ✕ ─┐
+│  badge: blog · badge: draft       │
 ```
 
-- One **collapsible section per campaign**, ordered by `launch_date DESC` (latest first); campaigns without `launch_date` fall to the bottom.
-- The latest campaign is **expanded by default**; the rest collapsed.
-- Section header shows: campaign name, status badge, launch → end date range, asset count (post-filter / total).
-- The Campaign column is removed from the table (now redundant — it's the section header).
-- Filters apply within each group; a group with zero matches after filtering is hidden.
-- Empty state when no campaigns exist for the project: existing "No assets found" message reworded.
+Behaviour:
+- Click pencil → title becomes an `<Input>` inline with **Save** (check icon) and **Cancel** (X) buttons.
+- Enter key saves, Esc cancels.
+- Save calls `supabase.from('campaign_assets').update({ title }).eq('id', asset.id)`, toasts success, calls `onUpdated()`.
+- Independent from the existing body-edit flow (which still edits both title + content together — left as-is for power editing).
 
-## Technical changes
+### 3. Files
 
-**File**: `src/pages/ContentPipeline.tsx` (only file touched)
+- `supabase/functions/generate-campaign-content/index.ts` — extract & strip first heading, update title when generic.
+- `src/components/campaigns/AssetDetailDrawer.tsx` — pencil button + inline title editor in `SheetHeader`.
 
-1. Sort `campaigns` array by `launch_date` desc (nulls last) after fetch.
-2. Build a `Map<campaignId, CampaignAsset[]>` from filtered assets.
-3. Replace the single `<Table>` with a list of `<Collapsible>` sections (already available at `src/components/ui/collapsible.tsx`), each containing its own table.
-4. Track expanded state with `useState<Set<string>>`; initialise with the first campaign's id.
-5. Section header: flex row with `ChevronRight`/`ChevronDown` icon (lucide-react), campaign name (font-semibold), status `Badge`, date range and asset count in `text-muted-foreground`.
-6. Drop the `campaign_name` denorm field on assets — no longer needed.
-7. Keep the existing `Sheet` asset detail drawer unchanged.
-
-No schema, edge function, or routing changes.
+No schema or routing changes.
 
