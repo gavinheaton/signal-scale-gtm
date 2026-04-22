@@ -337,6 +337,7 @@ export default function AssetDetailDrawer({ asset, open, onOpenChange, onUpdated
           )}
         </div>
       </SheetContent>
+      <EmailAssetDialog asset={asset} open={emailOpen} onOpenChange={setEmailOpen} />
     </Sheet>
   );
 }
