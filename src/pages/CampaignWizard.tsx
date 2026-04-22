@@ -11,6 +11,7 @@ import ReactMarkdown from 'react-markdown';
 import { CampaignPreviewPanel } from '@/components/campaign-wizard/CampaignPreviewPanel';
 import { CAMPAIGN_SECTIONS, getCampaignSectionStatus, type CampaignDraft, type ContentCalendarItem } from '@/components/campaign-wizard/types';
 import type { AssetType } from '@/types/database';
+import { stripDraft } from '@/lib/stripDraft';
 
 interface ChatMessage {
   role: 'user' | 'assistant';
@@ -85,9 +86,7 @@ export default function CampaignWizard() {
         setMessages(
           sessionMessages.map(m => ({
             role: m.role as 'user' | 'assistant',
-            content: m.role === 'assistant'
-              ? m.content.replace(/<draft>[\s\S]*?<\/draft>/g, '').trim()
-              : m.content,
+            content: m.role === 'assistant' ? stripDraft(m.content) : m.content,
           }))
         );
         if (session.draft_output && Object.keys(session.draft_output as object).length > 0) {

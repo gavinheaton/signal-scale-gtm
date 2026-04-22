@@ -164,7 +164,7 @@ export default function PersonaDetailModal({ persona, icp, open, onOpenChange, o
 
       const { error } = await supabase
         .from('personas')
-        .update(updateData)
+        .update(updateData as never)
         .eq('id', persona.id);
 
       if (error) throw error;

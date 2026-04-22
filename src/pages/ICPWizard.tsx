@@ -11,6 +11,7 @@ import ReactMarkdown from 'react-markdown';
 import { ICPPreviewPanel } from '@/components/icp-wizard/ICPPreviewPanel';
 import { ICP_SECTIONS, getSectionStatus, type DraftOutput, type ChatMessage } from '@/components/icp-wizard/types';
 import type { MatrixCategory } from '@/types/database';
+import { stripDraft } from '@/lib/stripDraft';
 
 export default function ICPWizard() {
   const { currentProject } = useProject();
@@ -67,9 +68,7 @@ export default function ICPWizard() {
         setMessages(
           sessionMessages.map(m => ({
             role: m.role as 'user' | 'assistant',
-            content: m.role === 'assistant'
-              ? m.content.replace(/<draft>[\s\S]*?<\/draft>/g, '').trim()
-              : m.content,
+            content: m.role === 'assistant' ? stripDraft(m.content) : m.content,
           }))
         );
         if (session.draft_output && Object.keys(session.draft_output as object).length > 0) {

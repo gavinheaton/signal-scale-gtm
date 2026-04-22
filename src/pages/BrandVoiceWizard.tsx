@@ -10,6 +10,7 @@ import { ArrowLeft, Send, Sparkles, Loader2 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { BrandVoicePreviewPanel } from '@/components/brand-voice-wizard/BrandVoicePreviewPanel';
 import { BRAND_VOICE_SECTIONS, getSectionStatus, type BrandVoiceDraft, type ChatMessage } from '@/components/brand-voice-wizard/types';
+import { stripDraft } from '@/lib/stripDraft';
 
 export default function BrandVoiceWizard() {
   const { currentProject } = useProject();
@@ -66,9 +67,7 @@ export default function BrandVoiceWizard() {
         setMessages(
           sessionMessages.map(m => ({
             role: m.role as 'user' | 'assistant',
-            content: m.role === 'assistant'
-              ? m.content.replace(/<draft>[\s\S]*?<\/draft>/g, '').trim()
-              : m.content,
+            content: m.role === 'assistant' ? stripDraft(m.content) : m.content,
           }))
         );
         if (session.draft_output && Object.keys(session.draft_output as object).length > 0) {
