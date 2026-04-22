@@ -39,3 +39,5 @@ project_id = "xiufgczyecwgnkbyroow"
     verify_jwt = false
   [functions.publish-to-wordpress]
     verify_jwt = false
+  [functions.manage-org-wordpress-connection]
+    verify_jwt = false

@@ -151,6 +151,20 @@ export interface ProjectVisualSettings {
   updated_at: string;
 }
 
+export type WpFlavor = 'wordpress_com' | 'self_hosted';
+
+export interface OrgWordPressConnection {
+  id: string;
+  org_id: string;
+  flavor: WpFlavor;
+  site_url: string;
+  username: string | null;
+  default_category: string | null;
+  default_status: string;
+  connected_at: string;
+  updated_at: string;
+}
+
 export interface ProjectConnection {
   id: string;
   project_id: string;
