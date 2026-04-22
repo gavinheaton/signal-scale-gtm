@@ -45,6 +45,7 @@ export default function AssetDetailDrawer({ asset, open, onOpenChange, onUpdated
   const [titleEditing, setTitleEditing] = useState(false);
   const [titleDraft, setTitleDraft] = useState('');
   const [titleSaving, setTitleSaving] = useState(false);
+  const [emailOpen, setEmailOpen] = useState(false);
 
   useEffect(() => {
     if (!open) {
