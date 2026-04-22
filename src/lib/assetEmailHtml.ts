@@ -62,6 +62,7 @@ export function markdownToEmailHtml(markdown: string, { title, assetType, featur
     </div>
     <div class="meta"><span class="chip">${safeType}</span></div>
     <h1 class="title">${safeTitle}</h1>
+    ${heroHtml}
     <div class="content">${bodyHtml}</div>
     <div class="footer">
       Sent from <span class="footer-brand">Signal + Scale</span>. This is a content preview from your GTM workspace.
