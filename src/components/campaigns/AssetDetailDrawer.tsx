@@ -110,6 +110,8 @@ export default function AssetDetailDrawer({ asset, open, onOpenChange, onUpdated
       setTitleSaving(false);
     }
   };
+
+  const handleGenerate = async () => {
     setGenerating(true);
     try {
       const { data, error } = await supabase.functions.invoke('generate-campaign-content', {
