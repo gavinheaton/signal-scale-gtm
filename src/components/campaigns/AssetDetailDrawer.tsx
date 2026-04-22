@@ -10,6 +10,10 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Loader2, Sparkles, ExternalLink, RefreshCw, Pencil, Save, X } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import AssetVisualsPanel from './AssetVisualsPanel';
+import AssetSEOPanel from './AssetSEOPanel';
+import AssetPublishPanel from './AssetPublishPanel';
+import { Separator } from '@/components/ui/separator';
 
 const statusColors: Record<AssetStatus, string> = {
   brief: 'bg-muted text-muted-foreground',
