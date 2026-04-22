@@ -411,6 +411,56 @@ export type Database = {
           },
         ]
       }
+      org_wordpress_connections: {
+        Row: {
+          connected_at: string
+          connected_by: string | null
+          credential_secret_id: string
+          default_category: string | null
+          default_status: string
+          flavor: Database["public"]["Enums"]["wp_flavor"]
+          id: string
+          org_id: string
+          site_url: string
+          updated_at: string
+          username: string | null
+        }
+        Insert: {
+          connected_at?: string
+          connected_by?: string | null
+          credential_secret_id: string
+          default_category?: string | null
+          default_status?: string
+          flavor: Database["public"]["Enums"]["wp_flavor"]
+          id?: string
+          org_id: string
+          site_url: string
+          updated_at?: string
+          username?: string | null
+        }
+        Update: {
+          connected_at?: string
+          connected_by?: string | null
+          credential_secret_id?: string
+          default_category?: string | null
+          default_status?: string
+          flavor?: Database["public"]["Enums"]["wp_flavor"]
+          id?: string
+          org_id?: string
+          site_url?: string
+          updated_at?: string
+          username?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "org_wordpress_connections_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: true
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       organisations: {
         Row: {
           created_at: string | null
@@ -684,6 +734,20 @@ export type Database = {
         Returns: undefined
       }
       generate_slug: { Args: { input: string }; Returns: string }
+      get_my_org_wp_connection: {
+        Args: { _org_id: string }
+        Returns: {
+          connected_at: string
+          default_category: string
+          default_status: string
+          flavor: Database["public"]["Enums"]["wp_flavor"]
+          id: string
+          org_id: string
+          site_url: string
+          updated_at: string
+          username: string
+        }[]
+      }
       is_superadmin: { Args: { _user_id: string }; Returns: boolean }
       user_has_org_access: {
         Args: { _org_id: string; _user_id: string }
@@ -744,6 +808,7 @@ export type Database = {
         | "competitor"
         | "campaign"
         | "brand_voice"
+      wp_flavor: "wordpress_com" | "self_hosted"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -915,6 +980,7 @@ export const Constants = {
         "campaign",
         "brand_voice",
       ],
+      wp_flavor: ["wordpress_com", "self_hosted"],
     },
   },
 } as const
