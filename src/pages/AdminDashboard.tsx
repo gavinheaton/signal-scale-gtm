@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { toast } from 'sonner';
-import { Plus, Building2, Users, FolderOpen, Shield } from 'lucide-react';
+import { Plus, Building2, Users, FolderOpen, Shield, Clock, Wand2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Organisation, OrgMembership, Project } from '@/types/database';
 import type { OrgType, OrgRole } from '@/types/database';
