@@ -26,6 +26,17 @@ function mergeDrafts(existing: Record<string, any>, incoming: Record<string, any
   return merged;
 }
 
+/** Strip <draft> blocks (well-formed + orphan) and stray ```json fences. */
+function stripDraft(text: string): string {
+  if (!text) return text;
+  let out = text;
+  out = out.replace(/<draft>[\s\S]*?<\/draft>/g, "");
+  out = out.replace(/<draft>[\s\S]*$/g, "");
+  out = out.replace(/```json[\s\S]*?```/g, "");
+  out = out.replace(/```json[\s\S]*$/g, "");
+  return out.trim();
+}
+
 /** Try to parse JSON with cleanup for common LLM issues */
 function robustJsonParse(raw: string): Record<string, any> | null {
   try { return JSON.parse(raw); } catch { /* continue */ }
@@ -158,15 +169,13 @@ Deno.serve(async (req) => {
     if (Object.keys(existingDraft).length > 0) {
       systemPrompt += "## CURRENT DRAFT STATE\nThis is the campaign draft built so far. Continue building on it, don't restart.\n" + JSON.stringify(existingDraft) + "\n\n";
     }
-    systemPrompt += "## DRAFT FORMAT INSTRUCTIONS\nAlways wrap structured output in a <draft> JSON tag. Include a \"sections_complete\" array listing keys for any sections you consider complete: target_audience, campaign_insight, objective, channel_mix, content_calendar, success_metrics. Mark a section complete once you have gathered enough information for it. Example: \"sections_complete\": [\"target_audience\", \"objective\"]\n\nInclude launch_date and end_date (YYYY-MM-DD) in the draft. Derive from the content calendar: launch_date = earliest publish_date minus 7 days prep, end_date = latest publish_date plus 7 days. If the user specifies dates explicitly, use those instead.\n\nEach content_calendar item should include: title, format, persona, week, sequence_order (integer starting at 1), offset_days (days from campaign start), publish_date (YYYY-MM-DD), production_due (YYYY-MM-DD, typically 7 days before publish_date), depends_on (sequence_order of a prerequisite item, or null), rationale (brief explanation of why this content at this point in the journey).\n\n";
+    systemPrompt += "## DRAFT FORMAT INSTRUCTIONS\nAlways wrap structured output in a <draft> JSON tag. Include a \"sections_complete\" array listing keys for any sections you consider complete: target_audience, campaign_insight, objective, channel_mix, content_calendar, success_metrics. Mark a section complete once you have gathered enough information for it. Example: \"sections_complete\": [\"target_audience\", \"objective\"]\n\nInclude launch_date and end_date (YYYY-MM-DD) in the draft. Derive from the content calendar: launch_date = earliest publish_date minus 7 days prep, end_date = latest publish_date plus 7 days. If the user specifies dates explicitly, use those instead.\n\nEach content_calendar item should include: title, format, persona, week, sequence_order (integer starting at 1), offset_days (days from campaign start), publish_date (YYYY-MM-DD), production_due (YYYY-MM-DD, typically 7 days before publish_date), depends_on (sequence_order of a prerequisite item, or null), rationale (brief explanation of why this content at this point in the journey).\n\nIMPORTANT BREVITY RULES (to avoid response truncation):\n- Keep `rationale` fields under 150 characters.\n- If the calendar would exceed 20 items, group items into phases (e.g. \"Phase 1: Awareness — 5 LinkedIn posts week 1-2\") instead of listing every single item.\n- Keep all draft string values concise; favour short phrases over paragraphs.\n\n";
     systemPrompt += CAMPAIGN_SYSTEM_PROMPT;
 
     // Sliding window: first 2 messages (context) + last 10 messages (recent conversation)
     const allCleanMessages = messages.map((m) => ({
       role: m.role as "user" | "assistant",
-      content: m.role === "assistant"
-        ? m.content.replace(/<draft>[\s\S]*?<\/draft>/g, "").trim()
-        : m.content,
+      content: m.role === "assistant" ? stripDraft(m.content) : m.content,
     }));
     const anthropicMessages = allCleanMessages.length <= 12
       ? allCleanMessages
@@ -181,7 +190,7 @@ Deno.serve(async (req) => {
       },
       body: JSON.stringify({
         model: "claude-sonnet-4-6",
-        max_tokens: 4096,
+        max_tokens: 8192,
         system: systemPrompt,
         messages: anthropicMessages,
       }),
@@ -214,11 +223,13 @@ Deno.serve(async (req) => {
       }
     }
 
-    const cleanReply = reply.replace(/<draft>[\s\S]*?<\/draft>/, "").trim();
+    const cleanReply = stripDraft(reply);
 
+    // Store the cleaned reply (not the raw one) so resumed sessions never leak
+    // truncated/orphan <draft> payloads back into the chat UI.
     messages.push({
       role: "assistant",
-      content: reply,
+      content: cleanReply,
       timestamp: new Date().toISOString(),
     });
 
