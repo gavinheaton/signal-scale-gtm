@@ -100,6 +100,55 @@ export interface CampaignAsset {
   production_due: string | null;
   depends_on: string | null;
   rationale: string | null;
+  feature_image_url?: string | null;
+  feature_image_alt?: string | null;
+  seo_meta?: SeoMeta | null;
+  wordpress_post_url?: string | null;
+  wordpress_post_id?: string | null;
+}
+
+export interface SeoMeta {
+  slug?: string;
+  meta_description?: string;
+  tags?: string[];
+  categories?: string[];
+  excerpt?: string;
+}
+
+export interface AssetImage {
+  id: string;
+  asset_id: string;
+  storage_path: string;
+  public_url: string;
+  prompt: string | null;
+  variant_index: number;
+  is_selected: boolean;
+  is_composited: boolean;
+  created_at: string;
+}
+
+export interface OverlayTemplate {
+  font_family: string;
+  font_size: number;
+  font_weight: number;
+  text_color: string;
+  gradient_opacity: number;
+  gradient_direction: 'bottom' | 'top' | 'full';
+  padding: number;
+  max_width_pct: number;
+  alignment: 'left' | 'center' | 'right';
+}
+
+export interface ProjectVisualSettings {
+  id: string;
+  project_id: string;
+  visual_style_preset: string;
+  overlay_template: OverlayTemplate;
+  wordpress_site_id: string | null;
+  wordpress_default_category: string | null;
+  wordpress_default_status: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface ProjectConnection {
