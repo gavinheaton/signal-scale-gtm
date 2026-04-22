@@ -1,64 +1,49 @@
 
 
-# Recover the Newsletter Campaign from the Abandoned Wizard Session
+# Group Content Pipeline by Campaign
 
-## What I found
+## What changes
 
-Wizard session `47baebe4-…` for Disruptors Co contains a fully fleshed-out brief that never got saved as a campaign:
+`/project/content` currently renders one flat table of all `campaign_assets`. Switch to a **campaign-grouped layout** with the most recent campaign first.
 
-- **Name**: "Disruptors Co — 12-Week Newsletter Arc"
-- **Launch → End**: 2025-04-22 → 2025-07-22
-- **Calendar**: 36 items (Monday "The Lens" + Wednesday "Convert/Curate" + weekly blog anchors across Strategy / AI / Innovation / GTM threads)
-- **Sections complete**: all six (target_audience, campaign_insight, objective, channel_mix, content_calendar, success_metrics)
-- **Why it's missing**: `is_complete=false` and `notion_brief_ready=false` — the user never sent the final confirmation message, so the wizard never inserted a `campaigns` row or pushed to Notion.
+## Layout
 
-The draft is solid enough to recover directly. No need to redo the wizard.
+```text
+┌─ Content Pipeline ─────────────────────────────────────────┐
+│  [Status filter] [Type filter]                             │
+│                                                            │
+│  ▼ Disruptors Co — 12-Week Newsletter Arc                  │
+│     planning · Apr 22 → Jul 22 · 36 assets                 │
+│     ┌──────────────────────────────────────────────────┐   │
+│     │ Title │ Type │ Status │ Publish Date             │   │
+│     │ ...   │ ...  │ ...    │ ...                      │   │
+│     └──────────────────────────────────────────────────┘   │
+│                                                            │
+│  ▶ Healthcare AI 90-Day Sprint                             │
+│     active · Mar 19 → ... · 13 assets                      │
+│                                                            │
+│  ▶ (campaigns with no assets — collapsed, muted)           │
+└────────────────────────────────────────────────────────────┘
+```
 
-## Recovery plan
+- One **collapsible section per campaign**, ordered by `launch_date DESC` (latest first); campaigns without `launch_date` fall to the bottom.
+- The latest campaign is **expanded by default**; the rest collapsed.
+- Section header shows: campaign name, status badge, launch → end date range, asset count (post-filter / total).
+- The Campaign column is removed from the table (now redundant — it's the section header).
+- Filters apply within each group; a group with zero matches after filtering is hidden.
+- Empty state when no campaigns exist for the project: existing "No assets found" message reworded.
 
-### 1. One-off recovery script (edge function: `recover-wizard-campaign`)
-A small admin-only edge function that, given a `session_id`:
-1. Loads the wizard session and validates it belongs to a project the caller has access to.
-2. Maps `draft_output` → `campaigns` row:
-   - `name` ← `campaign_name`
-   - `track` ← `'demand_creation'` (mixed 95/5 — defaults to creation since calendar is dominantly Demand Creation)
-   - `status` ← `'planning'`
-   - `objective` ← serialised summary
-   - `target_icp_ids` ← resolved from `target_audience` against project's existing ICPs (best-effort name match; empty array if none match)
-   - `channel_mix`, `launch_date`, `end_date` ← copied through
-3. Inserts each `content_calendar` item as a `campaign_assets` row, mapping:
-   - `format`/`channel` → `asset_type` (Email → `email`, Blog — Thought Leadership → `blog`)
-   - `title`, `publish_date`, `production_due`, `sequence_order`, `offset_days`, `rationale` → direct copy
-   - `depends_on` → resolved to the new asset UUID after first pass
-   - `status` ← `'brief'`
-4. Marks the wizard session `status='complete'` and stamps `draft_output.is_complete=true` so it doesn't show as abandoned.
-5. Returns `{ campaign_id, asset_count }`.
+## Technical changes
 
-### 2. Trigger it once
-Run the function for session `47baebe4-418d-45d5-b23b-0901614e182c`. Verify:
-- New row in `campaigns` for the Disruptors Co project
-- 36 rows in `campaign_assets`
-- The campaign appears in the Campaigns kanban under "Planning"
+**File**: `src/pages/ContentPipeline.tsx` (only file touched)
 
-### 3. Optional: surface abandoned sessions in Admin
-Add a small "Abandoned wizard sessions" panel to `AdminDashboard.tsx` listing in-progress sessions older than 7 days, with a one-click "Recover as campaign" button that calls the same function. Prevents this from happening silently again.
+1. Sort `campaigns` array by `launch_date` desc (nulls last) after fetch.
+2. Build a `Map<campaignId, CampaignAsset[]>` from filtered assets.
+3. Replace the single `<Table>` with a list of `<Collapsible>` sections (already available at `src/components/ui/collapsible.tsx`), each containing its own table.
+4. Track expanded state with `useState<Set<string>>`; initialise with the first campaign's id.
+5. Section header: flex row with `ChevronRight`/`ChevronDown` icon (lucide-react), campaign name (font-semibold), status `Badge`, date range and asset count in `text-muted-foreground`.
+6. Drop the `campaign_name` denorm field on assets — no longer needed.
+7. Keep the existing `Sheet` asset detail drawer unchanged.
 
-### 4. Bonus fix: campaign-wizard save resilience
-Update `supabase/functions/campaign-wizard/index.ts` so that when `sections_complete` covers all six sections, it auto-prompts the user with: *"All sections look complete. Reply 'create campaign' to save this brief and push to Notion."* — gives an obvious finish line so future drafts don't strand.
-
-## Files
-
-**New**
-- `supabase/functions/recover-wizard-campaign/index.ts`
-
-**Modified**
-- `supabase/config.toml` — register new function
-- `src/pages/AdminDashboard.tsx` — abandoned-sessions panel + recover button (optional, recommended)
-- `supabase/functions/campaign-wizard/index.ts` — completion nudge when all sections done
-
-## Notes
-
-- No schema changes — uses existing `campaigns` and `campaign_assets` tables.
-- The `track` field will be set to `demand_creation` since the brief is 95% creation / 5% capture. Easy to flip later via the campaign edit drawer.
-- ICP linking is best-effort — if no match, the campaign saves with empty `target_icp_ids` and you can attach ICPs from the campaign detail view.
+No schema, edge function, or routing changes.
 
