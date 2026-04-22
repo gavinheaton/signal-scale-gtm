@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Loader2, Sparkles, ExternalLink, RefreshCw, Pencil, Save, X } from 'lucide-react';
+import { Loader2, Sparkles, ExternalLink, RefreshCw, Pencil, Save, X, Check } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import AssetVisualsPanel from './AssetVisualsPanel';
 import AssetSEOPanel from './AssetSEOPanel';
@@ -40,9 +40,15 @@ export default function AssetDetailDrawer({ asset, open, onOpenChange, onUpdated
   const [editContent, setEditContent] = useState('');
   const [editTitle, setEditTitle] = useState('');
   const [saving, setSaving] = useState(false);
+  const [titleEditing, setTitleEditing] = useState(false);
+  const [titleDraft, setTitleDraft] = useState('');
+  const [titleSaving, setTitleSaving] = useState(false);
 
   useEffect(() => {
-    if (!open) setEditing(false);
+    if (!open) {
+      setEditing(false);
+      setTitleEditing(false);
+    }
   }, [open]);
 
   if (!asset) return null;
@@ -79,6 +85,29 @@ export default function AssetDetailDrawer({ asset, open, onOpenChange, onUpdated
       toast.error(err.message || 'Save failed');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleTitleSave = async () => {
+    const next = titleDraft.trim();
+    if (!next || next === asset.title) {
+      setTitleEditing(false);
+      return;
+    }
+    setTitleSaving(true);
+    try {
+      const { error } = await supabase
+        .from('campaign_assets')
+        .update({ title: next })
+        .eq('id', asset.id);
+      if (error) throw error;
+      toast.success('Title updated');
+      setTitleEditing(false);
+      onUpdated();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to update title');
+    } finally {
+      setTitleSaving(false);
     }
   };
 
@@ -148,8 +177,38 @@ export default function AssetDetailDrawer({ asset, open, onOpenChange, onUpdated
               onChange={(e) => setEditTitle(e.target.value)}
               className="text-lg font-semibold"
             />
+          ) : titleEditing ? (
+            <div className="flex items-center gap-2">
+              <Input
+                autoFocus
+                value={titleDraft}
+                onChange={(e) => setTitleDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') { e.preventDefault(); handleTitleSave(); }
+                  else if (e.key === 'Escape') { e.preventDefault(); setTitleEditing(false); }
+                }}
+                className="text-lg font-semibold"
+              />
+              <Button size="icon" variant="ghost" onClick={handleTitleSave} disabled={titleSaving} aria-label="Save title">
+                {titleSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+              </Button>
+              <Button size="icon" variant="ghost" onClick={() => setTitleEditing(false)} disabled={titleSaving} aria-label="Cancel">
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
           ) : (
-            <SheetTitle>{asset.title}</SheetTitle>
+            <div className="flex items-center gap-2">
+              <SheetTitle className="flex-1 text-left">{asset.title}</SheetTitle>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-7 w-7 opacity-60 hover:opacity-100"
+                onClick={() => { setTitleDraft(asset.title); setTitleEditing(true); }}
+                aria-label="Edit title"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </Button>
+            </div>
           )}
           <SheetDescription className="flex items-center gap-2">
             <Badge variant="outline" className="text-xs">{asset.asset_type.replace(/_/g, ' ')}</Badge>
