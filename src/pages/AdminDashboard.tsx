@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { toast } from 'sonner';
-import { Plus, Building2, Users, FolderOpen, Shield } from 'lucide-react';
+import { Plus, Building2, Users, FolderOpen, Shield, Clock, Wand2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Organisation, OrgMembership, Project } from '@/types/database';
 import type { OrgType, OrgRole } from '@/types/database';
@@ -20,6 +20,16 @@ import type { OrgType, OrgRole } from '@/types/database';
 interface OrgWithCounts extends Organisation {
   memberCount: number;
   projectCount: number;
+}
+
+interface AbandonedSession {
+  id: string;
+  project_id: string;
+  session_type: string;
+  created_at: string;
+  draft_output: any;
+  project_name?: string;
+  org_name?: string;
 }
 
 export default function AdminDashboard() {
@@ -45,6 +55,50 @@ export default function AdminDashboard() {
   const [inviteRole, setInviteRole] = useState<OrgRole>('admin');
   const [inviting, setInviting] = useState(false);
 
+  // Abandoned wizard sessions
+  const [abandoned, setAbandoned] = useState<AbandonedSession[]>([]);
+  const [abandonedLoading, setAbandonedLoading] = useState(true);
+  const [recoveringId, setRecoveringId] = useState<string | null>(null);
+
+  const fetchAbandoned = async () => {
+    setAbandonedLoading(true);
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const { data } = await supabase
+      .from('wizard_sessions')
+      .select('id, project_id, session_type, created_at, draft_output, projects(name, organisations(name))')
+      .eq('status', 'in_progress')
+      .eq('session_type', 'campaign')
+      .lt('created_at', sevenDaysAgo)
+      .order('created_at', { ascending: false });
+
+    const mapped: AbandonedSession[] = (data || []).map((s: any) => ({
+      id: s.id,
+      project_id: s.project_id,
+      session_type: s.session_type,
+      created_at: s.created_at,
+      draft_output: s.draft_output,
+      project_name: s.projects?.name,
+      org_name: s.projects?.organisations?.name,
+    })).filter(s => Array.isArray(s.draft_output?.content_calendar) && s.draft_output.content_calendar.length > 0);
+
+    setAbandoned(mapped);
+    setAbandonedLoading(false);
+  };
+
+  const handleRecover = async (session: AbandonedSession) => {
+    setRecoveringId(session.id);
+    const { data, error } = await supabase.functions.invoke('recover-wizard-campaign', {
+      body: { session_id: session.id },
+    });
+    setRecoveringId(null);
+    if (error || data?.error) {
+      toast.error(data?.error || error?.message || 'Recovery failed');
+    } else {
+      toast.success(`Recovered "${data.campaign_name}" with ${data.asset_count} assets`);
+      fetchAbandoned();
+    }
+  };
+
   const fetchOrgs = async () => {
     const { data: allOrgs } = await supabase.from('organisations').select('*');
     if (!allOrgs) { setLoading(false); return; }
@@ -63,7 +117,10 @@ export default function AdminDashboard() {
   };
 
   useEffect(() => {
-    if (isSuperAdmin) fetchOrgs();
+    if (isSuperAdmin) {
+      fetchOrgs();
+      fetchAbandoned();
+    }
   }, [isSuperAdmin]);
 
   const handleCreateOrg = async () => {
@@ -207,7 +264,70 @@ export default function AdminDashboard() {
         </CardContent>
       </Card>
 
-      {/* Create Org Dialog */}
+      {/* Abandoned wizard sessions */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Clock className="h-5 w-5" /> Abandoned Campaign Drafts ({abandoned.length})
+          </CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Campaign wizard sessions older than 7 days that have content but were never saved as a campaign.
+          </p>
+        </CardHeader>
+        <CardContent>
+          {abandonedLoading ? (
+            <div className="flex justify-center py-6">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary" />
+            </div>
+          ) : abandoned.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No abandoned sessions. 🎉</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Draft Name</TableHead>
+                  <TableHead>Project</TableHead>
+                  <TableHead>Org</TableHead>
+                  <TableHead>Items</TableHead>
+                  <TableHead>Started</TableHead>
+                  <TableHead></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {abandoned.map(s => (
+                  <TableRow key={s.id}>
+                    <TableCell className="font-medium">
+                      {s.draft_output?.campaign_name || <span className="text-muted-foreground italic">Untitled</span>}
+                    </TableCell>
+                    <TableCell className="text-sm">{s.project_name || '—'}</TableCell>
+                    <TableCell className="text-sm">{s.org_name || '—'}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline">
+                        {Array.isArray(s.draft_output?.content_calendar) ? s.draft_output.content_calendar.length : 0}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground text-sm">
+                      {new Date(s.created_at).toLocaleDateString()}
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleRecover(s)}
+                        disabled={recoveringId === s.id}
+                      >
+                        <Wand2 className="mr-1 h-3.5 w-3.5" />
+                        {recoveringId === s.id ? 'Recovering…' : 'Recover'}
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
