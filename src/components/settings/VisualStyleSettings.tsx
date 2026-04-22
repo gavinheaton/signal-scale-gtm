@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useProject } from '@/contexts/ProjectContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
@@ -7,8 +8,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ProjectVisualSettings } from '@/types/database';
-import { Loader2, Palette, Save } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { ProjectVisualSettings, WpFlavor } from '@/types/database';
+import { Loader2, Palette, Save, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
 const DEFAULT_SETTINGS: Omit<ProjectVisualSettings, 'id' | 'project_id' | 'created_at' | 'updated_at'> = {
@@ -25,20 +27,27 @@ const DEFAULT_SETTINGS: Omit<ProjectVisualSettings, 'id' | 'project_id' | 'creat
 
 export default function VisualStyleSettings() {
   const { currentProject } = useProject();
+  const { organisation } = useAuth();
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [existingId, setExistingId] = useState<string | null>(null);
+  const [orgWp, setOrgWp] = useState<{ flavor: WpFlavor; site_url: string } | null>(null);
 
   useEffect(() => {
     if (!currentProject) return;
     (async () => {
       setLoading(true);
-      const { data } = await supabase
-        .from('project_visual_settings')
-        .select('*')
-        .eq('project_id', currentProject.id)
-        .maybeSingle();
+      const [{ data }, orgRes] = await Promise.all([
+        supabase
+          .from('project_visual_settings')
+          .select('*')
+          .eq('project_id', currentProject.id)
+          .maybeSingle(),
+        organisation
+          ? supabase.rpc('get_my_org_wp_connection', { _org_id: organisation.id })
+          : Promise.resolve({ data: null } as any),
+      ]);
       if (data) {
         setExistingId(data.id);
         setSettings({
@@ -49,9 +58,15 @@ export default function VisualStyleSettings() {
           wordpress_default_status: data.wordpress_default_status || 'draft',
         });
       }
+      const orgRows = (orgRes as any)?.data;
+      if (Array.isArray(orgRows) && orgRows.length > 0) {
+        setOrgWp({ flavor: orgRows[0].flavor, site_url: orgRows[0].site_url });
+      } else {
+        setOrgWp(null);
+      }
       setLoading(false);
     })();
-  }, [currentProject?.id]);
+  }, [currentProject?.id, organisation?.id]);
 
   const handleSave = async () => {
     if (!currentProject) return;
@@ -140,37 +155,61 @@ export default function VisualStyleSettings() {
         </div>
 
         <div className="border-t pt-4">
-          <h4 className="text-sm font-semibold mb-2">WordPress defaults</h4>
-          <div className="space-y-3">
-            <div>
-              <Label className="text-xs">Default site (e.g. example.wordpress.com)</Label>
-              <Input
-                value={settings.wordpress_site_id || ''}
-                onChange={(e) => setSettings({ ...settings, wordpress_site_id: e.target.value || null })}
-                placeholder="yoursite.wordpress.com"
-                className="mt-1"
-              />
+          <h4 className="text-sm font-semibold mb-2 flex items-center gap-2">
+            WordPress publishing
+            {orgWp && (
+              <Badge variant="secondary" className="text-xs">
+                {orgWp.flavor === 'wordpress_com' ? 'WordPress.com' : 'Self-hosted'} · {orgWp.site_url}
+              </Badge>
+            )}
+          </h4>
+
+          {!orgWp ? (
+            <div className="flex gap-2 p-3 bg-muted rounded-md text-xs text-muted-foreground">
+              <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+              <span>
+                No organisation-level WordPress connection yet. An admin can connect it in the
+                <strong className="text-foreground"> WordPress Connection</strong> card above.
+                Project-level overrides apply once an org connection exists.
+              </span>
             </div>
-            <div>
-              <Label className="text-xs">Default category</Label>
-              <Input
-                value={settings.wordpress_default_category || ''}
-                onChange={(e) => setSettings({ ...settings, wordpress_default_category: e.target.value || null })}
-                placeholder="Marketing"
-                className="mt-1"
-              />
+          ) : (
+            <div className="space-y-3">
+              {orgWp.flavor === 'wordpress_com' && (
+                <div>
+                  <Label className="text-xs">Site override (optional)</Label>
+                  <p className="text-[11px] text-muted-foreground mb-1">
+                    Leave blank to use the org default. Only useful for WordPress.com when an org publishes to multiple sites.
+                  </p>
+                  <Input
+                    value={settings.wordpress_site_id || ''}
+                    onChange={(e) => setSettings({ ...settings, wordpress_site_id: e.target.value || null })}
+                    placeholder={orgWp.site_url}
+                    className="mt-1"
+                  />
+                </div>
+              )}
+              <div>
+                <Label className="text-xs">Default category override</Label>
+                <Input
+                  value={settings.wordpress_default_category || ''}
+                  onChange={(e) => setSettings({ ...settings, wordpress_default_category: e.target.value || null })}
+                  placeholder="Marketing"
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label className="text-xs">Default publish status override</Label>
+                <Select value={settings.wordpress_default_status || 'draft'} onValueChange={(v) => setSettings({ ...settings, wordpress_default_status: v })}>
+                  <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="draft">Draft</SelectItem>
+                    <SelectItem value="publish">Publish</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-            <div>
-              <Label className="text-xs">Default publish status</Label>
-              <Select value={settings.wordpress_default_status || 'draft'} onValueChange={(v) => setSettings({ ...settings, wordpress_default_status: v })}>
-                <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="draft">Draft</SelectItem>
-                  <SelectItem value="publish">Publish</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+          )}
         </div>
 
         <Button onClick={handleSave} disabled={saving} className="w-full">
