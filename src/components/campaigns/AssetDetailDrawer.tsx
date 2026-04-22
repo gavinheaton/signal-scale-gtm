@@ -241,6 +241,18 @@ export default function AssetDetailDrawer({ asset, open, onOpenChange, onUpdated
               </Button>
             )}
           </div>
+
+          {/* Visuals & Publishing — only meaningful for written content */}
+          {['blog', 'linkedin_post', 'email', 'whitepaper', 'press_release'].includes(asset.asset_type) && (
+            <>
+              <Separator className="my-4" />
+              <AssetVisualsPanel asset={asset} onUpdated={onUpdated} />
+              <Separator className="my-4" />
+              <AssetSEOPanel asset={asset} onUpdated={onUpdated} />
+              <Separator className="my-4" />
+              <AssetPublishPanel asset={asset} onUpdated={onUpdated} />
+            </>
+          )}
         </div>
       </SheetContent>
     </Sheet>
