@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Loader2, Sparkles, ExternalLink, RefreshCw, Pencil, Save, X } from 'lucide-react';
+import { Loader2, Sparkles, ExternalLink, RefreshCw, Pencil, Save, X, Check } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import AssetVisualsPanel from './AssetVisualsPanel';
 import AssetSEOPanel from './AssetSEOPanel';
