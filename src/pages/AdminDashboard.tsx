@@ -264,7 +264,70 @@ export default function AdminDashboard() {
         </CardContent>
       </Card>
 
-      {/* Create Org Dialog */}
+      {/* Abandoned wizard sessions */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Clock className="h-5 w-5" /> Abandoned Campaign Drafts ({abandoned.length})
+          </CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Campaign wizard sessions older than 7 days that have content but were never saved as a campaign.
+          </p>
+        </CardHeader>
+        <CardContent>
+          {abandonedLoading ? (
+            <div className="flex justify-center py-6">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary" />
+            </div>
+          ) : abandoned.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No abandoned sessions. 🎉</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Draft Name</TableHead>
+                  <TableHead>Project</TableHead>
+                  <TableHead>Org</TableHead>
+                  <TableHead>Items</TableHead>
+                  <TableHead>Started</TableHead>
+                  <TableHead></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {abandoned.map(s => (
+                  <TableRow key={s.id}>
+                    <TableCell className="font-medium">
+                      {s.draft_output?.campaign_name || <span className="text-muted-foreground italic">Untitled</span>}
+                    </TableCell>
+                    <TableCell className="text-sm">{s.project_name || '—'}</TableCell>
+                    <TableCell className="text-sm">{s.org_name || '—'}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline">
+                        {Array.isArray(s.draft_output?.content_calendar) ? s.draft_output.content_calendar.length : 0}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground text-sm">
+                      {new Date(s.created_at).toLocaleDateString()}
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleRecover(s)}
+                        disabled={recoveringId === s.id}
+                      >
+                        <Wand2 className="mr-1 h-3.5 w-3.5" />
+                        {recoveringId === s.id ? 'Recovering…' : 'Recover'}
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
