@@ -55,6 +55,50 @@ export default function AdminDashboard() {
   const [inviteRole, setInviteRole] = useState<OrgRole>('admin');
   const [inviting, setInviting] = useState(false);
 
+  // Abandoned wizard sessions
+  const [abandoned, setAbandoned] = useState<AbandonedSession[]>([]);
+  const [abandonedLoading, setAbandonedLoading] = useState(true);
+  const [recoveringId, setRecoveringId] = useState<string | null>(null);
+
+  const fetchAbandoned = async () => {
+    setAbandonedLoading(true);
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const { data } = await supabase
+      .from('wizard_sessions')
+      .select('id, project_id, session_type, created_at, draft_output, projects(name, organisations(name))')
+      .eq('status', 'in_progress')
+      .eq('session_type', 'campaign')
+      .lt('created_at', sevenDaysAgo)
+      .order('created_at', { ascending: false });
+
+    const mapped: AbandonedSession[] = (data || []).map((s: any) => ({
+      id: s.id,
+      project_id: s.project_id,
+      session_type: s.session_type,
+      created_at: s.created_at,
+      draft_output: s.draft_output,
+      project_name: s.projects?.name,
+      org_name: s.projects?.organisations?.name,
+    })).filter(s => Array.isArray(s.draft_output?.content_calendar) && s.draft_output.content_calendar.length > 0);
+
+    setAbandoned(mapped);
+    setAbandonedLoading(false);
+  };
+
+  const handleRecover = async (session: AbandonedSession) => {
+    setRecoveringId(session.id);
+    const { data, error } = await supabase.functions.invoke('recover-wizard-campaign', {
+      body: { session_id: session.id },
+    });
+    setRecoveringId(null);
+    if (error || data?.error) {
+      toast.error(data?.error || error?.message || 'Recovery failed');
+    } else {
+      toast.success(`Recovered "${data.campaign_name}" with ${data.asset_count} assets`);
+      fetchAbandoned();
+    }
+  };
+
   const fetchOrgs = async () => {
     const { data: allOrgs } = await supabase.from('organisations').select('*');
     if (!allOrgs) { setLoading(false); return; }
@@ -73,7 +117,10 @@ export default function AdminDashboard() {
   };
 
   useEffect(() => {
-    if (isSuperAdmin) fetchOrgs();
+    if (isSuperAdmin) {
+      fetchOrgs();
+      fetchAbandoned();
+    }
   }, [isSuperAdmin]);
 
   const handleCreateOrg = async () => {
