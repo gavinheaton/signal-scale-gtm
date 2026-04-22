@@ -223,7 +223,19 @@ Deno.serve(async (req) => {
       }
     }
 
-    const cleanReply = stripDraft(reply);
+    let cleanReply = stripDraft(reply);
+
+    // Auto-nudge: if all six sections are complete but is_complete still false,
+    // append a clear call-to-action so the user knows how to finalise.
+    const REQUIRED_SECTIONS = ["target_audience", "campaign_insight", "objective", "channel_mix", "content_calendar", "success_metrics"];
+    const sectionsComplete: string[] = Array.isArray((updatedDraft as any)?.sections_complete)
+      ? (updatedDraft as any).sections_complete
+      : [];
+    const allSectionsDone = REQUIRED_SECTIONS.every(s => sectionsComplete.includes(s));
+    const isCompleteFlag = (updatedDraft as any)?.is_complete === true;
+    if (allSectionsDone && !isCompleteFlag && !/create campaign/i.test(cleanReply)) {
+      cleanReply += "\n\n---\n\n✅ **All six sections look complete.** Reply **\"create campaign\"** to save this brief, generate assets, and push to Notion.";
+    }
 
     // Store the cleaned reply (not the raw one) so resumed sessions never leak
     // truncated/orphan <draft> payloads back into the chat UI.
@@ -233,7 +245,7 @@ Deno.serve(async (req) => {
       timestamp: new Date().toISOString(),
     });
 
-    const isComplete = (updatedDraft as any)?.is_complete === true;
+    const isComplete = isCompleteFlag;
     const notionBriefReady = (updatedDraft as any)?.notion_brief_ready === true;
 
     // If complete and notion brief ready, call create-notion-campaign-brief
