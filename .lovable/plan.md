@@ -1,106 +1,122 @@
 
 
-# Generate Visual Feature Images for Content Assets
+# Per-Organisation WordPress Connections (Self-Hosted + WordPress.com)
 
-## Your process → automated equivalent
+## Problem
+Current `publish-to-wordpress` uses a single workspace-wide WordPress.com connector secret. We need:
+1. **Per-organisation** credentials (each client publishes to their own site)
+2. Support for **self-hosted WordPress** sites, not just wordpress.com
 
-Your manual workflow has 8 steps. Here's how each maps to automation in the platform:
+## Solution
 
-| Your step | Automated version |
+### 1. New table: `org_wordpress_connections`
+One row per org. Supports both flavours:
+
+| Column | Purpose |
 |---|---|
-| Write + approve article | Already exists (Edit + status workflow in asset drawer) |
-| Generate catchy title | Already exists (asset has `title` field, AI-editable) |
-| Midjourney → 4 options, pick best | **AI image generation via Lovable AI (Nano Banana Pro)** — generate 4 variants, you pick |
-| Canva template + title overlay | **Server-side compositing**: render the chosen AI image with the article title overlaid using a project-defined template (font, position, color, logo) |
-| Download image | **Stored in Supabase Storage**, downloadable + previewable inline |
-| Upload to WordPress with SEO/tags/categories/feature image | **WordPress.com connector** — push post + feature image in one click |
-| Track in Asana | **Already in your kanban** (`campaign_assets.status` already does this — no Asana needed) |
+| `org_id` (unique FK) | Which organisation owns this connection |
+| `flavor` enum (`wordpress_com` \| `self_hosted`) | Which API to call |
+| `site_url` text | e.g. `https://clientblog.com` (self-hosted) or `clientsite.wordpress.com` |
+| `username` text (nullable) | Self-hosted only — WP username |
+| `credential_secret_id` uuid | Vault ref to either: WP.com OAuth token, or self-hosted **application password** |
+| `default_category`, `default_status` | Org-level publishing defaults |
+| `connected_by`, `connected_at`, `updated_at` | Audit |
 
-What's lost vs Midjourney specifically: aesthetic fingerprint differs. Nano Banana Pro is good at photoreal/editorial but doesn't match Midjourney style 1:1. To get close we use a **project-level visual style preset** (saved prompt fragment describing your aesthetic — e.g. "editorial photography, technology-themed, warm human-centered lighting, shallow depth of field, no text") prepended to every generation so output is consistent across articles.
+RLS: only `owner`/`admin`/`superadmin` of the org can read/write. Credential never leaves Vault.
 
-## What gets built
+### 2. New edge function: `manage-org-wordpress-connection`
+- `POST` — store credentials in Vault, insert/update row. Validates by hitting `/wp-json/wp/v2/users/me` (self-hosted) or `/rest/v1.1/me` (wp.com) before saving.
+- `DELETE` — remove vault secret + row.
+- Permission check: caller must be admin of `org_id`.
 
-### 1. Database — new `asset_images` table + storage bucket
-- `asset_images`: `id, asset_id (→campaign_assets), storage_path, prompt, variant_index, is_selected, is_composited, created_at`
-- Storage bucket `asset-images` (public read, authenticated write) with RLS scoped via asset → campaign → project → org
-- Add columns to `campaign_assets`: `feature_image_url text`, `feature_image_alt text`, `seo_meta jsonb` (slug, meta description, tags, categories)
-- Add `visual_style_preset text` and `wordpress_site_id text`, `wordpress_default_category text` to `brand_voices` or a new `project_visual_settings` table
+### 3. Rewrite `publish-to-wordpress`
+- Resolve `asset → campaign → project → org_id`
+- Load `org_wordpress_connections` row for that org
+- If missing → 400 with friendly message: "Connect WordPress in Organisation Settings first."
+- Read credential from Vault via service-role
+- Branch on `flavor`:
+  - **`wordpress_com`**: existing flow but call `https://public-api.wordpress.com/rest/v1.1/sites/{site_id}/...` directly with `Authorization: Bearer <token>` (no Lovable gateway, no shared key)
+  - **`self_hosted`**: call `{site_url}/wp-json/wp/v2/...` with `Authorization: Basic base64(username:app_password)`. Endpoints: `POST /media` for feature image, `POST /posts` with `{title, content, excerpt, slug, status, categories, tags, featured_media, meta}`. Self-hosted accepts category/tag IDs (numbers) — for v1 we accept comma-separated names and resolve via `GET /categories?search=` + create-if-missing.
 
-### 2. Edge functions
-- **`generate-asset-image`** — takes `asset_id` + optional prompt override, calls Lovable AI Gateway with `google/gemini-3-pro-image-preview` (Nano Banana Pro), generates **4 variants** in parallel, uploads each to storage, inserts 4 `asset_images` rows. Builds the prompt from: brand voice visual style preset + article title + AI-derived theme summary from article content.
-- **`composite-feature-image`** — takes a selected `asset_image_id`, fetches the image, overlays the article title using a server-side canvas (Deno `@img/canvas` or similar) with template settings (font, gradient, logo, position), uploads composited result, sets it as `campaign_assets.feature_image_url`.
-- **`generate-seo-metadata`** — AI call to produce slug, meta description, suggested tags/categories from article content. Stored in `seo_meta`.
-- **`publish-to-wordpress`** — uses WordPress.com connector to: (1) upload feature image as media, (2) create post with title/content/excerpt/categories/tags/featured_media, (3) set status (draft|publish), (4) write returned post URL back to `campaign_assets`.
+### 4. Settings UI: new `OrgWordPressConnectionCard`
+Lives in Settings page, visible to org admins only. Clearly labelled **Organisation-wide** (vs the existing project-scoped Claude/Notion cards).
 
-### 3. Frontend — `AssetDetailDrawer` extensions
-A new "Visuals & Publish" section appears on the asset drawer for `blog` (and other applicable types):
+States:
+- **Not connected** → "Connect WordPress" button → dialog
+- **Connected** → site URL, flavour badge, "Disconnect" + "Edit defaults" buttons
 
-```text
-┌─ Visuals & Publish ──────────────────────────┐
-│  Feature Image                               │
-│  ┌──────┐                                    │
-│  │      │  [Generate 4 variants]             │
-│  │      │  [Re-generate] [Edit prompt]       │
-│  └──────┘                                    │
-│                                              │
-│  Variants (when generated):                  │
-│  [img1] [img2] [img3] [img4]                 │
-│  Click to select → "Apply title overlay"     │
-│                                              │
-│  SEO                                         │
-│  Slug: [...]    [Auto-generate]              │
-│  Meta description: [...]                     │
-│  Tags: [chip] [chip] [+ add]                 │
-│  Categories: [select multi]                  │
-│                                              │
-│  Publish to WordPress                        │
-│  Site: [dropdown]   Status: ○ Draft ● Publish│
-│  [Publish to WordPress]                      │
-│  Last published: <link to live post>         │
-└──────────────────────────────────────────────┘
+Connect dialog:
+```
+○ WordPress.com
+○ Self-hosted WordPress
+
+[ if WordPress.com ]
+  Site ID/domain:  [clientsite.wordpress.com]
+  Access token:    [paste token] (link: how to generate)
+
+[ if Self-hosted ]
+  Site URL:        [https://clientblog.com]
+  Username:        [admin]
+  Application password: [xxxx xxxx xxxx xxxx]
+                   (link: WP admin → Users → Profile → Application Passwords)
+
+Default category: [...]
+Default status:   ○ Draft  ● Publish
+
+[Cancel]  [Test & Save]
 ```
 
-### 4. Project-level visual style settings
-New tab in Settings or Brand Voice detail page where user defines:
-- **Visual style preset** (textarea: "editorial photo, tech-themed, human-centered, warm lighting, shallow DoF…")
-- **Title overlay template**: font family/size/weight, color, gradient overlay opacity, logo position, safe-zone padding
-- **WordPress defaults**: site, default category, default status
+"Test & Save" hits the validate endpoint before persisting — surfaces auth errors immediately.
 
-### 5. WordPress integration
-Use the **WordPress.com connector** (already documented in your context). Workspace owner connects their wordpress.com account once → site IDs available per-project. For self-hosted WP, would need a separate path (custom REST API + app password) — out of scope unless requested.
+### 5. Trim project-level WordPress settings
+In `VisualStyleSettings.tsx` & `project_visual_settings`:
+- `wordpress_site_id` becomes an **optional override** (used only if org has multiple sites and this project targets a different one — wp.com only)
+- Show banner: "Org default: clientsite.wordpress.com — [override per project]"
+- Keep `wordpress_default_category` / `wordpress_default_status` as project-level overrides over org defaults
+- If org has no connection → disable WordPress fields with "Connect WordPress at organisation level first" link
 
-## Workflow once built
+### 6. Update `AssetPublishPanel`
+- On mount, query `org_wordpress_connections` (via new RPC `get_my_org_wp_connection` returning safe fields only — no credentials)
+- Show connection status + flavour badge above publish button
+- If unconnected, show "Connect WordPress" link → Settings
+- Drop dependency on workspace `WORDPRESS_COM_API_KEY` secret
 
-1. Asset moves to `approved` status (existing flow)
-2. User clicks **Generate 4 variants** → 4 images appear in ~15s
-3. User clicks the favorite → clicks **Apply title overlay** → composited preview replaces it
-4. User clicks **Auto-generate SEO** → slug/meta/tags fill in (editable)
-5. User clicks **Publish to WordPress** → post goes live, asset status flips to `published`, live URL stored
+### 7. Decommission workspace secret usage
+- Remove `WORDPRESS_COM_API_KEY` and Lovable gateway calls from `publish-to-wordpress`
+- Keep the secret defined (harmless) but no code path reads it
 
-End-to-end: ~30 seconds vs your current ~30 minutes per article.
-
-## Open questions
-
-1. **WordPress flavor** — wordpress.com (connector available, easy) or self-hosted (custom REST + app password, more work)?
-2. **Image generation model** — Nano Banana Pro (best quality, slower/pricier) or standard Nano Banana (faster, cheaper, quality still good)?
-3. **Title overlay engine** — server-side Deno canvas (programmatic, fast, no third-party) or generate via second AI image-edit call (more flexible composition, slower)?
-4. **Scope now vs later** — do all 5 components in one pass, or ship just the image generation + selection first and add SEO/WordPress after?
-
-## Files to create / change
+## Files
 
 **New**
-- `supabase/migrations/<ts>_asset_images.sql` — table, bucket, RLS, new columns
-- `supabase/functions/generate-asset-image/index.ts`
-- `supabase/functions/composite-feature-image/index.ts`
-- `supabase/functions/generate-seo-metadata/index.ts`
-- `supabase/functions/publish-to-wordpress/index.ts`
-- `src/components/campaigns/AssetVisualsPanel.tsx`
-- `src/components/campaigns/AssetSEOPanel.tsx`
-- `src/components/campaigns/AssetPublishPanel.tsx`
-- `src/components/settings/VisualStyleSettings.tsx`
+- `supabase/migrations/<ts>_org_wp_connections.sql` — table, enum, RLS, helper RPC for safe-read
+- `supabase/functions/manage-org-wordpress-connection/index.ts`
+- `src/components/settings/OrgWordPressConnectionCard.tsx`
 
 **Modified**
-- `src/components/campaigns/AssetDetailDrawer.tsx` — mount the three new panels
-- `src/types/database.ts` — new types for `AssetImage`, extended `CampaignAsset`, visual settings
-- `supabase/config.toml` — register new functions
+- `supabase/functions/publish-to-wordpress/index.ts` — full rewrite (org-scoped, dual-flavour)
+- `supabase/config.toml` — register new function
+- `src/pages/Settings.tsx` — mount new card in admin section
+- `src/components/settings/VisualStyleSettings.tsx` — site becomes override, show org banner
+- `src/components/campaigns/AssetPublishPanel.tsx` — surface org connection status
+- `src/types/database.ts` — types for `OrgWordPressConnection`, `WpFlavor`
+
+## Self-hosted technical notes
+
+- **Auth**: WordPress 5.6+ ships built-in **Application Passwords** (Users → Profile → Application Passwords). Sent as HTTP Basic. No plugin required. Works for blogs behind Cloudflare/normal hosting.
+- **Endpoints used**:
+  - `GET /wp-json/wp/v2/users/me` — validate credentials
+  - `POST /wp-json/wp/v2/media` (multipart) — upload feature image, returns `{id, source_url}`
+  - `GET /wp-json/wp/v2/categories?search=name` + `POST /categories` — resolve names → IDs
+  - `GET/POST /wp-json/wp/v2/tags` — same for tags
+  - `POST /wp-json/wp/v2/posts` — create post with `featured_media`, `categories[]`, `tags[]`, `status`, `slug`, `excerpt`, `meta` (Yoast meta if plugin installed)
+- **CORS**: not an issue — calls happen server-side from edge function.
+- **Failure modes**: invalid URL, wrong credentials, REST API disabled, self-signed cert. All surface as toast errors with HTTP status from WP.
+
+## Auth approach (recommendation)
+
+Use **manual credential entry** for both flavours in v1:
+- WP.com → user pastes a personal OAuth token (instructions linked to https://developer.wordpress.com/docs/oauth2/)
+- Self-hosted → user pastes username + application password
+
+This ships now without OAuth callback infrastructure. A future OAuth-app flow for wp.com can be added without changing the data model — same `credential_secret_id` slot.
 
