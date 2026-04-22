@@ -56,7 +56,10 @@ export default function AssetDetailDrawer({ asset, open, onOpenChange, onUpdated
   const handleSave = async () => {
     setSaving(true);
     try {
-      const updates: Record<string, unknown> = { content: editContent, title: editTitle };
+      const updates: { content: string; title: string; status?: 'draft' } = {
+        content: editContent,
+        title: editTitle,
+      };
       if (asset.status === 'brief' && editContent.trim()) {
         updates.status = 'draft';
       }
