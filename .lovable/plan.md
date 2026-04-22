@@ -1,43 +1,66 @@
 
 
-# Auto-extract Generated Title + Inline Title Edit
+# Email This Content to a Recipient
 
-## Problem
+## What you'll get
 
-When AI generates content (e.g. blog post), it writes a strong headline at the top of the markdown — but the asset's `title` field stays as the original placeholder (e.g. "Blog Post — Week 3"). Users have no quick way to fix this from the drawer; the existing edit button bundles title + body together.
-
-## Solution
-
-### 1. Auto-extract title server-side after generation
-
-In `supabase/functions/generate-campaign-content/index.ts`, after the AI returns content:
-
-- Parse the first markdown heading (`# Title` or `## Title`) from the generated content.
-- If found AND the existing asset title looks generic (matches patterns like `Blog Post`, `Email N`, `Untitled`, or equals the asset_type label), update `title` alongside `content`.
-- Strip that heading from the body before saving so it isn't rendered twice (the title is already shown in the drawer header).
-- Fallback: if no heading found, leave the existing title untouched.
-
-This means freshly generated assets land with a real headline without any user action. Existing custom titles are preserved.
-
-### 2. Inline title edit in `AssetDetailDrawer.tsx`
-
-Add a small **pencil button next to the title** in the sheet header, independent of the existing content editor:
+A new **"Email content"** button in the asset detail drawer (next to "Push to Notion") that opens a small dialog letting you send the asset's generated content to any email address.
 
 ```text
-┌─ [Asset Title]  ✎  ─────────── ✕ ─┐
-│  badge: blog · badge: draft       │
+┌─ Send Asset by Email ──────────────────┐
+│  To:       [ jane@example.com       ]  │
+│  Subject:  [ The Lens — Week 3      ]  │
+│  ─ Preview ─────────────────────────   │
+│  (rendered HTML of the asset content)  │
+│                                        │
+│  [ Cancel ]              [ Send email ]│
+└────────────────────────────────────────┘
 ```
 
-Behaviour:
-- Click pencil → title becomes an `<Input>` inline with **Save** (check icon) and **Cancel** (X) buttons.
-- Enter key saves, Esc cancels.
-- Save calls `supabase.from('campaign_assets').update({ title }).eq('id', asset.id)`, toasts success, calls `onUpdated()`.
-- Independent from the existing body-edit flow (which still edits both title + content together — left as-is for power editing).
+- **To** — defaults to the signed-in user's email (so "send it to me" is one click); editable.
+- **Subject** — defaults to the asset title; editable.
+- **Body** — the asset's markdown content rendered to branded HTML (Signal + Scale header bar, white body, Poppins, navy headings, purple CTA accents). Read-only preview in the dialog.
+- Disabled when the asset has no content yet, with tooltip "Generate content first".
+- Sends via the existing `send-transactional-email` edge function (Brevo, already wired up with sender `admin@signal2scale.com.au`).
 
-### 3. Files
+## Technical changes
 
-- `supabase/functions/generate-campaign-content/index.ts` — extract & strip first heading, update title when generic.
-- `src/components/campaigns/AssetDetailDrawer.tsx` — pencil button + inline title editor in `SheetHeader`.
+**1. New helper: `src/lib/assetEmailHtml.ts`**
+- `markdownToEmailHtml(markdown, { title, assetType }) → string`
+- Converts markdown → HTML using a tiny dependency-free converter (or `marked` if we add it — leaning toward adding `marked` for fidelity, ~30KB).
+- Wraps output in a brand-styled HTML email shell: white background `#ffffff`, navy `#0f284c` header with "Signal + Scale", Poppins/Arial fallback, asset-type chip, content section with serif-free typography, footer with project context.
+- Returns a complete `<!doctype html>…</html>` string ready for Brevo.
 
-No schema or routing changes.
+**2. New component: `src/components/campaigns/EmailAssetDialog.tsx`**
+- Props: `asset`, `open`, `onOpenChange`.
+- Local state: `recipientEmail` (defaults to `useAuth().user.email`), `subject` (defaults to `asset.title`), `sending`.
+- Renders the HTML preview inside an iframe (sandboxed, srcDoc) so styles don't leak into the app.
+- "Send email" calls `supabase.functions.invoke('send-transactional-email', { body: { recipientEmail, subject, htmlContent, textContent: asset.content } })`.
+- Toast success/error; closes on success.
+
+**3. Modify `src/components/campaigns/AssetDetailDrawer.tsx`**
+- Add `Mail` icon import (lucide-react).
+- Add `emailOpen` state.
+- Add a new `<Button variant="outline">` "Email content" in the action button stack, positioned right after "Push to Notion". Disabled when `!asset.content`.
+- Render `<EmailAssetDialog asset={asset} open={emailOpen} onOpenChange={setEmailOpen} />` at the bottom of the sheet.
+
+**4. Add dependency**
+- `marked` (~30KB) for reliable markdown → HTML conversion. Lightweight, no React.
+
+## Files
+
+**New**
+- `src/lib/assetEmailHtml.ts` — markdown → branded HTML email shell
+- `src/components/campaigns/EmailAssetDialog.tsx` — dialog with recipient/subject inputs + iframe preview + send
+
+**Modified**
+- `src/components/campaigns/AssetDetailDrawer.tsx` — new "Email content" button + dialog mount
+- `package.json` — add `marked`
+
+## Notes
+
+- No edge function changes — `send-transactional-email` already accepts arbitrary `subject` + `htmlContent` and verifies the caller's JWT, so only signed-in users in the org can send.
+- No schema changes.
+- No domain setup needed — Brevo + `admin@signal2scale.com.au` is already in production use.
+- Future enhancement (not in this round): multi-recipient, "send to ICP contact list", or scheduled sends — easy to layer on later.
 
