@@ -88,7 +88,28 @@ export default function AssetDetailDrawer({ asset, open, onOpenChange, onUpdated
     }
   };
 
-  const handleGenerate = async () => {
+  const handleTitleSave = async () => {
+    const next = titleDraft.trim();
+    if (!next || next === asset.title) {
+      setTitleEditing(false);
+      return;
+    }
+    setTitleSaving(true);
+    try {
+      const { error } = await supabase
+        .from('campaign_assets')
+        .update({ title: next })
+        .eq('id', asset.id);
+      if (error) throw error;
+      toast.success('Title updated');
+      setTitleEditing(false);
+      onUpdated();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to update title');
+    } finally {
+      setTitleSaving(false);
+    }
+  };
     setGenerating(true);
     try {
       const { data, error } = await supabase.functions.invoke('generate-campaign-content', {
