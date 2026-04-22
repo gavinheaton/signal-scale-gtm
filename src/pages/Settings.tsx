@@ -14,6 +14,7 @@ import { OrgRole } from '@/types/database';
 import { Bot, FileText, Settings2, Trash2, Eye, EyeOff, ExternalLink, Loader2, CheckCircle2 } from 'lucide-react';
 import ApiAccessCard from '@/components/settings/ApiAccessCard';
 import NotionSyncStatus from '@/components/settings/NotionSyncStatus';
+import VisualStyleSettings from '@/components/settings/VisualStyleSettings';
 
 const PROVIDERS = [
   { id: 'claude' as const, name: 'Claude (Anthropic)', icon: Bot, description: 'Powers AI wizards for ICP & Persona generation' },
@@ -319,6 +320,8 @@ export default function SettingsPage() {
       )}
 
       <ApiAccessCard />
+
+      {currentProject && <VisualStyleSettings />}
 
       {/* API Key Dialog */}
       <Dialog open={!!configProvider} onOpenChange={(open) => { if (!open) { setConfigProvider(null); setApiKeyInput(''); setShowKey(false); } }}>
