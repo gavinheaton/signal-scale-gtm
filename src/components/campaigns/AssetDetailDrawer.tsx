@@ -8,12 +8,14 @@ import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Loader2, Sparkles, ExternalLink, RefreshCw, Pencil, Save, X, Check } from 'lucide-react';
+import { Loader2, Sparkles, ExternalLink, RefreshCw, Pencil, Save, X, Check, Mail } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import AssetVisualsPanel from './AssetVisualsPanel';
 import AssetSEOPanel from './AssetSEOPanel';
 import AssetPublishPanel from './AssetPublishPanel';
+import EmailAssetDialog from './EmailAssetDialog';
 import { Separator } from '@/components/ui/separator';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 const statusColors: Record<AssetStatus, string> = {
   brief: 'bg-muted text-muted-foreground',
