@@ -3,16 +3,21 @@ import { marked } from 'marked';
 interface Options {
   title: string;
   assetType: string;
+  featureImageUrl?: string;
+  featureImageAlt?: string;
 }
 
 const escapeHtml = (s: string) =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
-export function markdownToEmailHtml(markdown: string, { title, assetType }: Options): string {
+export function markdownToEmailHtml(markdown: string, { title, assetType, featureImageUrl, featureImageAlt }: Options): string {
   marked.setOptions({ gfm: true, breaks: false });
   const bodyHtml = marked.parse(markdown || '', { async: false }) as string;
   const safeTitle = escapeHtml(title);
   const safeType = escapeHtml(assetType.replace(/_/g, ' '));
+  const heroHtml = featureImageUrl
+    ? `<div class="hero"><img src="${escapeHtml(featureImageUrl)}" alt="${escapeHtml(featureImageAlt || title)}" /></div>`
+    : '';
 
   return `<!doctype html>
 <html lang="en">
