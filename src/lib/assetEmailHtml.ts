@@ -34,6 +34,8 @@ export function markdownToEmailHtml(markdown: string, { title, assetType, featur
   .meta { padding: 20px 32px 0; }
   .chip { display: inline-block; background: #f0e7ff; color: #8833ff; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.6px; padding: 4px 10px; border-radius: 999px; }
   .title { padding: 12px 32px 4px; font-size: 24px; font-weight: 700; color: #0f284c; line-height: 1.25; margin: 0; }
+  .hero { padding: 16px 32px 0; }
+  .hero img { width: 100%; height: auto; display: block; border-radius: 8px; border: 0; outline: none; text-decoration: none; }
   .content { padding: 16px 32px 32px; font-size: 15px; }
   .content h1, .content h2, .content h3 { color: #0f284c; font-weight: 600; line-height: 1.3; margin: 1.4em 0 0.5em; }
   .content h1 { font-size: 22px; }
