@@ -194,15 +194,43 @@ Deno.serve(async (req) => {
     }
 
     const aiData = await response.json();
-    const content = aiData.content?.[0]?.text || "";
+    let content: string = aiData.content?.[0]?.text || "";
 
-    // Update asset with content and set status to draft
+    // Try to extract a strong title from the first markdown heading
+    let extractedTitle: string | null = null;
+    const headingMatch = content.match(/^\s*#{1,2}\s+(.+?)\s*$/m);
+    if (headingMatch) {
+      extractedTitle = headingMatch[1]
+        .replace(/^["'*_]+|["'*_]+$/g, '')
+        .trim();
+      // Strip the heading line from the body so it isn't duplicated
+      content = content.replace(headingMatch[0], '').replace(/^\s*\n+/, '');
+    }
+
+    // Decide whether to overwrite the existing title (only if it looks generic)
+    const currentTitle = (asset.title || '').trim();
+    const assetTypeLabel = asset.asset_type.replace(/_/g, ' ');
+    const genericPatterns = [
+      /^untitled/i,
+      new RegExp(`^${assetTypeLabel}$`, 'i'),
+      new RegExp(`^${assetTypeLabel}\\s*[-—–:]`, 'i'),
+      new RegExp(`^${assetTypeLabel}\\s+\\d+$`, 'i'),
+      new RegExp(`^${assetTypeLabel}\\s+(week|day|episode|part|#)\\s*\\d+`, 'i'),
+      /^(blog post|email|linkedin post|video|podcast|webinar|whitepaper|press release)(\s|$)/i,
+    ];
+    const looksGeneric = !currentTitle || genericPatterns.some(re => re.test(currentTitle));
+
+    const updates: Record<string, unknown> = { content, status: "draft" };
+    if (extractedTitle && looksGeneric && extractedTitle.length <= 200) {
+      updates.title = extractedTitle;
+    }
+
     await supabase
       .from("campaign_assets")
-      .update({ content, status: "draft" })
+      .update(updates)
       .eq("id", asset_id);
 
-    return new Response(JSON.stringify({ content, asset_id }), {
+    return new Response(JSON.stringify({ content, asset_id, title: updates.title ?? currentTitle }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {
