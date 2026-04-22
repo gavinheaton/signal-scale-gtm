@@ -41,3 +41,5 @@ project_id = "xiufgczyecwgnkbyroow"
     verify_jwt = false
   [functions.manage-org-wordpress-connection]
     verify_jwt = false
+  [functions.recover-wizard-campaign]
+    verify_jwt = false
