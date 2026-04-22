@@ -295,6 +295,26 @@ export default function AssetDetailDrawer({ asset, open, onOpenChange, onUpdated
               </Button>
             )}
 
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="w-full">
+                    <Button
+                      variant="outline"
+                      onClick={() => setEmailOpen(true)}
+                      disabled={!asset.content}
+                      className="w-full"
+                    >
+                      <Mail className="h-4 w-4 mr-1" /> Email content
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                {!asset.content && (
+                  <TooltipContent>Generate content first</TooltipContent>
+                )}
+              </Tooltip>
+            </TooltipProvider>
+
             {asset.notion_url && (
               <Button variant="ghost" size="sm" asChild>
                 <a href={asset.notion_url} target="_blank" rel="noopener noreferrer">
