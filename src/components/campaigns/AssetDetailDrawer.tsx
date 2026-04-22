@@ -8,12 +8,14 @@ import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Loader2, Sparkles, ExternalLink, RefreshCw, Pencil, Save, X, Check } from 'lucide-react';
+import { Loader2, Sparkles, ExternalLink, RefreshCw, Pencil, Save, X, Check, Mail } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import AssetVisualsPanel from './AssetVisualsPanel';
 import AssetSEOPanel from './AssetSEOPanel';
 import AssetPublishPanel from './AssetPublishPanel';
+import EmailAssetDialog from './EmailAssetDialog';
 import { Separator } from '@/components/ui/separator';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 const statusColors: Record<AssetStatus, string> = {
   brief: 'bg-muted text-muted-foreground',
@@ -43,6 +45,7 @@ export default function AssetDetailDrawer({ asset, open, onOpenChange, onUpdated
   const [titleEditing, setTitleEditing] = useState(false);
   const [titleDraft, setTitleDraft] = useState('');
   const [titleSaving, setTitleSaving] = useState(false);
+  const [emailOpen, setEmailOpen] = useState(false);
 
   useEffect(() => {
     if (!open) {
@@ -292,6 +295,26 @@ export default function AssetDetailDrawer({ asset, open, onOpenChange, onUpdated
               </Button>
             )}
 
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="w-full">
+                    <Button
+                      variant="outline"
+                      onClick={() => setEmailOpen(true)}
+                      disabled={!asset.content}
+                      className="w-full"
+                    >
+                      <Mail className="h-4 w-4 mr-1" /> Email content
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                {!asset.content && (
+                  <TooltipContent>Generate content first</TooltipContent>
+                )}
+              </Tooltip>
+            </TooltipProvider>
+
             {asset.notion_url && (
               <Button variant="ghost" size="sm" asChild>
                 <a href={asset.notion_url} target="_blank" rel="noopener noreferrer">
@@ -314,6 +337,7 @@ export default function AssetDetailDrawer({ asset, open, onOpenChange, onUpdated
           )}
         </div>
       </SheetContent>
+      <EmailAssetDialog asset={asset} open={emailOpen} onOpenChange={setEmailOpen} />
     </Sheet>
   );
 }
