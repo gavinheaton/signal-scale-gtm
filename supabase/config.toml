@@ -31,3 +31,11 @@ project_id = "xiufgczyecwgnkbyroow"
     verify_jwt = false
   [functions.add-campaign-to-notion]
     verify_jwt = false
+  [functions.generate-asset-image]
+    verify_jwt = false
+  [functions.composite-feature-image]
+    verify_jwt = false
+  [functions.generate-seo-metadata]
+    verify_jwt = false
+  [functions.publish-to-wordpress]
+    verify_jwt = false

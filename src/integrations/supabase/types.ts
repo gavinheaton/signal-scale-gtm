@@ -44,6 +44,50 @@ export type Database = {
         }
         Relationships: []
       }
+      asset_images: {
+        Row: {
+          asset_id: string
+          created_at: string
+          id: string
+          is_composited: boolean
+          is_selected: boolean
+          prompt: string | null
+          public_url: string
+          storage_path: string
+          variant_index: number
+        }
+        Insert: {
+          asset_id: string
+          created_at?: string
+          id?: string
+          is_composited?: boolean
+          is_selected?: boolean
+          prompt?: string | null
+          public_url: string
+          storage_path: string
+          variant_index?: number
+        }
+        Update: {
+          asset_id?: string
+          created_at?: string
+          id?: string
+          is_composited?: boolean
+          is_selected?: boolean
+          prompt?: string | null
+          public_url?: string
+          storage_path?: string
+          variant_index?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "asset_images_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "campaign_assets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       brand_voices: {
         Row: {
           banned_phrases: string[] | null
@@ -122,6 +166,8 @@ export type Database = {
           campaign_id: string
           content: string | null
           depends_on: string | null
+          feature_image_alt: string | null
+          feature_image_url: string | null
           id: string
           notion_url: string | null
           offset_days: number | null
@@ -129,15 +175,20 @@ export type Database = {
           production_due: string | null
           publish_date: string | null
           rationale: string | null
+          seo_meta: Json | null
           sequence_order: number | null
           status: Database["public"]["Enums"]["asset_status"]
           title: string
+          wordpress_post_id: string | null
+          wordpress_post_url: string | null
         }
         Insert: {
           asset_type: Database["public"]["Enums"]["asset_type"]
           campaign_id: string
           content?: string | null
           depends_on?: string | null
+          feature_image_alt?: string | null
+          feature_image_url?: string | null
           id?: string
           notion_url?: string | null
           offset_days?: number | null
@@ -145,15 +196,20 @@ export type Database = {
           production_due?: string | null
           publish_date?: string | null
           rationale?: string | null
+          seo_meta?: Json | null
           sequence_order?: number | null
           status?: Database["public"]["Enums"]["asset_status"]
           title: string
+          wordpress_post_id?: string | null
+          wordpress_post_url?: string | null
         }
         Update: {
           asset_type?: Database["public"]["Enums"]["asset_type"]
           campaign_id?: string
           content?: string | null
           depends_on?: string | null
+          feature_image_alt?: string | null
+          feature_image_url?: string | null
           id?: string
           notion_url?: string | null
           offset_days?: number | null
@@ -161,9 +217,12 @@ export type Database = {
           production_due?: string | null
           publish_date?: string | null
           rationale?: string | null
+          seo_meta?: Json | null
           sequence_order?: number | null
           status?: Database["public"]["Enums"]["asset_status"]
           title?: string
+          wordpress_post_id?: string | null
+          wordpress_post_url?: string | null
         }
         Relationships: [
           {
@@ -466,6 +525,50 @@ export type Database = {
             foreignKeyName: "project_connections_project_id_fkey"
             columns: ["project_id"]
             isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      project_visual_settings: {
+        Row: {
+          created_at: string
+          id: string
+          overlay_template: Json | null
+          project_id: string
+          updated_at: string
+          visual_style_preset: string | null
+          wordpress_default_category: string | null
+          wordpress_default_status: string | null
+          wordpress_site_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          overlay_template?: Json | null
+          project_id: string
+          updated_at?: string
+          visual_style_preset?: string | null
+          wordpress_default_category?: string | null
+          wordpress_default_status?: string | null
+          wordpress_site_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          overlay_template?: Json | null
+          project_id?: string
+          updated_at?: string
+          visual_style_preset?: string | null
+          wordpress_default_category?: string | null
+          wordpress_default_status?: string | null
+          wordpress_site_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_visual_settings_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: true
             referencedRelation: "projects"
             referencedColumns: ["id"]
           },
