@@ -22,6 +22,16 @@ interface OrgWithCounts extends Organisation {
   projectCount: number;
 }
 
+interface AbandonedSession {
+  id: string;
+  project_id: string;
+  session_type: string;
+  created_at: string;
+  draft_output: any;
+  project_name?: string;
+  org_name?: string;
+}
+
 export default function AdminDashboard() {
   const { user, isSuperAdmin } = useAuth();
   const { setCurrentProject } = useProject();
