@@ -31,7 +31,12 @@ export default function EmailAssetDialog({ asset, open, onOpenChange }: Props) {
 
   const htmlContent = useMemo(() => {
     if (!asset?.content) return '';
-    return markdownToEmailHtml(asset.content, { title: subject || asset.title, assetType: asset.asset_type });
+    return markdownToEmailHtml(asset.content, {
+      title: subject || asset.title,
+      assetType: asset.asset_type,
+      featureImageUrl: asset.feature_image_url ?? undefined,
+      featureImageAlt: asset.feature_image_alt ?? asset.title,
+    });
   }, [asset, subject]);
 
   if (!asset) return null;
