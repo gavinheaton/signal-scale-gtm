@@ -46,6 +46,7 @@ export type Database = {
       }
       asset_images: {
         Row: {
+          aspect: string
           asset_id: string
           created_at: string
           id: string
@@ -57,6 +58,7 @@ export type Database = {
           variant_index: number
         }
         Insert: {
+          aspect?: string
           asset_id: string
           created_at?: string
           id?: string
@@ -68,6 +70,7 @@ export type Database = {
           variant_index?: number
         }
         Update: {
+          aspect?: string
           asset_id?: string
           created_at?: string
           id?: string

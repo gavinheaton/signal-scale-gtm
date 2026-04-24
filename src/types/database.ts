@@ -115,6 +115,8 @@ export interface SeoMeta {
   excerpt?: string;
 }
 
+export type ImageAspect = '16:9' | '1:1';
+
 export interface AssetImage {
   id: string;
   asset_id: string;
@@ -124,6 +126,7 @@ export interface AssetImage {
   variant_index: number;
   is_selected: boolean;
   is_composited: boolean;
+  aspect: ImageAspect;
   created_at: string;
 }
 
