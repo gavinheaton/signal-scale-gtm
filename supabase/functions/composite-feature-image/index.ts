@@ -38,10 +38,15 @@ Deno.serve(async (req) => {
 
     const { data: img, error: iErr } = await sb
       .from("asset_images")
-      .select("id, asset_id, public_url, storage_path")
+      .select("id, asset_id, public_url, storage_path, aspect")
       .eq("id", asset_image_id)
       .single();
     if (iErr || !img) throw new Error(iErr?.message || "Image not found");
+
+    const aspect: "16:9" | "1:1" = (img as any).aspect === "1:1" ? "1:1" : "16:9";
+    const aspectPhrase = aspect === "1:1"
+      ? "Preserve the original 1:1 square aspect ratio exactly — do not crop to widescreen."
+      : "Preserve the original 16:9 widescreen aspect ratio exactly — do not crop to square.";
 
     const { data: asset, error: aErr } = await sb
       .from("campaign_assets")
@@ -65,7 +70,7 @@ Deno.serve(async (req) => {
     };
 
     // Use AI edit to overlay the title
-    const editPrompt = `Add the following article title text overlaid on this image as a magazine-style cover. Title: "${asset.title}". Style: bold ${tmpl.font_family} sans-serif, weight ${tmpl.font_weight}, color ${tmpl.text_color}, large size, positioned ${tmpl.alignment} ${tmpl.gradient_direction === "top" ? "top" : "bottom"} with ${Math.round(tmpl.padding)}px padding. Add a subtle dark gradient fade behind the text from the ${tmpl.gradient_direction} for legibility (opacity ~${tmpl.gradient_opacity}). Keep the original image composition intact — only add the text and gradient overlay. Do not crop, distort, or change colors of the underlying photo.`;
+    const editPrompt = `Add the following article title text overlaid on this image as a magazine-style cover. Title: "${asset.title}". Style: bold ${tmpl.font_family} sans-serif, weight ${tmpl.font_weight}, color ${tmpl.text_color}, large size, positioned ${tmpl.alignment} ${tmpl.gradient_direction === "top" ? "top" : "bottom"} with ${Math.round(tmpl.padding)}px padding. Add a subtle dark gradient fade behind the text from the ${tmpl.gradient_direction} for legibility (opacity ~${tmpl.gradient_opacity}). Keep the original image composition intact — only add the text and gradient overlay. Do not crop, distort, or change colors of the underlying photo. ${aspectPhrase}`;
 
     const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -114,6 +119,7 @@ Deno.serve(async (req) => {
       variant_index: 99,
       is_selected: true,
       is_composited: true,
+      aspect,
     }).select().single();
     if (newErr) throw new Error(newErr.message);
 

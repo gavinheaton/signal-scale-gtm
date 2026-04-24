@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
-import { CampaignAsset, AssetImage } from '@/types/database';
+import { CampaignAsset, AssetImage, ImageAspect } from '@/types/database';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Loader2, Sparkles, ImageIcon, Wand2, Check } from 'lucide-react';
+import { Loader2, Sparkles, ImageIcon, Wand2, Check, RectangleHorizontal, Square } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
@@ -19,6 +19,7 @@ export default function AssetVisualsPanel({ asset, onUpdated }: Props) {
   const [compositing, setCompositingId] = useState<string | null>(null);
   const [promptOverride, setPromptOverride] = useState('');
   const [showPrompt, setShowPrompt] = useState(false);
+  const [aspect, setAspect] = useState<ImageAspect>('16:9');
 
   const loadImages = async () => {
     setLoading(true);
@@ -37,7 +38,7 @@ export default function AssetVisualsPanel({ asset, onUpdated }: Props) {
     setGenerating(true);
     try {
       const { data, error } = await supabase.functions.invoke('generate-asset-image', {
-        body: { asset_id: asset.id, prompt_override: promptOverride || undefined },
+        body: { asset_id: asset.id, prompt_override: promptOverride || undefined, aspect },
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
@@ -71,6 +72,9 @@ export default function AssetVisualsPanel({ asset, onUpdated }: Props) {
   const variants = images.filter(i => !i.is_composited);
   const composites = images.filter(i => i.is_composited);
 
+  const thumbAspectClass = (a: ImageAspect | undefined) =>
+    (a ?? '16:9') === '1:1' ? 'aspect-square' : 'aspect-video';
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -100,6 +104,34 @@ export default function AssetVisualsPanel({ asset, onUpdated }: Props) {
         />
       )}
 
+      <div>
+        <p className="text-xs font-medium text-muted-foreground mb-1.5">Aspect ratio</p>
+        <div className="inline-flex rounded-md border bg-muted p-0.5">
+          <button
+            type="button"
+            onClick={() => setAspect('16:9')}
+            className={cn(
+              'flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-sm transition-colors',
+              aspect === '16:9' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'
+            )}
+            aria-pressed={aspect === '16:9'}
+          >
+            <RectangleHorizontal className="h-3.5 w-3.5" /> 16:9
+          </button>
+          <button
+            type="button"
+            onClick={() => setAspect('1:1')}
+            className={cn(
+              'flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-sm transition-colors',
+              aspect === '1:1' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'
+            )}
+            aria-pressed={aspect === '1:1'}
+          >
+            <Square className="h-3.5 w-3.5" /> Square
+          </button>
+        </div>
+      </div>
+
       <Button onClick={handleGenerate} disabled={generating} className="w-full">
         {generating ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Sparkles className="h-4 w-4 mr-2" />}
         {variants.length > 0 ? 'Generate 4 new variants' : 'Generate 4 variants'}
@@ -124,7 +156,7 @@ export default function AssetVisualsPanel({ asset, onUpdated }: Props) {
                       compositing === img.id && 'opacity-60'
                     )}
                   >
-                    <img src={img.public_url} alt="" className="w-full h-32 object-cover" />
+                    <img src={img.public_url} alt="" className={cn('w-full object-cover', thumbAspectClass(img.aspect))} />
                     <div className="absolute inset-0 bg-background/80 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
                       {compositing === img.id ? (
                         <Loader2 className="h-5 w-5 animate-spin" />
@@ -146,7 +178,7 @@ export default function AssetVisualsPanel({ asset, onUpdated }: Props) {
               <div className="grid grid-cols-2 gap-2">
                 {composites.slice(0, 4).map(img => (
                   <div key={img.id} className="relative rounded-md overflow-hidden border">
-                    <img src={img.public_url} alt="" className="w-full h-32 object-cover" />
+                    <img src={img.public_url} alt="" className={cn('w-full object-cover', thumbAspectClass(img.aspect))} />
                     {img.is_selected && (
                       <div className="absolute top-1 right-1 bg-primary text-primary-foreground rounded-full p-1">
                         <Check className="h-3 w-3" />
