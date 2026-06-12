@@ -190,6 +190,8 @@ export default function Campaigns() {
   const briefCount = assets.filter(a => a.status === 'brief').length;
   const pushableCount = assets.filter(a => a.content && !a.notion_url).length;
   const alreadyPushed = assets.filter(a => a.notion_url).length;
+  const ppPushableCount = assets.filter(a => ['approved', 'published'].includes(a.status) && !a.propresence_id).length;
+  const ppAlreadyPushed = assets.filter(a => a.propresence_id).length;
 
   const activeCampaigns = campaigns.filter(c => c.status === 'active');
   const captureActive = activeCampaigns.filter(c => c.track === 'demand_capture').length;
