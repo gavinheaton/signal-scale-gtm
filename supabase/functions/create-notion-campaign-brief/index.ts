@@ -97,23 +97,17 @@ Deno.serve(async (req) => {
       "Notion-Version": "2022-06-28",
     };
 
-    // If project_id provided, route into per-project Content Calendar database
+    // Resolve per-project Content Calendar database
     let notionCalendarDbId: string | null = null;
-
-    if (projectId) {
-      const adminClient = createClient(
-        Deno.env.get("SUPABASE_URL")!,
-        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-      );
-
+    {
       const { data: project } = await adminClient
         .from("projects")
         .select("notion_calendar_db_id")
         .eq("id", projectId)
         .single();
-
       notionCalendarDbId = project?.notion_calendar_db_id || null;
     }
+
 
     if (notionCalendarDbId) {
       // ── DATABASE MODE: create individual entries in Content Calendar ──
