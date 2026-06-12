@@ -1,58 +1,76 @@
-## Per-project Notion connection (Vault-backed)
+## Adopt + upgrade existing ProPresence Notion workspace
 
-Mirror the ProPresence/WordPress/Claude pattern so each project stores its own Notion integration token in Supabase Vault. Edge functions resolve the key by `project_id` instead of using the global `NOTION_API_KEY` env var.
+Goal: connect the project to your existing `ProPresence Workspace Template` page instead of building a new one. Discover what's already there, only add what's missing, and map our app's expected fields to whatever properties you already use — no overwriting, no duplicate databases.
 
-### 1. Schema
+### 1. Connect Notion (per-project key)
+Already built last turn. You'll paste your Notion internal-integration token (created in the ProPresence workspace, shared with the template page) into **Settings → Notion**. Stored in Vault, scoped to this project.
+
+### 2. New flow: "Adopt existing workspace"
+On the Notion settings card, in addition to **Setup new workspace**, add **Adopt existing workspace**:
+
+1. You paste the URL of the parent page (`ProPresence Workspace Template ...`).
+2. New edge function **`discover-notion-workspace`** does a read-only scan:
+   - Pulls the page via `/blocks/{id}/children` (recursive, depth 2).
+   - Collects every child database with its `id`, `title`, and full `properties` schema.
+   - Returns a manifest: `{ parent_page_id, databases: [{ id, title, properties: [{name, type, options?}] }] }`.
+3. We auto-match by title (case-insensitive, fuzzy): `Content Calendar`, `Content Pillars`, `Strategic Foundations`, plus per-channel calendars (`LinkedIn Calendar`, etc.).
+4. UI shows the manifest with three states per expected DB:
+   - ✅ Found → preselected
+   - ❓ Ambiguous → dropdown of candidates
+   - ❌ Missing → checkbox "Create this database"
+
+### 3. Property mapping
+For each adopted DB, show a mapping table:
+
+```text
+App field         │ Type       │ Your property
+──────────────────┼────────────┼─────────────────────────
+Title             │ title      │ [auto: "Name" / "Content"]
+Status            │ select     │ [dropdown of your selects]
+Channel           │ select     │ [dropdown]
+Publish Date      │ date       │ [dropdown]
+Pillar (relation) │ relation   │ [dropdown of relations]
+...
+```
+
+- Auto-suggest by exact/fuzzy name match.
+- "— Not mapped —" is allowed; that field is simply omitted when pushing.
+- Saved as `notion_property_map jsonb` on the project (per DB).
+
+### 4. "Upgrade in place" (optional, opt-in)
+A separate **Add missing pieces** button does only additive work:
+- For each expected DB you didn't adopt and didn't already have, create it (existing setup logic, scoped to just that DB).
+- Append missing top-level sections (e.g. "Ideas" heading, sidebar) only if not already present (detected by heading text scan).
+- Never modifies existing databases' schemas, never deletes blocks, never edits existing pages.
+
+### 5. Push functions respect the map
+All push paths (`push-asset-to-notion`, `add-campaign-to-notion`, `bulk-push-campaign-to-notion`, `create-notion-campaign-brief`, `check-notion-sync`) read `notion_property_map` for the target DB and translate app fields → your property names. Unmapped fields are skipped silently with a debug log.
+
+### 6. Schema changes
 Migration adds to `projects`:
-- `notion_api_key_secret_id uuid` — Vault secret reference
-- `notion_workspace_name text` — display label (optional, set on connect)
-- `notion_connected_at timestamptz`
+- `notion_parent_page_id text` — your ProPresence template page id
+- `notion_property_map jsonb` — `{ calendar: {Status: "Status", Channel: "Platform", ...}, pillars: {...}, foundations: {...} }`
+- `notion_channel_db_ids jsonb` — `{ LinkedIn: "...", Email: "...", ... }` for per-channel calendars
 
-No new tables. Existing `notion_calendar_db_id`, `notion_pillars_db_id`, `notion_foundations_db_id`, `notion_last_synced_at` stay as-is.
+Keeps existing `notion_calendar_db_id`, `notion_pillars_db_id`, `notion_foundations_db_id`, `notion_workspace_id`.
 
-### 2. New edge function: `manage-notion-connection`
-Modeled on `manage-propresence-connection`. Actions:
-- `connect { project_id, api_key }` — verifies caller is admin+ on the project's org, validates the key by calling `GET https://api.notion.com/v1/users/me`, stores via `vault_create_secret`, writes `notion_api_key_secret_id` + `notion_workspace_name` + `notion_connected_at`, **clears** `notion_calendar_db_id`/`notion_pillars_db_id`/`notion_foundations_db_id` so the next Setup rebuilds in the new workspace.
-- `disconnect { project_id }` — admin+, calls `vault_delete_secret`, nulls all notion_* columns on the project.
-- `status { project_id }` — returns `{ connected, workspace_name, connected_at, has_databases }`.
+### 7. Files
 
-### 3. Refactor existing Notion edge functions
-Replace every `Deno.env.get("NOTION_API_KEY")` with a shared `resolveNotionKey(projectId)` helper (new `supabase/functions/_shared/notion.ts`) that reads `projects.notion_api_key_secret_id` and pulls the plaintext from Vault. Functions touched:
-- `setup-notion-workspace`
-- `push-asset-to-notion`
-- `bulk-push-campaign-to-notion`
-- `add-campaign-to-notion`
-- `create-notion-campaign-brief`
-- `check-notion-sync`
-
-If a project has no Notion key configured, return a clear 400: "Connect Notion for this project in Settings first."
-
-### 4. Settings UI
-New `NotionConnectionCard.tsx` (copy of `PropresenceConnectionCard.tsx` styling) shown per active project:
-- Disconnected state: input for Notion internal integration token, "Connect" button, helper link explaining how to create one at notion.so/profile/integrations and share target pages with the integration.
-- Connected state: workspace name, connected timestamp, "Setup Notion Workspace" button (existing flow), "Disconnect" button.
-
-Mount in `Settings.tsx` next to the ProPresence card.
-
-### 5. Clean up stale workspace IDs
-The migration also sets `notion_calendar_db_id`, `notion_pillars_db_id`, `notion_foundations_db_id`, `notion_last_synced_at` to NULL for the user's current project (so the wrong-workspace IDs from the earlier Notion run are wiped). User then connects the ProPresence-workspace token and re-runs Setup.
-
-### 6. Global `NOTION_API_KEY` secret
-Leave it in place for now (no code reads it after the refactor). Can be deleted later from Settings → Secrets once the refactor is verified.
-
-### Technical notes
-- Vault helpers `vault_create_secret` / `vault_delete_secret` already exist (used by ProPresence and WordPress).
-- Secret name convention: `notion_api_key_{project_id}` to match ProPresence pattern.
-- Auth: every action checks `user_has_org_role(auth.uid(), project.org_id, ARRAY['admin','owner','superadmin'])`.
-- No changes to `types.ts` by hand — regenerated after migration.
-
-### Files
 **New**
-- `supabase/migrations/<timestamp>_notion_per_project.sql`
-- `supabase/functions/manage-notion-connection/index.ts`
-- `supabase/functions/_shared/notion.ts`
-- `src/components/settings/NotionConnectionCard.tsx`
+- `supabase/functions/discover-notion-workspace/index.ts`
+- `src/components/settings/NotionAdoptWorkspaceDialog.tsx` (paste URL → manifest → mapping UI → save)
+- `supabase/migrations/<ts>_notion_adopt.sql`
 
 **Modified**
-- 6 Notion edge functions (key resolution)
-- `src/pages/Settings.tsx` (mount card)
+- `src/components/settings/NotionConnectionCard.tsx` (add "Adopt existing" button + "Add missing pieces" button)
+- 5 Notion push edge functions (read `notion_property_map`, translate field names)
+- `setup-notion-workspace` (new `mode: "missing_only"` branch that skips existing DBs)
+
+### 8. Safety guarantees
+- Discovery is **read-only** — no writes happen until you confirm in the mapping UI.
+- Adopt path **never** creates databases inside your existing ones; it only saves IDs.
+- "Add missing pieces" is opt-in per item with explicit checkboxes.
+- Your existing content, properties, and views are never touched.
+
+### Open question (will ask after approval if needed)
+Per-channel calendars in your template — if you don't have them but the app expects them, do you want a single Content Calendar + filtered views (recommended; we just save the same ID for all channels), or separate per-channel DBs created fresh? Most ProPresence templates use the single-DB pattern, so default is **shared single DB**.
