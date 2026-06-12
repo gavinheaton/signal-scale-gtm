@@ -102,6 +102,7 @@ export type Database = {
           personality_adjectives: string[] | null
           preferred_vocabulary: Json | null
           project_id: string
+          propresence_synced_at: string | null
           status: string
           target_audiences: Json | null
           tone_description: string | null
@@ -120,6 +121,7 @@ export type Database = {
           personality_adjectives?: string[] | null
           preferred_vocabulary?: Json | null
           project_id: string
+          propresence_synced_at?: string | null
           status?: string
           target_audiences?: Json | null
           tone_description?: string | null
@@ -138,6 +140,7 @@ export type Database = {
           personality_adjectives?: string[] | null
           preferred_vocabulary?: Json | null
           project_id?: string
+          propresence_synced_at?: string | null
           status?: string
           target_audiences?: Json | null
           tone_description?: string | null
@@ -176,6 +179,10 @@ export type Database = {
           offset_days: number | null
           persona_target_ids: string[] | null
           production_due: string | null
+          propresence_id: string | null
+          propresence_push_error: string | null
+          propresence_pushed_at: string | null
+          propresence_type: string | null
           publish_date: string | null
           rationale: string | null
           seo_meta: Json | null
@@ -197,6 +204,10 @@ export type Database = {
           offset_days?: number | null
           persona_target_ids?: string[] | null
           production_due?: string | null
+          propresence_id?: string | null
+          propresence_push_error?: string | null
+          propresence_pushed_at?: string | null
+          propresence_type?: string | null
           publish_date?: string | null
           rationale?: string | null
           seo_meta?: Json | null
@@ -218,6 +229,10 @@ export type Database = {
           offset_days?: number | null
           persona_target_ids?: string[] | null
           production_due?: string | null
+          propresence_id?: string | null
+          propresence_push_error?: string | null
+          propresence_pushed_at?: string | null
+          propresence_type?: string | null
           publish_date?: string | null
           rationale?: string | null
           seo_meta?: Json | null
@@ -640,6 +655,8 @@ export type Database = {
           notion_pillars_db_id: string | null
           notion_workspace_id: string | null
           org_id: string
+          propresence_target: string | null
+          propresence_tone_synced_at: string | null
           slug: string | null
           status: Database["public"]["Enums"]["project_status"]
         }
@@ -655,6 +672,8 @@ export type Database = {
           notion_pillars_db_id?: string | null
           notion_workspace_id?: string | null
           org_id: string
+          propresence_target?: string | null
+          propresence_tone_synced_at?: string | null
           slug?: string | null
           status?: Database["public"]["Enums"]["project_status"]
         }
@@ -670,6 +689,8 @@ export type Database = {
           notion_pillars_db_id?: string | null
           notion_workspace_id?: string | null
           org_id?: string
+          propresence_target?: string | null
+          propresence_tone_synced_at?: string | null
           slug?: string | null
           status?: Database["public"]["Enums"]["project_status"]
         }

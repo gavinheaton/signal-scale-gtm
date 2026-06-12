@@ -5,7 +5,7 @@ import { Campaign, ICP, CampaignAsset, AssetStatus, CampaignStatus } from '@/typ
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Plus, Calendar as CalendarIcon, Sparkles, ExternalLink, Loader2, ChevronRight, Trash2, MoreVertical } from 'lucide-react';
+import { Plus, Calendar as CalendarIcon, Sparkles, ExternalLink, Loader2, ChevronRight, Trash2, MoreVertical, Zap } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Progress } from '@/components/ui/progress';
@@ -61,6 +61,8 @@ export default function Campaigns() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [bulkGenerating, setBulkGenerating] = useState(false);
   const [bulkPushing, setBulkPushing] = useState(false);
+  const [bulkPushingPP, setBulkPushingPP] = useState(false);
+  const [ppConnected, setPpConnected] = useState(false);
   const [bulkProgress, setBulkProgress] = useState(0);
   const [deleteTarget, setDeleteTarget] = useState<Campaign | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -77,6 +79,18 @@ export default function Campaigns() {
   };
 
   useEffect(() => { fetchData(); }, [currentProject]);
+
+  // Check ProPresence connection for this project
+  useEffect(() => {
+    if (!currentProject) { setPpConnected(false); return; }
+    supabase
+      .from('project_connections')
+      .select('id')
+      .eq('project_id', currentProject.id)
+      .eq('provider', 'propresence')
+      .maybeSingle()
+      .then(({ data }) => setPpConnected(!!data));
+  }, [currentProject]);
 
   const fetchAssets = async () => {
     if (!selectedCampaign) return;
@@ -148,9 +162,36 @@ export default function Campaigns() {
     }
   };
 
+  const handleBulkPushPropresence = async () => {
+    if (!selectedCampaign) return;
+    setBulkPushingPP(true);
+    setBulkProgress(10);
+    try {
+      const { data, error } = await supabase.functions.invoke('bulk-push-campaign-to-propresence', {
+        body: { campaign_id: selectedCampaign.id },
+      });
+      if (error || data?.error) throw new Error(data?.error || error?.message || 'Bulk push failed');
+      setBulkProgress(100);
+      const { pushed = 0, failed = 0, total = 0 } = data || {};
+      if (failed > 0) {
+        toast.warning(`Pushed ${pushed} of ${total} to ProPresence (${failed} failed)`);
+      } else {
+        toast.success(`Pushed ${pushed} asset${pushed === 1 ? '' : 's'} to ProPresence`);
+      }
+      fetchAssets();
+    } catch (err: any) {
+      toast.error(err.message || 'Bulk push failed');
+    } finally {
+      setBulkPushingPP(false);
+      setTimeout(() => setBulkProgress(0), 1500);
+    }
+  };
+
   const briefCount = assets.filter(a => a.status === 'brief').length;
   const pushableCount = assets.filter(a => a.content && !a.notion_url).length;
   const alreadyPushed = assets.filter(a => a.notion_url).length;
+  const ppPushableCount = assets.filter(a => ['approved', 'published'].includes(a.status) && !a.propresence_id).length;
+  const ppAlreadyPushed = assets.filter(a => a.propresence_id).length;
 
   const activeCampaigns = campaigns.filter(c => c.status === 'active');
   const captureActive = activeCampaigns.filter(c => c.track === 'demand_capture').length;
@@ -225,15 +266,33 @@ export default function Campaigns() {
             {bulkPushing ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <ExternalLink className="h-4 w-4 mr-1" />}
             Push to Notion {pushableCount > 0 && `(${pushableCount})`}
           </Button>
+          {ppConnected && (
+            <Button
+              variant="outline"
+              onClick={handleBulkPushPropresence}
+              disabled={bulkPushingPP || ppPushableCount === 0}
+            >
+              {bulkPushingPP ? (
+                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+              ) : (
+                <Zap className="h-4 w-4 mr-1" style={{ color: 'hsl(var(--purple))' }} />
+              )}
+              Push to ProPresence {ppPushableCount > 0 && `(${ppPushableCount})`}
+            </Button>
+          )}
           {alreadyPushed > 0 && (
             <span className="text-xs text-muted-foreground">{alreadyPushed} already in Notion</span>
           )}
-          {(bulkGenerating || bulkPushing) && (
+          {ppConnected && ppAlreadyPushed > 0 && (
+            <span className="text-xs text-muted-foreground">{ppAlreadyPushed} already in ProPresence</span>
+          )}
+          {(bulkGenerating || bulkPushing || bulkPushingPP) && (
             <div className="flex-1 min-w-[120px]">
               <Progress value={bulkProgress} className="h-2" />
             </div>
           )}
         </div>
+
 
         <Tabs defaultValue="pipeline" className="w-full">
           <TabsList>

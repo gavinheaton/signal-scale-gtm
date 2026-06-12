@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Loader2, Sparkles, ExternalLink, RefreshCw, Pencil, Save, X, Check, Mail } from 'lucide-react';
+import { Loader2, Sparkles, ExternalLink, RefreshCw, Pencil, Save, X, Check, Mail, Zap, AlertCircle } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import AssetVisualsPanel from './AssetVisualsPanel';
 import AssetSEOPanel from './AssetSEOPanel';
@@ -37,6 +37,8 @@ interface Props {
 export default function AssetDetailDrawer({ asset, open, onOpenChange, onUpdated }: Props) {
   const [generating, setGenerating] = useState(false);
   const [pushing, setPushing] = useState(false);
+  const [pushingPP, setPushingPP] = useState(false);
+  const [ppConnected, setPpConnected] = useState(false);
   const [promptOverride, setPromptOverride] = useState('');
   const [editing, setEditing] = useState(false);
   const [editContent, setEditContent] = useState('');
@@ -46,6 +48,20 @@ export default function AssetDetailDrawer({ asset, open, onOpenChange, onUpdated
   const [titleDraft, setTitleDraft] = useState('');
   const [titleSaving, setTitleSaving] = useState(false);
   const [emailOpen, setEmailOpen] = useState(false);
+
+  useEffect(() => {
+    if (!open || !asset) return;
+    // Check if project has ProPresence connected (via campaign → project)
+    (async () => {
+      const { data: campaign } = await supabase
+        .from('campaigns').select('project_id').eq('id', asset.campaign_id).single();
+      if (!campaign?.project_id) { setPpConnected(false); return; }
+      const { data: conn } = await supabase
+        .from('project_connections').select('id')
+        .eq('project_id', campaign.project_id).eq('provider', 'propresence').maybeSingle();
+      setPpConnected(!!conn);
+    })();
+  }, [open, asset?.campaign_id]);
 
   useEffect(() => {
     if (!open) {
@@ -154,6 +170,22 @@ export default function AssetDetailDrawer({ asset, open, onOpenChange, onUpdated
       toast.error(err?.message || 'Push failed');
     } finally {
       setPushing(false);
+    }
+  };
+
+  const handlePushToPropresence = async () => {
+    setPushingPP(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('push-asset-to-propresence', {
+        body: { asset_id: asset.id },
+      });
+      if (error || data?.error) throw new Error(data?.error || error?.message || 'Push failed');
+      toast.success('Pushed to ProPresence');
+      onUpdated();
+    } catch (err: any) {
+      toast.error(err?.message || 'Push failed');
+    } finally {
+      setPushingPP(false);
     }
   };
 
@@ -293,6 +325,45 @@ export default function AssetDetailDrawer({ asset, open, onOpenChange, onUpdated
                 {pushing ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <ExternalLink className="h-4 w-4 mr-1" />}
                 Push to Notion
               </Button>
+            )}
+
+            {asset.content && ppConnected && !asset.propresence_id && (
+              <Button variant="outline" onClick={handlePushToPropresence} disabled={pushingPP}>
+                {pushingPP ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Zap className="h-4 w-4 mr-1" style={{ color: 'hsl(var(--purple))' }} />}
+                Push to ProPresence
+              </Button>
+            )}
+
+            {asset.propresence_pushed_at && (
+              <div className="flex items-center justify-between rounded-md border bg-purple-500/5 border-purple-500/30 px-3 py-2">
+                <div className="flex items-center gap-2">
+                  <Badge className="bg-purple-500/20 text-purple-700 border-purple-500/30">
+                    <Zap className="h-3 w-3 mr-1" /> In ProPresence
+                  </Badge>
+                  <span className="text-xs text-muted-foreground capitalize">{asset.propresence_type || 'post'}</span>
+                </div>
+                <Button variant="ghost" size="sm" asChild>
+                  <a href="https://app.propresence.com.au" target="_blank" rel="noopener noreferrer">
+                    Open <ExternalLink className="h-3 w-3 ml-1" />
+                  </a>
+                </Button>
+              </div>
+            )}
+
+            {asset.propresence_push_error && !asset.propresence_pushed_at && (
+              <div className="rounded-md border bg-destructive/5 border-destructive/30 px-3 py-2 space-y-2">
+                <div className="flex items-center gap-2 text-xs text-destructive">
+                  <AlertCircle className="h-3.5 w-3.5" />
+                  <span className="font-medium">Push failed</span>
+                </div>
+                <p className="text-xs text-muted-foreground line-clamp-2">{asset.propresence_push_error}</p>
+                {ppConnected && (
+                  <Button size="sm" variant="outline" onClick={handlePushToPropresence} disabled={pushingPP}>
+                    {pushingPP ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <RefreshCw className="h-3 w-3 mr-1" />}
+                    Retry
+                  </Button>
+                )}
+              </div>
             )}
 
             <TooltipProvider>
