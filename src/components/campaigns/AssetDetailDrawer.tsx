@@ -327,6 +327,45 @@ export default function AssetDetailDrawer({ asset, open, onOpenChange, onUpdated
               </Button>
             )}
 
+            {asset.content && ppConnected && !asset.propresence_id && (
+              <Button variant="outline" onClick={handlePushToPropresence} disabled={pushingPP}>
+                {pushingPP ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Zap className="h-4 w-4 mr-1" style={{ color: 'hsl(var(--purple))' }} />}
+                Push to ProPresence
+              </Button>
+            )}
+
+            {asset.propresence_pushed_at && (
+              <div className="flex items-center justify-between rounded-md border bg-purple-500/5 border-purple-500/30 px-3 py-2">
+                <div className="flex items-center gap-2">
+                  <Badge className="bg-purple-500/20 text-purple-700 border-purple-500/30">
+                    <Zap className="h-3 w-3 mr-1" /> In ProPresence
+                  </Badge>
+                  <span className="text-xs text-muted-foreground capitalize">{asset.propresence_type || 'post'}</span>
+                </div>
+                <Button variant="ghost" size="sm" asChild>
+                  <a href="https://app.propresence.com.au" target="_blank" rel="noopener noreferrer">
+                    Open <ExternalLink className="h-3 w-3 ml-1" />
+                  </a>
+                </Button>
+              </div>
+            )}
+
+            {asset.propresence_push_error && !asset.propresence_pushed_at && (
+              <div className="rounded-md border bg-destructive/5 border-destructive/30 px-3 py-2 space-y-2">
+                <div className="flex items-center gap-2 text-xs text-destructive">
+                  <AlertCircle className="h-3.5 w-3.5" />
+                  <span className="font-medium">Push failed</span>
+                </div>
+                <p className="text-xs text-muted-foreground line-clamp-2">{asset.propresence_push_error}</p>
+                {ppConnected && (
+                  <Button size="sm" variant="outline" onClick={handlePushToPropresence} disabled={pushingPP}>
+                    {pushingPP ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <RefreshCw className="h-3 w-3 mr-1" />}
+                    Retry
+                  </Button>
+                )}
+              </div>
+            )}
+
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
