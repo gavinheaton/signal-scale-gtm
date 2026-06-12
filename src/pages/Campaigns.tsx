@@ -266,15 +266,33 @@ export default function Campaigns() {
             {bulkPushing ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <ExternalLink className="h-4 w-4 mr-1" />}
             Push to Notion {pushableCount > 0 && `(${pushableCount})`}
           </Button>
+          {ppConnected && (
+            <Button
+              variant="outline"
+              onClick={handleBulkPushPropresence}
+              disabled={bulkPushingPP || ppPushableCount === 0}
+            >
+              {bulkPushingPP ? (
+                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+              ) : (
+                <Zap className="h-4 w-4 mr-1" style={{ color: 'hsl(var(--purple))' }} />
+              )}
+              Push to ProPresence {ppPushableCount > 0 && `(${ppPushableCount})`}
+            </Button>
+          )}
           {alreadyPushed > 0 && (
             <span className="text-xs text-muted-foreground">{alreadyPushed} already in Notion</span>
           )}
-          {(bulkGenerating || bulkPushing) && (
+          {ppConnected && ppAlreadyPushed > 0 && (
+            <span className="text-xs text-muted-foreground">{ppAlreadyPushed} already in ProPresence</span>
+          )}
+          {(bulkGenerating || bulkPushing || bulkPushingPP) && (
             <div className="flex-1 min-w-[120px]">
               <Progress value={bulkProgress} className="h-2" />
             </div>
           )}
         </div>
+
 
         <Tabs defaultValue="pipeline" className="w-full">
           <TabsList>
