@@ -1,7 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { corsHeaders } from "../_shared/cors.ts";
-
-const NOTION_API = "https://api.notion.com/v1";
+import { NOTION_API, resolveNotionKey, NOTION_NOT_CONFIGURED_ERROR } from "../_shared/notion.ts";
 
 function extractNotionId(input: string): string {
   if (/^[0-9a-f]{8}-/.test(input)) return input;
@@ -206,15 +205,22 @@ Deno.serve(async (req) => {
       });
     }
 
-    const NOTION_TOKEN = Deno.env.get("NOTION_API_KEY");
+    const NOTION_TOKEN = await resolveNotionKey(adminClient, project_id);
     const PARENT_PAGE_ID = customParentPageId || Deno.env.get("NOTION_CAMPAIGN_BRIEFS_PAGE_ID");
 
-    if (!NOTION_TOKEN || !PARENT_PAGE_ID) {
-      return new Response(JSON.stringify({ error: "Notion secrets not configured. Provide parent_page_id or set NOTION_CAMPAIGN_BRIEFS_PAGE_ID." }), {
-        status: 500,
+    if (!NOTION_TOKEN) {
+      return new Response(JSON.stringify({ error: NOTION_NOT_CONFIGURED_ERROR }), {
+        status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+    if (!PARENT_PAGE_ID) {
+      return new Response(JSON.stringify({ error: "Provide parent_page_id (a Notion page in your workspace shared with the integration) or set NOTION_CAMPAIGN_BRIEFS_PAGE_ID." }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
 
     const normalizedParentPageId = extractNotionId(PARENT_PAGE_ID);
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(normalizedParentPageId)) {

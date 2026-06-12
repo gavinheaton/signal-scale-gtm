@@ -96,6 +96,21 @@ Deno.serve(async (req) => {
 
       await upsertConnection(serviceClient, existing, project_id, provider, secretId);
 
+      // When (re)connecting Notion, wipe any cached workspace/database IDs from the
+      // previous workspace so the next Setup rebuilds in the new workspace.
+      if (provider === "notion") {
+        await serviceClient
+          .from("projects")
+          .update({
+            notion_workspace_id: null,
+            notion_calendar_db_id: null,
+            notion_pillars_db_id: null,
+            notion_foundations_db_id: null,
+            notion_last_synced_at: null,
+          })
+          .eq("id", project_id);
+      }
+
       return new Response(JSON.stringify({ success: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -149,6 +164,20 @@ Deno.serve(async (req) => {
           .from("project_connections")
           .delete()
           .eq("id", existing.id);
+      }
+
+      // Clear cached Notion workspace IDs when disconnecting Notion
+      if (provider === "notion") {
+        await serviceClient
+          .from("projects")
+          .update({
+            notion_workspace_id: null,
+            notion_calendar_db_id: null,
+            notion_pillars_db_id: null,
+            notion_foundations_db_id: null,
+            notion_last_synced_at: null,
+          })
+          .eq("id", project_id);
       }
 
       return new Response(JSON.stringify({ success: true }), {
