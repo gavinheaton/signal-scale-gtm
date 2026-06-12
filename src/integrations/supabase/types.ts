@@ -650,9 +650,12 @@ export type Database = {
           methodology_progress: Json | null
           name: string
           notion_calendar_db_id: string | null
+          notion_channel_db_ids: Json
           notion_foundations_db_id: string | null
           notion_last_synced_at: string | null
+          notion_parent_page_id: string | null
           notion_pillars_db_id: string | null
+          notion_property_map: Json
           notion_workspace_id: string | null
           org_id: string
           propresence_target: string | null
@@ -667,9 +670,12 @@ export type Database = {
           methodology_progress?: Json | null
           name: string
           notion_calendar_db_id?: string | null
+          notion_channel_db_ids?: Json
           notion_foundations_db_id?: string | null
           notion_last_synced_at?: string | null
+          notion_parent_page_id?: string | null
           notion_pillars_db_id?: string | null
+          notion_property_map?: Json
           notion_workspace_id?: string | null
           org_id: string
           propresence_target?: string | null
@@ -684,9 +690,12 @@ export type Database = {
           methodology_progress?: Json | null
           name?: string
           notion_calendar_db_id?: string | null
+          notion_channel_db_ids?: Json
           notion_foundations_db_id?: string | null
           notion_last_synced_at?: string | null
+          notion_parent_page_id?: string | null
           notion_pillars_db_id?: string | null
+          notion_property_map?: Json
           notion_workspace_id?: string | null
           org_id?: string
           propresence_target?: string | null

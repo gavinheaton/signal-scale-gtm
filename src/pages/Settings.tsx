@@ -17,6 +17,7 @@ import NotionSyncStatus from '@/components/settings/NotionSyncStatus';
 import VisualStyleSettings from '@/components/settings/VisualStyleSettings';
 import OrgWordPressConnectionCard from '@/components/settings/OrgWordPressConnectionCard';
 import PropresenceConnectionCard from '@/components/settings/PropresenceConnectionCard';
+import NotionAdoptWorkspaceDialog from '@/components/settings/NotionAdoptWorkspaceDialog';
 
 const PROVIDERS = [
   { id: 'claude' as const, name: 'Claude (Anthropic)', icon: Bot, description: 'Powers AI wizards for ICP & Persona generation' },
@@ -43,6 +44,7 @@ export default function SettingsPage() {
   const [settingUpNotion, setSettingUpNotion] = useState(false);
   const [notionWorkspaceId, setNotionWorkspaceId] = useState<string | null>(null);
   const [notionWorkspaceUrl, setNotionWorkspaceUrl] = useState<string | null>(null);
+  const [adoptOpen, setAdoptOpen] = useState(false);
 
   const canInvite = hasMinRole('admin');
   const canManageConnections = hasMinRole('admin');
@@ -285,6 +287,9 @@ export default function SettingsPage() {
                         Open in Notion <ExternalLink className="h-3 w-3" />
                       </a>
                     </Button>
+                    <Button size="sm" variant="ghost" onClick={() => setAdoptOpen(true)}>
+                      Re-adopt
+                    </Button>
                     <Button size="sm" variant="ghost" onClick={handleSetupNotionWorkspace} disabled={settingUpNotion}>
                       {settingUpNotion ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Re-sync'}
                     </Button>
@@ -293,24 +298,48 @@ export default function SettingsPage() {
                 <NotionSyncStatus projectId={currentProject.id} lastSyncedAt={(currentProject as any).notion_last_synced_at} />
               </>
             ) : (
-              <div className="flex items-center justify-between p-4 rounded-lg border bg-card">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted">
-                    <FileText className="h-5 w-5 text-foreground" />
+              <div className="space-y-3">
+                <div className="flex items-center justify-between p-4 rounded-lg border bg-card">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted">
+                      <FileText className="h-5 w-5 text-foreground" />
+                    </div>
+                    <div>
+                      <p className="font-medium text-foreground">Adopt existing workspace</p>
+                      <p className="text-xs text-muted-foreground">Connect to a page you already built (e.g. ProPresence template) — nothing gets overwritten.</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="font-medium text-foreground">Content Calendar</p>
-                    <p className="text-xs text-muted-foreground">Create a full content calendar workspace in Notion for this project</p>
-                  </div>
+                  <Button variant="outline" onClick={() => setAdoptOpen(true)} disabled={!connections['notion']}>
+                    Adopt existing
+                  </Button>
                 </div>
-                <Button onClick={handleSetupNotionWorkspace} disabled={settingUpNotion || !connections['notion']}>
-                  {settingUpNotion ? (
-                    <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Setting up…</>
-                  ) : (
-                    'Set up Notion Workspace'
-                  )}
-                </Button>
+                <div className="flex items-center justify-between p-4 rounded-lg border bg-card">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted">
+                      <FileText className="h-5 w-5 text-foreground" />
+                    </div>
+                    <div>
+                      <p className="font-medium text-foreground">Create fresh workspace</p>
+                      <p className="text-xs text-muted-foreground">Build a brand-new content calendar workspace in Notion for this project</p>
+                    </div>
+                  </div>
+                  <Button onClick={handleSetupNotionWorkspace} disabled={settingUpNotion || !connections['notion']}>
+                    {settingUpNotion ? (
+                      <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Setting up…</>
+                    ) : (
+                      'Set up new'
+                    )}
+                  </Button>
+                </div>
               </div>
+            )}
+            {currentProject && (
+              <NotionAdoptWorkspaceDialog
+                projectId={currentProject.id}
+                open={adoptOpen}
+                onOpenChange={setAdoptOpen}
+                onAdopted={() => window.location.reload()}
+              />
             )}
             {!connections['notion'] && !notionWorkspaceId && (
               <p className="text-xs text-muted-foreground">

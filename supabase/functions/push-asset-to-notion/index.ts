@@ -122,13 +122,13 @@ Deno.serve(async (req) => {
 
     const { data: project } = await adminClient
       .from("projects")
-      .select("notion_calendar_db_id")
+      .select("notion_calendar_db_id, notion_property_map")
       .eq("id", campaign.project_id)
       .single();
 
     if (!project?.notion_calendar_db_id) {
       return new Response(
-        JSON.stringify({ error: "Notion workspace not set up for this project. Run Setup Notion Workspace first." }),
+        JSON.stringify({ error: "Notion workspace not set up for this project. Run Setup Notion Workspace or Adopt existing first." }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -152,33 +152,48 @@ Deno.serve(async (req) => {
       ? "Demand Creation (95%)"
       : "Demand Capture (5%)";
 
-    // Build Content Calendar properties
-    const properties: Record<string, unknown> = {
-      Content: { title: text(asset.title) },
+    // App-field-keyed values; translated to user's Notion property names below.
+    const appValues: Record<string, unknown> = {
+      Title: { title: text(asset.title) },
       Status: { select: { name: "Brief" } },
       Campaign: { rich_text: text(campaign.name) },
       "Demand Type": { select: { name: demandType } },
     };
 
     const channel = CHANNEL_MAP[asset.asset_type];
-    if (channel) properties.Channel = { select: { name: channel } };
+    if (channel) appValues.Channel = { select: { name: channel } };
 
     const contentType = CONTENT_TYPE_MAP[asset.asset_type];
-    if (contentType) properties["Content Type"] = { select: { name: contentType } };
+    if (contentType) appValues["Content Type"] = { select: { name: contentType } };
 
     const today = new Date().toISOString().split("T")[0];
-    properties["Publish Date"] = { date: { start: asset.publish_date || today } };
+    appValues["Publish Date"] = { date: { start: asset.publish_date || today } };
 
-    // Resolve persona names
     if (asset.persona_target_ids && asset.persona_target_ids.length > 0) {
       const { data: personas } = await adminClient
         .from("personas")
         .select("persona_name")
         .in("id", asset.persona_target_ids);
       if (personas && personas.length > 0) {
-        properties.Persona = { rich_text: text(personas.map(p => p.persona_name).join(", ")) };
+        appValues.Persona = { rich_text: text(personas.map(p => p.persona_name).join(", ")) };
       }
     }
+
+    // Default identity map (used when no adopted-workspace property map exists):
+    const DEFAULT_MAP: Record<string, string> = {
+      Title: "Content", Status: "Status", Campaign: "Campaign",
+      "Demand Type": "Demand Type", Channel: "Channel", "Content Type": "Content Type",
+      "Publish Date": "Publish Date", Persona: "Persona",
+    };
+    const calendarMap = ((project as any).notion_property_map?.calendar as Record<string, string> | undefined)
+      || DEFAULT_MAP;
+
+    const properties: Record<string, unknown> = {};
+    for (const [appField, value] of Object.entries(appValues)) {
+      const userProp = calendarMap[appField];
+      if (userProp) properties[userProp] = value;
+    }
+
 
     // Content as page body blocks
     const contentBlocks = markdownToBlocks(asset.content);
