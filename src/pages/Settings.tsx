@@ -16,6 +16,7 @@ import ApiAccessCard from '@/components/settings/ApiAccessCard';
 import NotionSyncStatus from '@/components/settings/NotionSyncStatus';
 import VisualStyleSettings from '@/components/settings/VisualStyleSettings';
 import OrgWordPressConnectionCard from '@/components/settings/OrgWordPressConnectionCard';
+import PropresenceConnectionCard from '@/components/settings/PropresenceConnectionCard';
 
 const PROVIDERS = [
   { id: 'claude' as const, name: 'Claude (Anthropic)', icon: Bot, description: 'Powers AI wizards for ICP & Persona generation' },
@@ -320,9 +321,14 @@ export default function SettingsPage() {
         </Card>
       )}
 
+      {canManageConnections && currentProject && (
+        <PropresenceConnectionCard projectId={currentProject.id} />
+      )}
+
       <ApiAccessCard />
 
       <OrgWordPressConnectionCard />
+
 
       {currentProject && <VisualStyleSettings />}
 
