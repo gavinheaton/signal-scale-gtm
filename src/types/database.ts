@@ -27,6 +27,8 @@ export interface OrgMembership {
   role: OrgRole;
 }
 
+export type PropresenceTarget = 'personal' | 'company';
+
 export interface Project {
   id: string;
   org_id: string;
@@ -39,6 +41,8 @@ export interface Project {
   notion_pillars_db_id?: string | null;
   notion_foundations_db_id?: string | null;
   notion_last_synced_at?: string | null;
+  propresence_target?: PropresenceTarget | null;
+  propresence_tone_synced_at?: string | null;
   created_at: string;
 }
 
@@ -105,6 +109,10 @@ export interface CampaignAsset {
   seo_meta?: SeoMeta | null;
   wordpress_post_url?: string | null;
   wordpress_post_id?: string | null;
+  propresence_id?: string | null;
+  propresence_type?: 'post' | 'article' | null;
+  propresence_pushed_at?: string | null;
+  propresence_push_error?: string | null;
 }
 
 export interface SeoMeta {
@@ -171,7 +179,7 @@ export interface OrgWordPressConnection {
 export interface ProjectConnection {
   id: string;
   project_id: string;
-  provider: 'claude' | 'notion';
+  provider: 'claude' | 'notion' | 'propresence';
   api_key_secret_id: string;
   created_at: string;
   updated_at: string;
@@ -192,6 +200,7 @@ export interface BrandVoice {
   target_audiences: Record<string, any>[];
   brand_identity: Record<string, any>;
   wizard_session_id: string | null;
+  propresence_synced_at?: string | null;
   created_at: string;
   updated_at: string;
 }

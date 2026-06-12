@@ -464,6 +464,29 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Auto-sync to ProPresence when brand voice is just marked complete
+    if (isComplete) {
+      try {
+        const { data: pconn } = await supabase.from("project_connections")
+          .select("id").eq("project_id", project_id).eq("provider", "propresence").maybeSingle();
+        if (pconn) {
+          // Fire-and-forget — don't block the wizard response
+          const fnUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/sync-tone-to-propresence`;
+          fetch(fnUrl, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+              "apikey": Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+            },
+            body: JSON.stringify({ project_id }),
+          }).catch((e) => console.warn("ProPresence auto-sync failed:", e?.message));
+        }
+      } catch (e) {
+        console.warn("ProPresence auto-sync check failed:", e);
+      }
+    }
+
     return new Response(JSON.stringify({
       reply: cleanReply, updated_draft: updatedDraft, session_id: sessionId,
     }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
