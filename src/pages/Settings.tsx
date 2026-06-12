@@ -287,6 +287,9 @@ export default function SettingsPage() {
                         Open in Notion <ExternalLink className="h-3 w-3" />
                       </a>
                     </Button>
+                    <Button size="sm" variant="ghost" onClick={() => setAdoptOpen(true)}>
+                      Re-adopt
+                    </Button>
                     <Button size="sm" variant="ghost" onClick={handleSetupNotionWorkspace} disabled={settingUpNotion}>
                       {settingUpNotion ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Re-sync'}
                     </Button>
