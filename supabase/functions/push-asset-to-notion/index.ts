@@ -1,7 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { corsHeaders } from "../_shared/cors.ts";
-
-const NOTION_API = "https://api.notion.com/v1";
+import { NOTION_API, resolveNotionKey, NOTION_NOT_CONFIGURED_ERROR } from "../_shared/notion.ts";
 
 const CHANNEL_MAP: Record<string, string> = {
   blog: "Blog",
@@ -134,13 +133,14 @@ Deno.serve(async (req) => {
       );
     }
 
-    const NOTION_TOKEN = Deno.env.get("NOTION_API_KEY");
+    const NOTION_TOKEN = await resolveNotionKey(adminClient, campaign.project_id);
     if (!NOTION_TOKEN) {
-      return new Response(JSON.stringify({ error: "Notion API key not configured" }), {
-        status: 500,
+      return new Response(JSON.stringify({ error: NOTION_NOT_CONFIGURED_ERROR }), {
+        status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
 
     const notionHeaders = {
       Authorization: `Bearer ${NOTION_TOKEN}`,

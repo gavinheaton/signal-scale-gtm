@@ -1,7 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { corsHeaders } from "../_shared/cors.ts";
-
-const NOTION_API = "https://api.notion.com/v1";
+import { NOTION_API, resolveNotionKey, NOTION_NOT_CONFIGURED_ERROR } from "../_shared/notion.ts";
 
 function text(content: string) {
   return [{ type: "text", text: { content } }];
@@ -72,10 +71,22 @@ Deno.serve(async (req) => {
       });
     }
 
-    const NOTION_TOKEN = Deno.env.get("NOTION_API_KEY");
+    if (!projectId) {
+      return new Response(JSON.stringify({ error: "project_id is required to resolve Notion connection" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const adminClient = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+    );
+
+    const NOTION_TOKEN = await resolveNotionKey(adminClient, projectId);
     if (!NOTION_TOKEN) {
-      return new Response(JSON.stringify({ error: "Notion API key not configured" }), {
-        status: 500,
+      return new Response(JSON.stringify({ error: NOTION_NOT_CONFIGURED_ERROR }), {
+        status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
