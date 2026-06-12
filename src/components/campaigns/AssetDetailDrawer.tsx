@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { Loader2, Sparkles, ExternalLink, RefreshCw, Pencil, Save, X, Check, Mail } from 'lucide-react';
+import { Loader2, Sparkles, ExternalLink, RefreshCw, Pencil, Save, X, Check, Mail, Zap, AlertCircle } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import AssetVisualsPanel from './AssetVisualsPanel';
 import AssetSEOPanel from './AssetSEOPanel';
@@ -37,6 +37,8 @@ interface Props {
 export default function AssetDetailDrawer({ asset, open, onOpenChange, onUpdated }: Props) {
   const [generating, setGenerating] = useState(false);
   const [pushing, setPushing] = useState(false);
+  const [pushingPP, setPushingPP] = useState(false);
+  const [ppConnected, setPpConnected] = useState(false);
   const [promptOverride, setPromptOverride] = useState('');
   const [editing, setEditing] = useState(false);
   const [editContent, setEditContent] = useState('');
@@ -46,6 +48,20 @@ export default function AssetDetailDrawer({ asset, open, onOpenChange, onUpdated
   const [titleDraft, setTitleDraft] = useState('');
   const [titleSaving, setTitleSaving] = useState(false);
   const [emailOpen, setEmailOpen] = useState(false);
+
+  useEffect(() => {
+    if (!open || !asset) return;
+    // Check if project has ProPresence connected (via campaign → project)
+    (async () => {
+      const { data: campaign } = await supabase
+        .from('campaigns').select('project_id').eq('id', asset.campaign_id).single();
+      if (!campaign?.project_id) { setPpConnected(false); return; }
+      const { data: conn } = await supabase
+        .from('project_connections').select('id')
+        .eq('project_id', campaign.project_id).eq('provider', 'propresence').maybeSingle();
+      setPpConnected(!!conn);
+    })();
+  }, [open, asset?.campaign_id]);
 
   useEffect(() => {
     if (!open) {
@@ -154,6 +170,22 @@ export default function AssetDetailDrawer({ asset, open, onOpenChange, onUpdated
       toast.error(err?.message || 'Push failed');
     } finally {
       setPushing(false);
+    }
+  };
+
+  const handlePushToPropresence = async () => {
+    setPushingPP(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('push-asset-to-propresence', {
+        body: { asset_id: asset.id },
+      });
+      if (error || data?.error) throw new Error(data?.error || error?.message || 'Push failed');
+      toast.success('Pushed to ProPresence');
+      onUpdated();
+    } catch (err: any) {
+      toast.error(err?.message || 'Push failed');
+    } finally {
+      setPushingPP(false);
     }
   };
 
