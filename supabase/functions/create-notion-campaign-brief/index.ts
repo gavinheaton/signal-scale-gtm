@@ -227,16 +227,11 @@ Deno.serve(async (req) => {
       }
 
       // Update last synced timestamp
-      if (projectId) {
-        const adminClient = createClient(
-          Deno.env.get("SUPABASE_URL")!,
-          Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-        );
-        await adminClient
-          .from("projects")
-          .update({ notion_last_synced_at: new Date().toISOString() })
-          .eq("id", projectId);
-      }
+      await adminClient
+        .from("projects")
+        .update({ notion_last_synced_at: new Date().toISOString() })
+        .eq("id", projectId);
+
 
       const calendarUrl = `https://notion.so/${notionCalendarDbId.replace(/-/g, "")}`;
       return new Response(JSON.stringify({ notion_url: calendarUrl, items_pushed: itemsPushed }), {
