@@ -80,6 +80,37 @@ Deno.serve(async (req) => {
 
     const { message, session_id, project_id, project_context } = await req.json();
 
+    // Authorization: caller must belong to the project's org
+    if (project_id) {
+      const { data: proj } = await supabase.from("projects").select("org_id").eq("id", project_id).maybeSingle();
+      if (!proj) {
+        return new Response(JSON.stringify({ error: "Project not found" }), {
+          status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const { data: accessOk } = await supabase.rpc("user_has_org_access", { _user_id: user.id, _org_id: proj.org_id });
+      if (!accessOk) {
+        return new Response(JSON.stringify({ error: "Forbidden" }), {
+          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
+    if (session_id) {
+      const { data: sess } = await supabase.from("wizard_sessions").select("project_id").eq("id", session_id).maybeSingle();
+      if (sess?.project_id) {
+        const { data: proj } = await supabase.from("projects").select("org_id").eq("id", sess.project_id).maybeSingle();
+        const { data: accessOk } = proj
+          ? await supabase.rpc("user_has_org_access", { _user_id: user.id, _org_id: proj.org_id })
+          : { data: false } as any;
+        if (!accessOk) {
+          return new Response(JSON.stringify({ error: "Forbidden" }), {
+            status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+      }
+    }
+
+
     let sessionId = session_id;
     let messages: Array<{ role: string; content: string; timestamp: string }> = [];
     let existingDraft: Record<string, any> = {};
