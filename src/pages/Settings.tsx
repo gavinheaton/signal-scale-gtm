@@ -17,6 +17,7 @@ import NotionSyncStatus from '@/components/settings/NotionSyncStatus';
 import VisualStyleSettings from '@/components/settings/VisualStyleSettings';
 import OrgWordPressConnectionCard from '@/components/settings/OrgWordPressConnectionCard';
 import PropresenceConnectionCard from '@/components/settings/PropresenceConnectionCard';
+import PropresenceSetupWizard from '@/components/settings/PropresenceSetupWizard';
 import NotionAdoptWorkspaceDialog from '@/components/settings/NotionAdoptWorkspaceDialog';
 import NotionStrategyPageCard from '@/components/settings/NotionStrategyPageCard';
 
