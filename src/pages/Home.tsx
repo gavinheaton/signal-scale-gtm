@@ -4,8 +4,11 @@ import { useProject } from '@/contexts/ProjectContext';
 import { Campaign, CampaignAsset, PhaseStatus, MethodologyPhase } from '@/types/database';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Users, Target, Megaphone, TrendingUp } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Users, Target, Megaphone, TrendingUp, RefreshCw, Loader2, ExternalLink } from 'lucide-react';
 import { Navigate } from 'react-router-dom';
+import { toast } from 'sonner';
+
 
 const phases: { key: MethodologyPhase; label: string }[] = [
   { key: 'icp', label: 'ICP' },
@@ -93,10 +96,14 @@ export default function Home() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">{currentProject.name}</h1>
-        <p className="text-sm" style={{ color: 'hsl(var(--orange))' }}>GTM Overview</p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">{currentProject.name}</h1>
+          <p className="text-sm" style={{ color: 'hsl(var(--orange))' }}>GTM Overview</p>
+        </div>
+        <SyncToNotionButton />
       </div>
+
 
       {/* Methodology Progress */}
       <Card>
