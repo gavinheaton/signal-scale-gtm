@@ -656,6 +656,8 @@ export type Database = {
           notion_parent_page_id: string | null
           notion_pillars_db_id: string | null
           notion_property_map: Json
+          notion_strategy_page_id: string | null
+          notion_strategy_synced_at: string | null
           notion_workspace_id: string | null
           org_id: string
           propresence_target: string | null
@@ -676,6 +678,8 @@ export type Database = {
           notion_parent_page_id?: string | null
           notion_pillars_db_id?: string | null
           notion_property_map?: Json
+          notion_strategy_page_id?: string | null
+          notion_strategy_synced_at?: string | null
           notion_workspace_id?: string | null
           org_id: string
           propresence_target?: string | null
@@ -696,6 +700,8 @@ export type Database = {
           notion_parent_page_id?: string | null
           notion_pillars_db_id?: string | null
           notion_property_map?: Json
+          notion_strategy_page_id?: string | null
+          notion_strategy_synced_at?: string | null
           notion_workspace_id?: string | null
           org_id?: string
           propresence_target?: string | null
