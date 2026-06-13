@@ -40,7 +40,7 @@ Deno.serve(async (req) => {
     if (!allowed) throw new Error("Insufficient permissions");
 
     if (req.method === "POST") {
-      const { api_key, target } = body;
+      const { api_key, target, validate_only } = body;
       if (!api_key) throw new Error("api_key required");
       const safeTarget = target === "personal" ? "personal" : "company";
 
@@ -53,6 +53,12 @@ Deno.serve(async (req) => {
         throw new Error("Invalid ProPresence API key");
       }
       // Anything else (200, 404, even 405) means the key was accepted — proceed.
+
+      if (validate_only) {
+        return new Response(JSON.stringify({ ok: true, target: safeTarget }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
 
       // Find existing connection
       const { data: existing } = await service.from("project_connections")
