@@ -5,8 +5,10 @@ import { useProject } from '@/contexts/ProjectContext';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Mic, Sparkles, Eye, Download, ArrowRight, Info, X, Upload, Loader2 } from 'lucide-react';
+import { Mic, Sparkles, Eye, Download, ArrowRight, Info, X, Upload, Loader2, DownloadCloud } from 'lucide-react';
 import { toast } from 'sonner';
+import NotionImportDialog from '@/components/notion/NotionImportDialog';
+
 
 interface BrandVoiceRecord {
   id: string;
@@ -25,6 +27,9 @@ export default function BrandVoice() {
   const [showBanner, setShowBanner] = useState(false);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [importOpen, setImportOpen] = useState(false);
+  const notionStrategyPageId = (currentProject as any)?.notion_strategy_page_id;
+
 
   useEffect(() => {
     if (!currentProject) return;
@@ -162,7 +167,13 @@ export default function BrandVoice() {
           </h1>
           <p className="text-sm text-muted-foreground mt-1">Define how your brand communicates</p>
         </div>
+        {notionStrategyPageId && (
+          <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
+            <DownloadCloud className="h-4 w-4 mr-2" /> Import from Notion
+          </Button>
+        )}
       </div>
+
 
       {showBanner && (
         <div className="flex items-start gap-3 rounded-lg border border-primary/20 bg-primary/5 p-4">
@@ -261,6 +272,17 @@ export default function BrandVoice() {
           </CardContent>
         </Card>
       )}
+
+      {currentProject && (
+        <NotionImportDialog
+          projectId={currentProject.id}
+          open={importOpen}
+          onOpenChange={setImportOpen}
+          mode="brand_voice"
+          onImported={fetchBrandVoice}
+        />
+      )}
     </div>
   );
 }
+

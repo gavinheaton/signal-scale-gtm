@@ -12,6 +12,8 @@ import { ICPPreviewPanel } from '@/components/icp-wizard/ICPPreviewPanel';
 import { ICP_SECTIONS, getSectionStatus, type DraftOutput, type ChatMessage } from '@/components/icp-wizard/types';
 import type { MatrixCategory } from '@/types/database';
 import { stripDraft } from '@/lib/stripDraft';
+import { triggerStrategySync } from '@/lib/syncStrategyToNotion';
+
 
 export default function ICPWizard() {
   const { currentProject } = useProject();
@@ -158,7 +160,9 @@ export default function ICPWizard() {
 
       toast.success('ICP saved to platform!');
       setSavedIcpId(insertedData.id);
+      triggerStrategySync(currentProject.id, (currentProject as any).notion_strategy_page_id);
       setSaving(false);
+
     } catch (err: any) {
       toast.error('Failed to save: ' + err.message);
       setSaving(false);
