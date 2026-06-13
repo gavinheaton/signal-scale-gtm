@@ -28,6 +28,10 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
+    let user;
+    try { ({ user } = await requireUser(req, corsHeaders)); }
+    catch (r) { return r as Response; }
+
     const { asset_image_id }: ReqBody = await req.json();
     if (!asset_image_id) {
       return new Response(JSON.stringify({ error: "asset_image_id required" }), {
@@ -35,7 +39,14 @@ Deno.serve(async (req) => {
       });
     }
 
-    const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    const sb = serviceClient();
+    try { await assertAssetImageAccess(sb, user.id, asset_image_id); }
+    catch (e: any) {
+      return new Response(JSON.stringify({ error: e?.message || "Forbidden" }), {
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
 
     const { data: img, error: iErr } = await sb
       .from("asset_images")
