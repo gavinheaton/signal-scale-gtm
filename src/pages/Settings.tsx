@@ -362,7 +362,12 @@ export default function SettingsPage() {
       )}
 
       {canManageConnections && currentProject && (
-        <PropresenceConnectionCard projectId={currentProject.id} />
+        <div className="space-y-2">
+          <PropresenceConnectionCard projectId={currentProject.id} />
+          <div className="flex justify-end">
+            <PropresenceSetupWizard projectId={currentProject.id} />
+          </div>
+        </div>
       )}
 
       <ApiAccessCard />
