@@ -222,10 +222,18 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
+    let user;
+    try { ({ user } = await requireUser(req, corsHeaders)); }
+    catch (r) { return r as Response; }
+
     const { asset_id, status, site_id_override }: ReqBody = await req.json();
     if (!asset_id) return jsonRes({ error: "asset_id required" }, 400);
 
-    const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    const sb = serviceClient();
+    try { await assertAssetAccess(sb, user.id, asset_id); }
+    catch (e: any) { return jsonRes({ error: e?.message || "Forbidden" }, 403); }
+
+
 
     // Resolve asset → campaign → project → org
     const { data: asset, error: aErr } = await sb
