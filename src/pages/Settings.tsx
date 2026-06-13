@@ -18,6 +18,8 @@ import VisualStyleSettings from '@/components/settings/VisualStyleSettings';
 import OrgWordPressConnectionCard from '@/components/settings/OrgWordPressConnectionCard';
 import PropresenceConnectionCard from '@/components/settings/PropresenceConnectionCard';
 import NotionAdoptWorkspaceDialog from '@/components/settings/NotionAdoptWorkspaceDialog';
+import NotionStrategyPageCard from '@/components/settings/NotionStrategyPageCard';
+
 
 const PROVIDERS = [
   { id: 'claude' as const, name: 'Claude (Anthropic)', icon: Bot, description: 'Powers AI wizards for ICP & Persona generation' },
@@ -348,6 +350,15 @@ export default function SettingsPage() {
             )}
           </CardContent>
         </Card>
+      )}
+
+      {canManageConnections && currentProject && (
+        <NotionStrategyPageCard
+          projectId={currentProject.id}
+          notionConfigured={!!connections['notion']}
+          initialPageId={(currentProject as any).notion_strategy_page_id || null}
+          initialSyncedAt={(currentProject as any).notion_strategy_synced_at || null}
+        />
       )}
 
       {canManageConnections && currentProject && (
