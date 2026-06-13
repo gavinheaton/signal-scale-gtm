@@ -11,6 +11,8 @@ import ReactMarkdown from 'react-markdown';
 import { BrandVoicePreviewPanel } from '@/components/brand-voice-wizard/BrandVoicePreviewPanel';
 import { BRAND_VOICE_SECTIONS, getSectionStatus, type BrandVoiceDraft, type ChatMessage } from '@/components/brand-voice-wizard/types';
 import { stripDraft } from '@/lib/stripDraft';
+import { triggerStrategySync } from '@/lib/syncStrategyToNotion';
+
 
 export default function BrandVoiceWizard() {
   const { currentProject } = useProject();
@@ -133,7 +135,9 @@ export default function BrandVoiceWizard() {
     setSaving(true);
     try {
       toast.success('Brand voice saved!');
+      triggerStrategySync(currentProject.id, (currentProject as any).notion_strategy_page_id);
       navigate('/project/brand-voice');
+
     } catch (err: any) {
       toast.error('Failed to save: ' + err.message);
     } finally {

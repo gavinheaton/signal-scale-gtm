@@ -12,6 +12,8 @@ import { CampaignPreviewPanel } from '@/components/campaign-wizard/CampaignPrevi
 import { CAMPAIGN_SECTIONS, getCampaignSectionStatus, type CampaignDraft, type ContentCalendarItem } from '@/components/campaign-wizard/types';
 import type { AssetType } from '@/types/database';
 import { stripDraft } from '@/lib/stripDraft';
+import { triggerStrategySync } from '@/lib/syncStrategyToNotion';
+
 
 interface ChatMessage {
   role: 'user' | 'assistant';
@@ -280,7 +282,9 @@ export default function CampaignWizard() {
       }
 
       toast.success('Campaign saved!');
+      triggerStrategySync(currentProject.id, (currentProject as any).notion_strategy_page_id);
       navigate('/project/campaigns');
+
     } catch (err: any) {
       toast.error('Failed to save: ' + err.message);
     } finally {
