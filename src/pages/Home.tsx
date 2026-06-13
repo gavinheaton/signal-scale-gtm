@@ -207,3 +207,37 @@ export default function Home() {
     </div>
   );
 }
+
+function SyncToNotionButton() {
+  const { currentProject } = useProject();
+  const [syncing, setSyncing] = useState(false);
+  const pageId = (currentProject as any)?.notion_strategy_page_id;
+  if (!pageId) return null;
+
+  const handleSync = async () => {
+    if (!currentProject) return;
+    setSyncing(true);
+    const { data, error } = await supabase.functions.invoke('sync-strategy-to-notion', {
+      body: { project_id: currentProject.id },
+    });
+    setSyncing(false);
+    if (error || (data as any)?.error) {
+      toast.error((data as any)?.error || error?.message || 'Sync failed');
+      return;
+    }
+    toast.success('Strategy synced to Notion', {
+      action: {
+        label: 'Open',
+        onClick: () => window.open(`https://notion.so/${pageId.replace(/-/g, '')}`, '_blank'),
+      },
+    });
+  };
+
+  return (
+    <Button variant="outline" size="sm" onClick={handleSync} disabled={syncing}>
+      {syncing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+      Sync to Notion
+      <ExternalLink className="h-3 w-3 ml-1 opacity-60" />
+    </Button>
+  );
+}
