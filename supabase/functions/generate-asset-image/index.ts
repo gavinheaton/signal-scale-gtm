@@ -55,6 +55,10 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
+    let user;
+    try { ({ user } = await requireUser(req, corsHeaders)); }
+    catch (r) { return r as Response; }
+
     const { asset_id, prompt_override, variant_count, aspect: aspectIn }: ReqBody = await req.json();
     const aspect: Aspect = aspectIn === "1:1" ? "1:1" : "16:9";
     if (!asset_id) {
@@ -64,7 +68,14 @@ Deno.serve(async (req) => {
       });
     }
 
-    const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    const sb = serviceClient();
+    try { await assertAssetAccess(sb, user.id, asset_id); }
+    catch (e: any) {
+      return new Response(JSON.stringify({ error: e?.message || "Forbidden" }), {
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
 
     // Load asset + campaign + project + visual settings
     const { data: asset, error: aErr } = await sb
