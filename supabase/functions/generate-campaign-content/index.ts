@@ -75,6 +75,11 @@ Deno.serve(async (req) => {
         status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+    if (asset.campaign_id !== campaign_id) {
+      return new Response(JSON.stringify({ error: "Asset does not belong to campaign" }), {
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     // Fetch campaign
     const { data: campaign } = await supabase
