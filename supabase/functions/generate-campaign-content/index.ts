@@ -50,12 +50,34 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Authorization: caller must belong to campaign's org
+    const { data: campCheck } = await supabase
+      .from("campaigns").select("id, project_id, projects!inner(org_id)").eq("id", campaign_id).maybeSingle();
+    if (!campCheck) {
+      return new Response(JSON.stringify({ error: "Campaign not found" }), {
+        status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const orgId = (campCheck as any).projects.org_id as string;
+    const { data: accessOk } = await supabase.rpc("user_has_org_access", { _user_id: user.id, _org_id: orgId });
+    if (!accessOk) {
+      return new Response(JSON.stringify({ error: "Forbidden" }), {
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+
     // Fetch asset
     const { data: asset, error: assetErr } = await supabase
       .from("campaign_assets").select("*").eq("id", asset_id).single();
     if (assetErr || !asset) {
       return new Response(JSON.stringify({ error: "Asset not found" }), {
         status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (asset.campaign_id !== campaign_id) {
+      return new Response(JSON.stringify({ error: "Asset does not belong to campaign" }), {
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 

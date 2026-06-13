@@ -215,6 +215,20 @@ Deno.serve(async (req) => {
 
     const { message, session_id, project_id, file_url } = await req.json();
 
+    async function assertProject(pid: string): Promise<Response | null> {
+      const { data: proj } = await supabase.from("projects").select("org_id").eq("id", pid).maybeSingle();
+      if (!proj) return new Response(JSON.stringify({ error: "Project not found" }), { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      const { data: accessOk } = await supabase.rpc("user_has_org_access", { _user_id: user.id, _org_id: proj.org_id });
+      if (!accessOk) return new Response(JSON.stringify({ error: "Forbidden" }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      return null;
+    }
+    if (project_id) { const r = await assertProject(project_id); if (r) return r; }
+    if (session_id) {
+      const { data: sess } = await supabase.from("wizard_sessions").select("project_id").eq("id", session_id).maybeSingle();
+      if (sess?.project_id) { const r = await assertProject(sess.project_id); if (r) return r; }
+    }
+
+
     let sessionId = session_id;
     let messages: Array<{ role: string; content: string; timestamp: string }> = [];
     let existingDraft: Record<string, any> = {};

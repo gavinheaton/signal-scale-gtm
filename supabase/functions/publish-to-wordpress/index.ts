@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { corsHeaders } from "../_shared/cors.ts";
+import { requireUser, assertAssetAccess, serviceClient } from "../_shared/auth.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -221,10 +222,18 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
+    let user;
+    try { ({ user } = await requireUser(req, corsHeaders)); }
+    catch (r) { return r as Response; }
+
     const { asset_id, status, site_id_override }: ReqBody = await req.json();
     if (!asset_id) return jsonRes({ error: "asset_id required" }, 400);
 
-    const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    const sb = serviceClient();
+    try { await assertAssetAccess(sb, user.id, asset_id); }
+    catch (e: any) { return jsonRes({ error: e?.message || "Forbidden" }, 403); }
+
+
 
     // Resolve asset → campaign → project → org
     const { data: asset, error: aErr } = await sb

@@ -90,10 +90,10 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    // Fetch campaign
+    // Fetch campaign (and org for authz)
     const { data: campaign } = await adminClient
       .from("campaigns")
-      .select("id, name, track, project_id, objective")
+      .select("id, name, track, project_id, objective, projects!inner(org_id)")
       .eq("id", campaign_id)
       .single();
 
@@ -101,6 +101,15 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: "Campaign not found" }), {
         status: 404,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const { data: accessOk } = await adminClient.rpc("user_has_org_access", {
+      _user_id: user.id, _org_id: (campaign as any).projects.org_id,
+    });
+    if (!accessOk) {
+      return new Response(JSON.stringify({ error: "Forbidden" }), {
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 

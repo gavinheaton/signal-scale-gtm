@@ -29,11 +29,21 @@ Deno.serve(async (req) => {
     if (!campaign_id) throw new Error("campaign_id required");
 
     const { data: campaign } = await service.from("campaigns")
-      .select("id, name, track, project_id").eq("id", campaign_id).single();
+      .select("id, name, track, project_id, projects!inner(org_id)").eq("id", campaign_id).single();
     if (!campaign) throw new Error("Campaign not found");
+
+    const { data: accessOk } = await service.rpc("user_has_org_access", {
+      _user_id: user.id, _org_id: (campaign as any).projects.org_id,
+    });
+    if (!accessOk) {
+      return new Response(JSON.stringify({ error: "Forbidden" }), {
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     const { apiKey, target } = await getProjectPropresenceKey(service, campaign.project_id);
     if (!apiKey) throw new Error("ProPresence not connected for this project");
+
 
     const { data: assets } = await service.from("campaign_assets")
       .select("*")
