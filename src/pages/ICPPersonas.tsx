@@ -10,10 +10,12 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Label as RLabel } from 'recharts';
-import { Target, Users, Sparkles, ChevronDown, Pencil, Trash2 } from 'lucide-react';
+import { Target, Users, Sparkles, ChevronDown, Pencil, Trash2, DownloadCloud } from 'lucide-react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
+import NotionImportDialog from '@/components/notion/NotionImportDialog';
+
 
 const matrixColors: Record<MatrixCategory, string> = {
   now_account: 'bg-green-100 text-green-800',
@@ -54,6 +56,9 @@ export default function ICPPersonas() {
   const [loading, setLoading] = useState(true);
   const [deleteTarget, setDeleteTarget] = useState<Persona | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const notionStrategyPageId = (currentProject as any)?.notion_strategy_page_id;
+
 
   const fetchData = async () => {
     if (!currentProject) return;
@@ -170,10 +175,18 @@ export default function ICPPersonas() {
 
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold" style={{ color: 'hsl(var(--orange))' }}>ICP Segments</h2>
-            <Button size="sm" onClick={() => navigate('/project/icp-wizard')}>
-              <Sparkles className="h-4 w-4 mr-1" /> Add ICP Segment
-            </Button>
+            <div className="flex items-center gap-2">
+              {notionStrategyPageId && (
+                <Button size="sm" variant="outline" onClick={() => setImportOpen(true)}>
+                  <DownloadCloud className="h-4 w-4 mr-1" /> Import from Notion
+                </Button>
+              )}
+              <Button size="sm" onClick={() => navigate('/project/icp-wizard')}>
+                <Sparkles className="h-4 w-4 mr-1" /> Add ICP Segment
+              </Button>
+            </div>
           </div>
+
           <div className="grid gap-4 md:grid-cols-2">
             {icps.map(icp => (
               <Card key={icp.id} className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setExpandedIcp(expandedIcp === icp.id ? null : icp.id)}>
