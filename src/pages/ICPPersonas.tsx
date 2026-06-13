@@ -317,6 +317,16 @@ export default function ICPPersonas() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {currentProject && (
+        <NotionImportDialog
+          projectId={currentProject.id}
+          open={importOpen}
+          onOpenChange={setImportOpen}
+          mode="icps"
+          onImported={fetchData}
+        />
+      )}
     </div>
   );
 }
