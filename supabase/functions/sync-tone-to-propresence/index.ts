@@ -34,6 +34,18 @@ Deno.serve(async (req) => {
     const { project_id } = await req.json();
     if (!project_id) throw new Error("project_id required");
 
+    const { data: project } = await service.from("projects").select("org_id").eq("id", project_id).maybeSingle();
+    if (!project) throw new Error("Project not found");
+    const { data: accessOk } = await service.rpc("user_has_org_access", {
+      _user_id: user.id, _org_id: project.org_id,
+    });
+    if (!accessOk) {
+      return new Response(JSON.stringify({ error: "Forbidden" }), {
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+
     const { apiKey, target } = await getProjectPropresenceKey(service, project_id);
     if (!apiKey) throw new Error("ProPresence not connected for this project");
 
