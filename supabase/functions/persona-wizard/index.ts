@@ -83,10 +83,43 @@ function robustJsonParse(raw: string): Record<string, any> | null {
     .replace(/[\x00-\x1F\x7F]/g, ' ')
     .replace(/\n/g, ' ')
     .trim();
-  try { return JSON.parse(cleaned); } catch {
-    console.error("Failed to parse persona draft JSON. Raw:", raw.slice(0, 500));
-    return null;
+  try { return JSON.parse(cleaned); } catch { /* continue */ }
+
+  // Truncation-tolerant fallback
+  let candidate = cleaned;
+  for (let attempt = 0; attempt < 200; attempt++) {
+    const lastSafe = Math.max(candidate.lastIndexOf(','), candidate.lastIndexOf('{'), candidate.lastIndexOf('['));
+    if (lastSafe < 0) break;
+    candidate = candidate.slice(0, lastSafe).replace(/[,\s]+$/, '');
+    let opens = 0, closes = 0, openSq = 0, closeSq = 0, inStr = false, esc = false;
+    for (const ch of candidate) {
+      if (esc) { esc = false; continue; }
+      if (ch === '\\') { esc = true; continue; }
+      if (ch === '"') { inStr = !inStr; continue; }
+      if (inStr) continue;
+      if (ch === '{') opens++;
+      else if (ch === '}') closes++;
+      else if (ch === '[') openSq++;
+      else if (ch === ']') closeSq++;
+    }
+    if (inStr) continue;
+    const fixed = candidate + ']'.repeat(Math.max(0, openSq - closeSq)) + '}'.repeat(Math.max(0, opens - closes));
+    try {
+      const parsed = JSON.parse(fixed);
+      console.warn("Recovered persona draft JSON via truncation fallback");
+      return parsed;
+    } catch { /* keep trimming */ }
   }
+  console.error("Failed to parse persona draft JSON. Raw:", raw.slice(0, 500));
+  return null;
+}
+
+function extractDraftBlock(reply: string): { json: string; truncated: boolean } | null {
+  const closed = reply.match(/<draft>([\s\S]*?)<\/draft>/);
+  if (closed) return { json: closed[1], truncated: false };
+  const openIdx = reply.indexOf('<draft>');
+  if (openIdx === -1) return null;
+  return { json: reply.slice(openIdx + '<draft>'.length), truncated: true };
 }
 
 Deno.serve(async (req) => {
