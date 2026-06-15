@@ -83,10 +83,43 @@ function robustJsonParse(raw: string): Record<string, any> | null {
     .replace(/[\x00-\x1F\x7F]/g, ' ')
     .replace(/\n/g, ' ')
     .trim();
-  try { return JSON.parse(cleaned); } catch {
-    console.error("Failed to parse persona draft JSON. Raw:", raw.slice(0, 500));
-    return null;
+  try { return JSON.parse(cleaned); } catch { /* continue */ }
+
+  // Truncation-tolerant fallback
+  let candidate = cleaned;
+  for (let attempt = 0; attempt < 200; attempt++) {
+    const lastSafe = Math.max(candidate.lastIndexOf(','), candidate.lastIndexOf('{'), candidate.lastIndexOf('['));
+    if (lastSafe < 0) break;
+    candidate = candidate.slice(0, lastSafe).replace(/[,\s]+$/, '');
+    let opens = 0, closes = 0, openSq = 0, closeSq = 0, inStr = false, esc = false;
+    for (const ch of candidate) {
+      if (esc) { esc = false; continue; }
+      if (ch === '\\') { esc = true; continue; }
+      if (ch === '"') { inStr = !inStr; continue; }
+      if (inStr) continue;
+      if (ch === '{') opens++;
+      else if (ch === '}') closes++;
+      else if (ch === '[') openSq++;
+      else if (ch === ']') closeSq++;
+    }
+    if (inStr) continue;
+    const fixed = candidate + ']'.repeat(Math.max(0, openSq - closeSq)) + '}'.repeat(Math.max(0, opens - closes));
+    try {
+      const parsed = JSON.parse(fixed);
+      console.warn("Recovered persona draft JSON via truncation fallback");
+      return parsed;
+    } catch { /* keep trimming */ }
   }
+  console.error("Failed to parse persona draft JSON. Raw:", raw.slice(0, 500));
+  return null;
+}
+
+function extractDraftBlock(reply: string): { json: string; truncated: boolean } | null {
+  const closed = reply.match(/<draft>([\s\S]*?)<\/draft>/);
+  if (closed) return { json: closed[1], truncated: false };
+  const openIdx = reply.indexOf('<draft>');
+  if (openIdx === -1) return null;
+  return { json: reply.slice(openIdx + '<draft>'.length), truncated: true };
 }
 
 Deno.serve(async (req) => {
@@ -252,7 +285,7 @@ Deno.serve(async (req) => {
       },
       body: JSON.stringify({
         model: "claude-sonnet-4-6",
-        max_tokens: 2048,
+        max_tokens: 8192,
         system: systemPrompt,
         messages: anthropicMessages,
       }),
@@ -269,17 +302,26 @@ Deno.serve(async (req) => {
 
     const aiData = await response.json();
     const reply = aiData.content?.[0]?.text || "";
+    const stopReason = aiData.stop_reason as string | undefined;
 
     let updatedDraft = existingDraft;
-    const draftMatch = reply.match(/<draft>([\s\S]*?)<\/draft>/);
-    if (draftMatch) {
-      const parsed = robustJsonParse(draftMatch[1]);
+    let draftWarning: string | null = null;
+    const draftBlock = extractDraftBlock(reply);
+    if (draftBlock) {
+      const parsed = robustJsonParse(draftBlock.json);
       if (parsed) {
         updatedDraft = mergeDrafts(existingDraft, parsed);
+        if (draftBlock.truncated) {
+          draftWarning = "The AI's response was cut short, but we recovered as much of the draft as possible. Ask it to continue if anything looks incomplete.";
+        }
+      } else {
+        draftWarning = "The AI's draft output could not be parsed. Your previous draft is preserved. Ask the AI to re-output the draft.";
       }
+    } else if (stopReason === "max_tokens") {
+      draftWarning = "The AI's response was cut short before it produced a draft update. Ask it to continue.";
     }
 
-    const cleanReply = reply.replace(/<draft>[\s\S]*?<\/draft>/, "").trim();
+    const cleanReply = reply.replace(/<draft>[\s\S]*?(?:<\/draft>|$)/, "").trim();
 
     messages.push({ role: "assistant", content: reply, timestamp: new Date().toISOString() });
 
@@ -295,7 +337,7 @@ Deno.serve(async (req) => {
       .eq("id", sessionId);
 
     return new Response(
-      JSON.stringify({ reply: cleanReply, updated_draft: updatedDraft, session_id: sessionId }),
+      JSON.stringify({ reply: cleanReply, updated_draft: updatedDraft, session_id: sessionId, draft_warning: draftWarning }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (err) {
