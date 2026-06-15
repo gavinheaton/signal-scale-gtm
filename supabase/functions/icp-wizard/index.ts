@@ -357,20 +357,28 @@ Deno.serve(async (req) => {
 
     const aiData = await response.json();
     const reply = aiData.content?.[0]?.text || "";
+    const stopReason = aiData.stop_reason as string | undefined;
 
-    // Extract and merge draft
+    // Extract and merge draft (tolerant of truncated <draft> blocks)
     let updatedDraft = existingDraft;
-    const draftMatch = reply.match(/<draft>([\s\S]*?)<\/draft>/);
-    if (draftMatch) {
-      const parsed = robustJsonParse(draftMatch[1]);
+    let draftWarning: string | null = null;
+    const draftBlock = extractDraftBlock(reply);
+    if (draftBlock) {
+      const parsed = robustJsonParse(draftBlock.json);
       if (parsed) {
         updatedDraft = mergeDrafts(existingDraft, parsed);
+        if (draftBlock.truncated) {
+          draftWarning = "The AI's response was cut short, but we recovered as much of the draft as possible. Ask it to continue if anything looks incomplete.";
+        }
       } else {
         console.error("Draft parse failed, preserving existing draft");
+        draftWarning = "The AI's draft output could not be parsed. Your previous draft is preserved. Ask the AI to re-output the draft.";
       }
+    } else if (stopReason === "max_tokens") {
+      draftWarning = "The AI's response was cut short before it produced a draft update. Ask it to continue.";
     }
 
-    const cleanReply = reply.replace(/<draft>[\s\S]*?<\/draft>/, "").trim();
+    const cleanReply = reply.replace(/<draft>[\s\S]*?(?:<\/draft>|$)/, "").trim();
 
     messages.push({
       role: "assistant",
@@ -394,6 +402,7 @@ Deno.serve(async (req) => {
         reply: cleanReply,
         updated_draft: updatedDraft,
         session_id: sessionId,
+        draft_warning: draftWarning,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
