@@ -64,7 +64,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         }
         return;
       }
-      setCurrentProjectState(data as Project);
+      setCurrentProjectState(data as unknown as Project);
     })();
 
     return () => {
