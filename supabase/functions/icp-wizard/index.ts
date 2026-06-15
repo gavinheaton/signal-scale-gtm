@@ -77,7 +77,7 @@ function mergeDrafts(existing: Record<string, any>, incoming: Record<string, any
   return merged;
 }
 
-/** Try to parse JSON with cleanup for common LLM issues */
+/** Try to parse JSON with cleanup for common LLM issues. Handles truncated payloads. */
 function robustJsonParse(raw: string): Record<string, any> | null {
   try { return JSON.parse(raw); } catch { /* continue */ }
   const cleaned = raw
@@ -87,10 +87,45 @@ function robustJsonParse(raw: string): Record<string, any> | null {
     .replace(/[\x00-\x1F\x7F]/g, ' ')
     .replace(/\n/g, ' ')
     .trim();
-  try { return JSON.parse(cleaned); } catch {
-    console.error("Failed to parse draft JSON even after cleanup. Raw:", raw.slice(0, 500));
-    return null;
+  try { return JSON.parse(cleaned); } catch { /* continue */ }
+
+  // Truncation-tolerant fallback: progressively trim back to a safe boundary
+  // and close any unbalanced braces/brackets until we get parseable JSON.
+  let candidate = cleaned;
+  for (let attempt = 0; attempt < 200; attempt++) {
+    const lastSafe = Math.max(candidate.lastIndexOf(','), candidate.lastIndexOf('{'), candidate.lastIndexOf('['));
+    if (lastSafe < 0) break;
+    candidate = candidate.slice(0, lastSafe).replace(/[,\s]+$/, '');
+    let opens = 0, closes = 0, openSq = 0, closeSq = 0, inStr = false, esc = false;
+    for (const ch of candidate) {
+      if (esc) { esc = false; continue; }
+      if (ch === '\\') { esc = true; continue; }
+      if (ch === '"') { inStr = !inStr; continue; }
+      if (inStr) continue;
+      if (ch === '{') opens++;
+      else if (ch === '}') closes++;
+      else if (ch === '[') openSq++;
+      else if (ch === ']') closeSq++;
+    }
+    if (inStr) continue;
+    const fixed = candidate + ']'.repeat(Math.max(0, openSq - closeSq)) + '}'.repeat(Math.max(0, opens - closes));
+    try {
+      const parsed = JSON.parse(fixed);
+      console.warn("Recovered draft JSON via truncation fallback");
+      return parsed;
+    } catch { /* keep trimming */ }
   }
+  console.error("Failed to parse draft JSON even after cleanup. Raw:", raw.slice(0, 500));
+  return null;
+}
+
+/** Extract a <draft>...</draft> block, tolerating a missing closing tag. */
+function extractDraftBlock(reply: string): { json: string; truncated: boolean } | null {
+  const closed = reply.match(/<draft>([\s\S]*?)<\/draft>/);
+  if (closed) return { json: closed[1], truncated: false };
+  const openIdx = reply.indexOf('<draft>');
+  if (openIdx === -1) return null;
+  return { json: reply.slice(openIdx + '<draft>'.length), truncated: true };
 }
 
 Deno.serve(async (req) => {
