@@ -177,6 +177,7 @@ export default function PersonaWizard() {
       const data = res.data;
       setMessages(prev => [...prev, { role: 'assistant', content: data.reply }]);
       if (data.updated_draft) setDraft(data.updated_draft);
+      if (data.draft_warning) toast.warning(data.draft_warning);
     } catch (err: any) {
       toast.error('AI error: ' + (err.message || 'Unknown error'));
     } finally {
