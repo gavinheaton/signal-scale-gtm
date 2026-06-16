@@ -91,6 +91,182 @@ export type Database = {
           },
         ]
       }
+      brand_audit_pages: {
+        Row: {
+          clarity_reasoning: string | null
+          clarity_score: number | null
+          created_at: string
+          excerpt: string | null
+          headline_score: number | null
+          icp_reasoning: string | null
+          icp_score: number | null
+          id: string
+          matched_icps: string[] | null
+          matched_personas: string[] | null
+          page_status:
+            | Database["public"]["Enums"]["brand_audit_page_status"]
+            | null
+          persona_reasoning: string | null
+          persona_score: number | null
+          project_id: string
+          run_id: string
+          scrape_error: string | null
+          suggested_rewrite: string | null
+          title: string | null
+          url: string
+          voice_reasoning: string | null
+          voice_score: number | null
+          word_count: number | null
+        }
+        Insert: {
+          clarity_reasoning?: string | null
+          clarity_score?: number | null
+          created_at?: string
+          excerpt?: string | null
+          headline_score?: number | null
+          icp_reasoning?: string | null
+          icp_score?: number | null
+          id?: string
+          matched_icps?: string[] | null
+          matched_personas?: string[] | null
+          page_status?:
+            | Database["public"]["Enums"]["brand_audit_page_status"]
+            | null
+          persona_reasoning?: string | null
+          persona_score?: number | null
+          project_id: string
+          run_id: string
+          scrape_error?: string | null
+          suggested_rewrite?: string | null
+          title?: string | null
+          url: string
+          voice_reasoning?: string | null
+          voice_score?: number | null
+          word_count?: number | null
+        }
+        Update: {
+          clarity_reasoning?: string | null
+          clarity_score?: number | null
+          created_at?: string
+          excerpt?: string | null
+          headline_score?: number | null
+          icp_reasoning?: string | null
+          icp_score?: number | null
+          id?: string
+          matched_icps?: string[] | null
+          matched_personas?: string[] | null
+          page_status?:
+            | Database["public"]["Enums"]["brand_audit_page_status"]
+            | null
+          persona_reasoning?: string | null
+          persona_score?: number | null
+          project_id?: string
+          run_id?: string
+          scrape_error?: string | null
+          suggested_rewrite?: string | null
+          title?: string | null
+          url?: string
+          voice_reasoning?: string | null
+          voice_score?: number | null
+          word_count?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "brand_audit_pages_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "brand_audit_pages_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "brand_audit_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      brand_audit_runs: {
+        Row: {
+          base_url: string
+          clarity_score: number | null
+          completed_at: string | null
+          created_at: string
+          custom_urls: string[] | null
+          error_message: string | null
+          headline_score: number | null
+          icp_score: number | null
+          id: string
+          page_limit: number
+          pages_scored: number
+          pages_total: number
+          persona_score: number | null
+          project_id: string
+          scope: Database["public"]["Enums"]["brand_audit_scope"]
+          started_at: string | null
+          status: Database["public"]["Enums"]["brand_audit_status"]
+          summary: string | null
+          triggered_by: string | null
+          updated_at: string
+          voice_score: number | null
+        }
+        Insert: {
+          base_url: string
+          clarity_score?: number | null
+          completed_at?: string | null
+          created_at?: string
+          custom_urls?: string[] | null
+          error_message?: string | null
+          headline_score?: number | null
+          icp_score?: number | null
+          id?: string
+          page_limit?: number
+          pages_scored?: number
+          pages_total?: number
+          persona_score?: number | null
+          project_id: string
+          scope?: Database["public"]["Enums"]["brand_audit_scope"]
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["brand_audit_status"]
+          summary?: string | null
+          triggered_by?: string | null
+          updated_at?: string
+          voice_score?: number | null
+        }
+        Update: {
+          base_url?: string
+          clarity_score?: number | null
+          completed_at?: string | null
+          created_at?: string
+          custom_urls?: string[] | null
+          error_message?: string | null
+          headline_score?: number | null
+          icp_score?: number | null
+          id?: string
+          page_limit?: number
+          pages_scored?: number
+          pages_total?: number
+          persona_score?: number | null
+          project_id?: string
+          scope?: Database["public"]["Enums"]["brand_audit_scope"]
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["brand_audit_status"]
+          summary?: string | null
+          triggered_by?: string | null
+          updated_at?: string
+          voice_score?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "brand_audit_runs_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       brand_voices: {
         Row: {
           banned_phrases: string[] | null
@@ -818,6 +994,9 @@ export type Database = {
         | "webinar"
         | "whitepaper"
         | "press_release"
+      brand_audit_page_status: "on_brand" | "drifting" | "off_brand"
+      brand_audit_scope: "quick" | "deep" | "custom"
+      brand_audit_status: "queued" | "running" | "completed" | "failed"
       campaign_status: "brief" | "planning" | "active" | "complete"
       campaign_track: "demand_capture" | "demand_creation"
       matrix_category:
@@ -986,6 +1165,9 @@ export const Constants = {
         "whitepaper",
         "press_release",
       ],
+      brand_audit_page_status: ["on_brand", "drifting", "off_brand"],
+      brand_audit_scope: ["quick", "deep", "custom"],
+      brand_audit_status: ["queued", "running", "completed", "failed"],
       campaign_status: ["brief", "planning", "active", "complete"],
       campaign_track: ["demand_capture", "demand_creation"],
       matrix_category: [

@@ -18,6 +18,7 @@ import CampaignWizard from "@/pages/CampaignWizard";
 import BrandVoice from "@/pages/BrandVoice";
 import BrandVoiceWizard from "@/pages/BrandVoiceWizard";
 import BrandVoiceDetail from "@/pages/BrandVoiceDetail";
+import BrandAuditPage from "@/pages/BrandAuditPage";
 import ContentPipeline from "@/pages/ContentPipeline";
 import Analytics from "@/pages/Analytics";
 import SettingsPage from "@/pages/Settings";
@@ -48,6 +49,7 @@ const App = () => (
                 <Route path="/project/brand-voice" element={<BrandVoice />} />
                 <Route path="/project/brand-voice-wizard" element={<BrandVoiceWizard />} />
                 <Route path="/project/brand-voice-detail" element={<BrandVoiceDetail />} />
+                <Route path="/project/brand-audit" element={<BrandAuditPage />} />
                 <Route path="/project/campaigns" element={<Campaigns />} />
                 <Route path="/project/campaign-wizard" element={<CampaignWizard />} />
                 <Route path="/project/content" element={<ContentPipeline />} />
