@@ -6,8 +6,19 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
-import { ArrowLeft, Send, Sparkles, Loader2 } from 'lucide-react';
+import { ArrowLeft, Send, Sparkles, Loader2, RotateCcw } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { BrandVoicePreviewPanel } from '@/components/brand-voice-wizard/BrandVoicePreviewPanel';
 import { BRAND_VOICE_SECTIONS, getSectionStatus, type BrandVoiceDraft, type ChatMessage } from '@/components/brand-voice-wizard/types';
 import { stripDraft } from '@/lib/stripDraft';
@@ -145,6 +156,37 @@ export default function BrandVoiceWizard() {
     }
   };
 
+  const startOver = async () => {
+    if (!currentProject) return;
+    setLoading(true);
+    try {
+      // Cancel any in-progress brand_voice sessions for this project
+      const { error: cancelErr } = await supabase
+        .from('wizard_sessions')
+        .update({ status: 'cancelled' as any })
+        .eq('project_id', currentProject.id)
+        .eq('session_type', 'brand_voice')
+        .eq('status', 'in_progress');
+      if (cancelErr) throw cancelErr;
+
+      // Reset local state
+      setMessages([]);
+      setDraft({});
+      setPrevDraft({});
+      setSessionId(null);
+      setInput('');
+
+      // Navigate to the wizard hub so the user can re-upload a document or start fresh
+      toast.success('Brand voice reset. Start fresh below.');
+      navigate('/project/brand-voice', { replace: true });
+    } catch (err: any) {
+      toast.error('Failed to reset: ' + (err.message || 'Unknown error'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+
   if (!currentProject) {
     navigate('/projects');
     return null;
@@ -172,6 +214,26 @@ export default function BrandVoiceWizard() {
           </h1>
           <p className="text-xs text-muted-foreground">AI-guided brand voice builder</p>
         </div>
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button variant="outline" size="sm" disabled={loading} className="gap-2">
+              <RotateCcw className="h-4 w-4" />
+              Start Over
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Start brand voice over?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will discard the current wizard conversation and draft so you can rebuild your brand voice from scratch (e.g. after a rebrand). Your saved brand voice record stays in place until you complete and save a new one.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={startOver}>Yes, start over</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
 
       <div className="flex-1 flex gap-4 min-h-0">
