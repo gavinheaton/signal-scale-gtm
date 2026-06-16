@@ -1,33 +1,37 @@
-# Plan: Document-driven Brand Voice extraction + gap-filling
+## Goal
+After "Start Over", the user should land back on the same starting screen as a brand-new project — with both options available: **Upload Existing Document** and **Start Brand Voice Wizard**.
 
-Yes, this makes sense — and the wizard already does part of it (uploads route to `brand-voice-wizard` with `file_url`, text is extracted, and a generic "analyse + ask about gaps" prompt is sent). The problem is that the analysis pass is loose: the AI summarises freely instead of producing a deterministic section-by-section map against the Signal+Scale schema, and the follow-up Q&A doesn't reliably target the missing slots.
+## Problem
+Currently "Start Over" only cancels the in-progress wizard session and navigates to `/project/brand-voice`. That page reads the `brand_voices` row for the project; if a row exists (which it always does, since the wizard inserts one immediately on first turn), the page renders the saved/in-progress brand voice card with **View / Export / Continue** buttons instead of the empty-state card that offers upload + wizard.
 
-This plan tightens that flow end-to-end.
+So after Start Over, the user sees either a stale "complete" view or a "Continue" button — never the upload option.
 
-## What changes
+## Fix
 
-### 1. Edge function: `supabase/functions/brand-voice-wizard/index.ts`
-- Replace the freeform `DOCUMENT_ANALYSIS_PROMPT` with a structured **extraction contract** keyed to the 10 S+S sections (personality_adjectives, tone_description, writing_principles, banned_phrases, preferred_vocabulary, formatting_rules, content_type_guidance, writing_samples, target_audiences, brand_identity).
-- Force a **two-pass** first turn when `file_url` is present:
-  1. **Extraction pass** — return draft JSON populated from the document only. Any field with no evidence stays empty; never invent. Each populated field carries a short `source_snippet` in working notes (kept internal, stripped from chat).
-  2. **Gap report** — assistant reply lists per section: `✅ Captured` (with 1-line summary), `⚠️ Partial` (what's there, what's missing), `❌ Missing`. Ends with the single highest-priority question to fill the first gap.
-- After extraction, set `sections_complete` strictly: only sections with substantive content from the doc.
-- Persist the raw extracted document text on the session (truncated) so follow-up turns can re-reference it without re-downloading.
-- Subsequent turns: system prompt instructs the model to walk gaps in order (Missing → Partial), ask one focused question per turn, and update only the targeted section in the `<draft>` block.
+### 1. `src/pages/BrandVoiceWizard.tsx` — extend `startOver`
+In addition to cancelling the in-progress wizard session, also clear the associated draft data so the BrandVoice landing page shows the empty state:
 
-### 2. Frontend: `src/pages/BrandVoiceWizard.tsx`
-- When `fileUrl` is present on first load, show a clearer status: "Analysing document and mapping to Signal+Scale sections…" then render the assistant's structured gap report (already markdown-rendered).
-- Preview panel (`BrandVoicePreviewPanel`) already reflects section status — no change needed; the tighter `sections_complete` from the extraction pass will make ✅/⚠️/❌ accurate immediately after upload.
+- Cancel in-progress `wizard_sessions` rows for this project + `session_type = 'brand_voice'` (already done).
+- Delete the `brand_voices` row(s) for this project. This is the cleanest reset and matches "the brand changes or needs to be reworked" intent. A deleted row removes ProPresence-sync timestamps too, so the next completion re-syncs cleanly.
+- Reset local React state (already done).
+- Navigate to `/project/brand-voice` (already done) — the empty-state card will now render with both **Start Brand Voice Wizard** and **Upload Existing Document** buttons.
 
-### 3. Types — no change
-`BrandVoiceDraft` already covers all 10 sections.
+### 2. Update the confirm-dialog copy
+Current copy says "Your saved brand voice record stays in place until you complete and save a new one." That's no longer true. Replace with something like:
+
+> "This will permanently delete the current brand voice and wizard conversation for this project so you can rebuild from scratch (e.g. after a rebrand). You'll be returned to the start screen where you can upload a new tone-of-voice document or run the wizard again."
+
+### 3. No schema changes
+- `wizard_session_status = 'cancelled'` is already in place from the last migration.
+- `brand_voices` already has a delete RLS policy scoped via `user_has_org_access`, so a client-side delete works for any org member who can access the project.
 
 ## Out of scope
-- No DB migrations.
-- No new upload UI — existing upload entry on `/project/brand-voice` is retained.
-- No change to PDF/DOCX extractors (working today; we'll keep the 8k-char cap).
+- No changes to `BrandVoice.tsx` upload flow — it already supports both paths.
+- No changes to the edge function — it already creates a fresh session on first invocation when none is `in_progress`.
+- No change to the ProPresence sync behaviour beyond the implicit "fresh row will sync again on next completion".
 
 ## Acceptance
-- Upload a tone-of-voice doc → wizard responds with a section-by-section ✅/⚠️/❌ report and a single targeted question.
-- Preview panel shows completed sections highlighted from the first turn.
-- Each follow-up answer fills exactly one gap and advances to the next.
+1. From the wizard, click **Start Over → Yes, start over**.
+2. App navigates to `/project/brand-voice` and shows the **empty-state card** with both **Start Brand Voice Wizard** and **Upload Existing Document** buttons.
+3. Clicking **Upload Existing Document** uploads the file and starts a fresh wizard session that analyses the new doc end-to-end (Pass 1 extraction + Pass 2 gap report).
+4. Clicking **Start Brand Voice Wizard** starts a fresh conversational session from the intro message.
