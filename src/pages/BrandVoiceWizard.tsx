@@ -80,7 +80,7 @@ export default function BrandVoiceWizard() {
       }
 
       if (fileUrl) {
-        setMessages([{ role: 'assistant', content: 'Analysing your brand voice document... This may take a moment.' }]);
+        setMessages([{ role: 'assistant', content: 'Analysing your document and mapping it to the Signal+Scale brand voice sections…' }]);
       }
 
       const res = await supabase.functions.invoke('brand-voice-wizard', {
