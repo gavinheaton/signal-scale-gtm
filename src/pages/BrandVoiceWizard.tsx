@@ -232,7 +232,7 @@ export default function BrandVoiceWizard() {
             <AlertDialogHeader>
               <AlertDialogTitle>Start brand voice over?</AlertDialogTitle>
               <AlertDialogDescription>
-                This will discard the current wizard conversation and draft so you can rebuild your brand voice from scratch (e.g. after a rebrand). Your saved brand voice record stays in place until you complete and save a new one.
+                This will permanently delete the current brand voice and wizard conversation for this project so you can rebuild from scratch (e.g. after a rebrand). You'll be returned to the start screen where you can upload a new tone-of-voice document or run the wizard again.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
