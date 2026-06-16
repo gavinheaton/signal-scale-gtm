@@ -420,6 +420,15 @@ Deno.serve(async (req) => {
       systemPrompt += `\n\nIMPORTANT: Since ICPs and personas are already defined, pre-populate the target_audiences section using these segments. Do NOT ask "Who is your audience?" — instead ask nuanced questions about how tone should shift for each segment/persona (e.g., "How should your tone differ when addressing a ${personas[0]?.persona_name || 'champion'} vs an ${personas[1]?.persona_name || 'economic buyer'}?").`;
     }
 
+    // Gap-walking behaviour for follow-up turns
+    systemPrompt += `\n\nGAP-WALKING RULES (apply to every follow-up turn):
+- Look at the current <draft>. Determine which of the 10 sections are Missing (empty) vs Partial (some content, not in sections_complete) vs Complete.
+- Ask exactly ONE focused question per turn that targets the highest-priority gap: Missing first (in the schema order above), then Partial.
+- Update ONLY the targeted section in the <draft> based on the user's answer; preserve all other fields exactly as they were.
+- When a section now has substantive content, add its key to sections_complete.
+- When all 10 sections are in sections_complete, set is_complete: true and present a final summary instead of another question.`;
+
+
     const anthropicMessages = messages.map((m) => ({
       role: m.role as "user" | "assistant",
       content: m.role === "assistant"
