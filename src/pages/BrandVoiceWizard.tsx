@@ -156,6 +156,37 @@ export default function BrandVoiceWizard() {
     }
   };
 
+  const startOver = async () => {
+    if (!currentProject) return;
+    setLoading(true);
+    try {
+      // Cancel any in-progress brand_voice sessions for this project
+      const { error: cancelErr } = await supabase
+        .from('wizard_sessions')
+        .update({ status: 'cancelled' as any })
+        .eq('project_id', currentProject.id)
+        .eq('session_type', 'brand_voice')
+        .eq('status', 'in_progress');
+      if (cancelErr) throw cancelErr;
+
+      // Reset local state
+      setMessages([]);
+      setDraft({});
+      setPrevDraft({});
+      setSessionId(null);
+      setInput('');
+
+      // Navigate to the wizard hub so the user can re-upload a document or start fresh
+      toast.success('Brand voice reset. Start fresh below.');
+      navigate('/project/brand-voice', { replace: true });
+    } catch (err: any) {
+      toast.error('Failed to reset: ' + (err.message || 'Unknown error'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+
   if (!currentProject) {
     navigate('/projects');
     return null;
