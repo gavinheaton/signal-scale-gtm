@@ -1,0 +1,272 @@
+import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { supabase } from '@/integrations/supabase/client';
+import { useProject } from '@/contexts/ProjectContext';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { toast } from 'sonner';
+import { Activity, Plus, Loader2, ArrowRight, AlertTriangle, CheckCircle2, Gauge } from 'lucide-react';
+import { format } from 'date-fns';
+
+type Scope = 'quick' | 'deep' | 'custom';
+interface Run {
+  id: string;
+  scope: Scope;
+  status: string;
+  base_url: string;
+  pages_total: number;
+  pages_scored: number;
+  headline_score: number | null;
+  voice_score: number | null;
+  icp_score: number | null;
+  persona_score: number | null;
+  clarity_score: number | null;
+  created_at: string;
+  completed_at: string | null;
+}
+
+const scopeLabel: Record<Scope, string> = { quick: 'Quick', deep: 'Deep', custom: 'Custom URLs' };
+
+function scoreColor(s: number | null) {
+  if (s == null) return 'text-muted-foreground';
+  if (s >= 80) return 'text-green-600';
+  if (s >= 60) return 'text-orange-600';
+  return 'text-red-600';
+}
+
+export default function BrandAudit() {
+  const { currentProject } = useProject();
+  const navigate = useNavigate();
+  const [runs, setRuns] = useState<Run[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [bvReady, setBvReady] = useState<boolean | null>(null);
+  const [open, setOpen] = useState(false);
+  const [scope, setScope] = useState<Scope>('quick');
+  const [baseUrl, setBaseUrl] = useState('');
+  const [customUrls, setCustomUrls] = useState('');
+  const [pageLimit, setPageLimit] = useState(8);
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!currentProject) return;
+    void load();
+  }, [currentProject]);
+
+  async function load() {
+    setLoading(true);
+    const [{ data: rs }, { data: bv }] = await Promise.all([
+      supabase.from('brand_audit_runs').select('*').eq('project_id', currentProject!.id).order('created_at', { ascending: false }),
+      supabase.from('brand_voices').select('status').eq('project_id', currentProject!.id).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+    ]);
+    setRuns((rs ?? []) as unknown as Run[]);
+    setBvReady(bv?.status === 'complete');
+    setLoading(false);
+  }
+
+  const latest = runs[0];
+
+  async function startAudit() {
+    if (!currentProject) return;
+    if (scope !== 'custom' && !baseUrl) {
+      toast.error('Please enter a website URL');
+      return;
+    }
+    if (scope === 'custom' && !customUrls.trim()) {
+      toast.error('Please enter at least one URL');
+      return;
+    }
+    setSubmitting(true);
+    const t = toast.loading('Running audit — scraping pages and scoring against your brand voice…');
+    try {
+      const { data, error } = await supabase.functions.invoke('brand-audit-run', {
+        body: {
+          project_id: currentProject.id,
+          scope,
+          base_url: baseUrl || undefined,
+          custom_urls: scope === 'custom' ? customUrls.split(/[\n,]/).map(s => s.trim()).filter(Boolean) : undefined,
+          page_limit: pageLimit,
+        },
+      });
+      if (error) throw error;
+      toast.dismiss(t);
+      toast.success(`Audit complete — ${data.pages_scored} pages scored`);
+      setOpen(false);
+      await load();
+      if (data?.run_id) navigate(`/project/brand-audit?run=${data.run_id}`);
+    } catch (e: any) {
+      toast.dismiss(t);
+      toast.error(e.message ?? 'Audit failed');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  if (!currentProject) {
+    return <div className="p-8">Select a project first.</div>;
+  }
+
+  return (
+    <div className="p-8 space-y-8 max-w-7xl mx-auto">
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight" style={{ color: '#0f284c' }}>Brand Audit</h1>
+          <p className="text-muted-foreground mt-1">
+            Score your website against your Brand Voice, ICPs and Personas.
+          </p>
+        </div>
+        <Button
+          onClick={() => setOpen(true)}
+          disabled={!bvReady}
+          className="gap-2"
+          style={{ backgroundColor: '#8833ff' }}
+        >
+          <Plus className="h-4 w-4" /> New Audit
+        </Button>
+      </div>
+
+      {bvReady === false && (
+        <Card className="border-orange-200 bg-orange-50/50">
+          <CardContent className="p-4 flex items-center gap-3">
+            <AlertTriangle className="h-5 w-5 text-orange-600" />
+            <div className="flex-1">
+              <p className="text-sm font-medium">Brand Voice not complete</p>
+              <p className="text-xs text-muted-foreground">Finish your Brand Voice before running an audit — scoring relies on it.</p>
+            </div>
+            <Button size="sm" variant="outline" onClick={() => navigate('/project/brand-voice')}>Go to Brand Voice</Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Headline card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><Gauge className="h-5 w-5" />Brand Health</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {!latest ? (
+            <p className="text-sm text-muted-foreground">No audits yet. Run your first audit to see your Brand Health score.</p>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
+              <div className="md:col-span-1 flex flex-col items-center justify-center border rounded-lg p-6 bg-muted/30">
+                <div className={`text-5xl font-bold ${scoreColor(latest.headline_score)}`}>
+                  {latest.headline_score ?? '—'}
+                </div>
+                <div className="text-xs text-muted-foreground mt-1">Headline (latest)</div>
+              </div>
+              {[
+                { label: 'Voice', val: latest.voice_score, w: '30%' },
+                { label: 'ICP', val: latest.icp_score, w: '30%' },
+                { label: 'Persona', val: latest.persona_score, w: '25%' },
+                { label: 'Clarity', val: latest.clarity_score, w: '15%' },
+              ].map((s) => (
+                <div key={s.label} className="border rounded-lg p-4">
+                  <div className="text-xs text-muted-foreground">{s.label} <span className="opacity-60">({s.w})</span></div>
+                  <div className={`text-3xl font-semibold mt-2 ${scoreColor(s.val)}`}>{s.val ?? '—'}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Runs list */}
+      <Card>
+        <CardHeader><CardTitle>Audit History</CardTitle></CardHeader>
+        <CardContent>
+          {loading ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</div>
+          ) : runs.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No audit runs yet.</p>
+          ) : (
+            <div className="divide-y">
+              {runs.map((r) => (
+                <button
+                  key={r.id}
+                  onClick={() => navigate(`/project/brand-audit?run=${r.id}`)}
+                  className="w-full py-3 flex items-center gap-4 text-left hover:bg-muted/40 px-2 rounded"
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline">{scopeLabel[r.scope]}</Badge>
+                      <span className="text-sm font-medium truncate">{r.base_url || '(custom URLs)'}</span>
+                      {r.status === 'completed' ? (
+                        <CheckCircle2 className="h-4 w-4 text-green-600" />
+                      ) : (
+                        <Badge variant="secondary" className="text-xs">{r.status}</Badge>
+                      )}
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-0.5">
+                      {format(new Date(r.created_at), 'MMM d, yyyy · HH:mm')} · {r.pages_scored}/{r.pages_total} pages
+                    </div>
+                  </div>
+                  <div className={`text-2xl font-bold ${scoreColor(r.headline_score)}`}>{r.headline_score ?? '—'}</div>
+                  <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                </button>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* New audit dialog */}
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>New Brand Audit</DialogTitle>
+            <DialogDescription>Choose how much of the site to score.</DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <RadioGroup value={scope} onValueChange={(v) => { setScope(v as Scope); setPageLimit(v === 'deep' ? 25 : v === 'quick' ? 8 : 10); }}>
+              {[
+                { v: 'quick', t: 'Quick audit', d: 'Home, About + top 6 pages (~8 total)' },
+                { v: 'deep', t: 'Deep audit', d: 'Full crawl, up to 25 pages' },
+                { v: 'custom', t: 'Custom URLs', d: 'Paste the exact URLs you want scored' },
+              ].map(o => (
+                <label key={o.v} className="flex items-start gap-3 border rounded-md p-3 cursor-pointer hover:bg-muted/40">
+                  <RadioGroupItem value={o.v} className="mt-0.5" />
+                  <div>
+                    <div className="text-sm font-medium">{o.t}</div>
+                    <div className="text-xs text-muted-foreground">{o.d}</div>
+                  </div>
+                </label>
+              ))}
+            </RadioGroup>
+
+            {scope !== 'custom' && (
+              <div>
+                <Label className="text-xs">Website URL</Label>
+                <Input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} placeholder="https://example.com" />
+              </div>
+            )}
+
+            {scope === 'custom' && (
+              <div>
+                <Label className="text-xs">URLs (one per line, max 50)</Label>
+                <Textarea value={customUrls} onChange={(e) => setCustomUrls(e.target.value)} rows={6} placeholder={"https://example.com/about\nhttps://example.com/pricing"} />
+              </div>
+            )}
+
+            <div>
+              <Label className="text-xs">Page limit (1–50)</Label>
+              <Input type="number" min={1} max={50} value={pageLimit} onChange={(e) => setPageLimit(Math.min(50, Math.max(1, Number(e.target.value) || 1)))} />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)} disabled={submitting}>Cancel</Button>
+            <Button onClick={startAudit} disabled={submitting} style={{ backgroundColor: '#8833ff' }}>
+              {submitting ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Running…</> : <><Activity className="h-4 w-4 mr-2" /> Start audit</>}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
