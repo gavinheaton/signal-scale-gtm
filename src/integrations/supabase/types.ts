@@ -840,7 +840,7 @@ export type Database = {
         | "influencer"
         | "end_user"
         | "blocker"
-      wizard_session_status: "in_progress" | "complete"
+      wizard_session_status: "in_progress" | "complete" | "cancelled"
       wizard_session_type:
         | "icp"
         | "persona"
@@ -1011,7 +1011,7 @@ export const Constants = {
         "end_user",
         "blocker",
       ],
-      wizard_session_status: ["in_progress", "complete"],
+      wizard_session_status: ["in_progress", "complete", "cancelled"],
       wizard_session_type: [
         "icp",
         "persona",
