@@ -214,6 +214,26 @@ export default function BrandVoiceWizard() {
           </h1>
           <p className="text-xs text-muted-foreground">AI-guided brand voice builder</p>
         </div>
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button variant="outline" size="sm" disabled={loading} className="gap-2">
+              <RotateCcw className="h-4 w-4" />
+              Start Over
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Start brand voice over?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will discard the current wizard conversation and draft so you can rebuild your brand voice from scratch (e.g. after a rebrand). Your saved brand voice record stays in place until you complete and save a new one.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={startOver}>Yes, start over</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
 
       <div className="flex-1 flex gap-4 min-h-0">
