@@ -57,12 +57,41 @@ CRITICAL JSON RULES:
 
 const DOCUMENT_ANALYSIS_PROMPT = `The user has uploaded an existing brand voice / tone of voice document. Its text content is included below.
 
-TASK: Analyse this document thoroughly and extract as much structured brand voice data as possible into the <draft> block. Map the document's content to the 10 brand voice sections. For any sections where the document provides clear guidance, mark them as complete. For sections with partial or no information, leave them empty or partial.
+TASK — Run a strict two-pass analysis against the Signal+Scale brand voice schema:
 
-After your analysis, briefly summarise what you found and ask about any gaps — what sections still need input from the user.
+PASS 1 — EXTRACTION (populate <draft>):
+Map the document to these 10 sections ONLY, using evidence from the document:
+  1. personality_adjectives
+  2. tone_description
+  3. writing_principles (principle + explanation + bad_example + good_example)
+  4. banned_phrases
+  5. preferred_vocabulary (use / instead_of)
+  6. formatting_rules
+  7. content_type_guidance (linkedin_post, email_campaign, client_report, proposal, website_copy, handbook)
+  8. writing_samples (type + sample)
+  9. target_audiences (segment + tone_adjustment)
+  10. brand_identity (brand_name, brand_name_rules, primary_colour, accent_colour, font, locale)
+
+Rules:
+- NEVER invent. If the document gives no evidence for a field, leave it empty.
+- Only list a key in "sections_complete" when the doc supplies substantive, specific content for it (not a vague mention).
+- A section with thin or ambiguous evidence stays out of sections_complete (it is "partial").
+
+PASS 2 — GAP REPORT (your chat reply, before the <draft> block):
+Output a markdown report with exactly three groups, in this order. Use the section icon + label.
+  ### ✅ Captured
+  - {icon} {Section} — one-line summary of what the doc said
+  ### ⚠️ Partial
+  - {icon} {Section} — what's there / what's missing
+  ### ❌ Missing
+  - {icon} {Section}
+Then ask ONE focused question to fill the highest-priority gap (Missing first, then Partial). Do not ask multiple questions.
+
+Section icons: ✨ Personality, 🎵 Tone, 📝 Writing Principles, 🚫 Banned Phrases, 📖 Vocabulary, 📐 Formatting, 📋 Content Types, ✍️ Writing Samples, 🎯 Audiences, 🏷️ Brand Identity.
 
 --- DOCUMENT CONTENT ---
 `;
+
 
 const INITIAL_MESSAGE = "Let's define your brand voice. I'll guide you through building a comprehensive brand voice guide. To start — what's your company name and website URL? If you have any existing brand guidelines or messaging, feel free to share those too.";
 
