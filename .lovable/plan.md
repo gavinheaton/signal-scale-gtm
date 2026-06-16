@@ -1,45 +1,33 @@
-## What I found
+# Plan: Document-driven Brand Voice extraction + gap-filling
 
-Confirmed in the database for the ProPresence project:
+Yes, this makes sense — and the wizard already does part of it (uploads route to `brand-voice-wizard` with `file_url`, text is extracted, and a generic "analyse + ask about gaps" prompt is sent). The problem is that the analysis pass is loose: the AI summarises freely instead of producing a deterministic section-by-section map against the Signal+Scale schema, and the follow-up Q&A doesn't reliably target the missing slots.
 
-- **Saved ICPs (table `icps`)**: 1 row — "Startup Founders — Founder-Led Marketing", Australia. `fit_score`/`access_score` are both 5 (defaults — looks like the row was inserted before scoring was finished).
-- **ICP wizard sessions (table `wizard_sessions`)** for ProPresence — 3 total:
-  1. 13:26 — "Startup Founders — Founder-Led Marketing", geography `Australia (Sydney-based, likely ANZ initially)`, `is_complete: false`, status `complete`.
-  2. 14:17 — "Australian Early-Stage Founders", geography `Australia`, `is_complete: true`, status `complete`. **Not saved to the `icps` table.**
-  3. 14:29 — empty draft, status `in_progress` (new session you have open now).
-- **No US-based segment exists in any project**, in either `icps` or `wizard_sessions` (I searched all geography fields, segment names, and full draft text for "US", "United States", "America"). The notes in the Australian draft explicitly say "Australian founders mirror US founder ICP" — which suggests a US-based segment was discussed in chat but never persisted.
+This plan tightens that flow end-to-end.
 
-So we have two distinct issues:
+## What changes
 
-1. **The "Australian Early-Stage Founders" segment was never saved** to the `icps` table even though the wizard marked the session complete. That's recoverable from `wizard_sessions.draft_output`.
-2. **The US-based segment has no record at all** — no session, no draft, no row. Most likely it lived only inside the chat transcript of one of the existing sessions (and was overwritten when you continued shaping into the Australian version), or the session was never created due to an init failure. Without a session record there's nothing to restore.
+### 1. Edge function: `supabase/functions/brand-voice-wizard/index.ts`
+- Replace the freeform `DOCUMENT_ANALYSIS_PROMPT` with a structured **extraction contract** keyed to the 10 S+S sections (personality_adjectives, tone_description, writing_principles, banned_phrases, preferred_vocabulary, formatting_rules, content_type_guidance, writing_samples, target_audiences, brand_identity).
+- Force a **two-pass** first turn when `file_url` is present:
+  1. **Extraction pass** — return draft JSON populated from the document only. Any field with no evidence stays empty; never invent. Each populated field carries a short `source_snippet` in working notes (kept internal, stripped from chat).
+  2. **Gap report** — assistant reply lists per section: `✅ Captured` (with 1-line summary), `⚠️ Partial` (what's there, what's missing), `❌ Missing`. Ends with the single highest-priority question to fill the first gap.
+- After extraction, set `sections_complete` strictly: only sections with substantive content from the doc.
+- Persist the raw extracted document text on the session (truncated) so follow-up turns can re-reference it without re-downloading.
+- Subsequent turns: system prompt instructs the model to walk gaps in order (Missing → Partial), ask one focused question per turn, and update only the targeted section in the `<draft>` block.
 
-## Plan
+### 2. Frontend: `src/pages/BrandVoiceWizard.tsx`
+- When `fileUrl` is present on first load, show a clearer status: "Analysing document and mapping to Signal+Scale sections…" then render the assistant's structured gap report (already markdown-rendered).
+- Preview panel (`BrandVoicePreviewPanel`) already reflects section status — no change needed; the tighter `sections_complete` from the extraction pass will make ✅/⚠️/❌ accurate immediately after upload.
 
-### Step 1 — Recover the "Australian Early-Stage Founders" ICP
-Insert a new row into `icps` from `wizard_sessions.draft_output` of session `c746a7cb-3693-4ef8-a439-5f980385e172` (segment name, firmographics, psychographics, fit/access score, matrix category, anti-ICP signals, buyer-role behaviour). I'll show you the values before insert so you can confirm.
-
-### Step 2 — Try to recover the US-based segment
-- Search the full chat transcript (`wizard_sessions.messages`) of all three ProPresence sessions for any US/American/United-States content the AI drafted. If a usable US draft is in there, I'll reconstruct it into an `icps` row.
-- If nothing US-related is in any transcript, the segment is unrecoverable and you'll need to rebuild it. (I'll tell you straight away rather than fish further.)
-
-### Step 3 — Fix the save bug so this stops happening
-Audit the ICP wizard save path:
-- `src/pages/ICPWizard.tsx` — does the "Save" button always call `supabase.from('icps').insert(...)`? Are errors swallowed (no `toast.error`)? Does completing a session via the AI auto-save, or does it only mark `wizard_sessions.status = 'complete'` and rely on the user pressing Save?
-- `supabase/functions/icp-wizard/index.ts` — when the AI marks `is_complete: true`, does it persist the ICP row, or just the draft on the session?
-
-Likely fix (subject to confirming in code): on session completion, if no `icps` row exists for this session, persist one server-side as part of the same edge-function transaction, and surface a clear success/failure toast in the UI. Also keep the "Save" button as an explicit fallback.
-
-### Step 4 — Make sessions easier to recover in the future
-Add a small "Resume previous ICP drafts" affordance on the ICP & Personas page that lists `wizard_sessions` where `session_type='icp'` and `is_complete=true` but no matching `icps` row, with one-click "Save this draft" — turning silent losses into one-click recoveries.
-
-## Technical notes
-
-- Recovery in Step 1/2 is data-only — I'll use the insert tool, not a migration.
-- Step 3 schema-wise needs no migration; it's edge-function + UI code.
-- Step 4 is optional polish; happy to skip if you'd rather just have the bug fixed.
+### 3. Types — no change
+`BrandVoiceDraft` already covers all 10 sections.
 
 ## Out of scope
+- No DB migrations.
+- No new upload UI — existing upload entry on `/project/brand-voice` is retained.
+- No change to PDF/DOCX extractors (working today; we'll keep the 8k-char cap).
 
-- I will not delete or rewrite the existing saved "Startup Founders — Founder-Led Marketing" ICP unless you ask — it appears to be a partial save you may still want.
-- I will not change the persona schema or the persona wizard; this is all in ICP territory.
+## Acceptance
+- Upload a tone-of-voice doc → wizard responds with a section-by-section ✅/⚠️/❌ report and a single targeted question.
+- Preview panel shows completed sections highlighted from the first turn.
+- Each follow-up answer fills exactly one gap and advances to the next.
