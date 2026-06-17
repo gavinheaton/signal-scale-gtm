@@ -262,6 +262,13 @@ export default function BrandVoiceWizard() {
           </h1>
           <p className="text-xs text-muted-foreground">AI-guided brand voice builder</p>
         </div>
+        {lastSavedAt && (
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground" title={lastSavedAt.toLocaleString()}>
+            <Check className="h-3.5 w-3.5 text-green-600" />
+            <span>Saved · {formatSavedAgo(lastSavedAt)}</span>
+          </div>
+        )}
+
         <AlertDialog>
           <AlertDialogTrigger asChild>
             <Button variant="outline" size="sm" disabled={loading} className="gap-2">
