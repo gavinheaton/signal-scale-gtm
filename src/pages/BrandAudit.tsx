@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useProject } from '@/contexts/ProjectContext';
@@ -15,8 +15,15 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
-import { Activity, Plus, Loader2, ArrowRight, AlertTriangle, CheckCircle2, Gauge, Trash2 } from 'lucide-react';
+import { Activity, Plus, Loader2, ArrowRight, AlertTriangle, CheckCircle2, Gauge, Trash2, MessageSquareQuote, Target, Users, Sparkles, type LucideIcon } from 'lucide-react';
 import { format } from 'date-fns';
+
+const DIMENSIONS: { key: 'voice' | 'icp' | 'persona' | 'clarity'; label: string; weight: string; icon: LucideIcon; color: string }[] = [
+  { key: 'voice',   label: 'Voice',   weight: '30%', icon: MessageSquareQuote, color: '#8833ff' },
+  { key: 'icp',     label: 'ICP',     weight: '30%', icon: Target,             color: '#0f284c' },
+  { key: 'persona', label: 'Persona', weight: '25%', icon: Users,              color: '#e33e23' },
+  { key: 'clarity', label: 'Clarity', weight: '15%', icon: Sparkles,           color: '#0ea5a4' },
+];
 
 type Scope = 'quick' | 'deep' | 'custom';
 interface Run {
