@@ -150,16 +150,27 @@ export default function BrandAuditDetail({ runId }: { runId: string }) {
             <div className="text-xs text-muted-foreground mt-1">Headline</div>
           </CardContent>
         </Card>
-        {[
-          ['Voice', run.voice_score], ['ICP', run.icp_score], ['Persona', run.persona_score], ['Clarity', run.clarity_score],
-        ].map(([l, v]) => (
-          <Card key={l as string}>
-            <CardContent className="p-4 text-center">
-              <div className={`text-3xl font-semibold ${scoreColor(v as number | null)}`}>{(v as number | null) ?? '—'}</div>
-              <div className="text-xs text-muted-foreground mt-1">{l}</div>
-            </CardContent>
-          </Card>
-        ))}
+        {DIMENSIONS.map((d) => {
+          const v = run[`${d.key}_score` as keyof Run] as number | null;
+          const Icon = d.icon;
+          return (
+            <Card key={d.key} style={{ borderTop: `3px solid ${d.color}` }}>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2">
+                  <span
+                    className="inline-flex items-center justify-center h-7 w-7 rounded-full"
+                    style={{ backgroundColor: `${d.color}1A`, color: d.color }}
+                  >
+                    <Icon className="h-4 w-4" />
+                  </span>
+                  <span className="text-xs font-medium" style={{ color: d.color }}>{d.label}</span>
+                  <span className="text-[10px] text-muted-foreground ml-auto">{d.weight}</span>
+                </div>
+                <div className={`text-3xl font-semibold mt-2 ${scoreColor(v)}`}>{v ?? '—'}</div>
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
 
       <Card>
