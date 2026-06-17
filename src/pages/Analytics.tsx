@@ -12,6 +12,8 @@ import {
 import { Navigate } from 'react-router-dom';
 import { Lightbulb, CheckCircle2, AlertCircle, RefreshCw, Link as LinkIcon } from 'lucide-react';
 import { toast } from 'sonner';
+import PropertyPicker from '@/components/analytics/PropertyPicker';
+
 
 interface GoogleData {
   connected: boolean;
@@ -169,10 +171,10 @@ export default function Analytics() {
                 <div className="flex gap-2 mt-1 flex-wrap">
                   {data.gsc_site_url
                     ? <Badge variant="secondary">GSC: {data.gsc_site_url}</Badge>
-                    : <Badge variant="outline" className="text-amber-600 border-amber-300">No matching Search Console site</Badge>}
+                    : <Badge variant="outline" className="text-amber-600 border-amber-300">No Search Console property selected</Badge>}
                   {data.ga4_property_id
                     ? <Badge variant="secondary">GA4: {data.ga4_property_id}</Badge>
-                    : <Badge variant="outline" className="text-amber-600 border-amber-300">No matching GA4 property</Badge>}
+                    : <Badge variant="outline" className="text-amber-600 border-amber-300">No GA4 property selected</Badge>}
                 </div>
               </div>
             </div>
@@ -191,6 +193,9 @@ export default function Analytics() {
           </Button>
         </CardContent>
       </Card>
+
+      {data?.connected && <PropertyPicker projectId={currentProject.id} onSaved={fetchData} />}
+
 
       {/* Callout */}
       <Card className="border-l-4" style={{ borderLeftColor: 'hsl(var(--purple))' }}>
