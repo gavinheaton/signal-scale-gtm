@@ -291,7 +291,30 @@ export default function BrandVoiceWizard() {
         </AlertDialog>
       </div>
 
+      {resumed && resumeBannerOpen && (
+        <div className="flex items-start gap-3 rounded-lg border border-primary/20 bg-primary/5 p-3 mb-3">
+          <Sparkles className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+          <div className="flex-1 text-sm">
+            <p className="font-medium text-foreground">Welcome back — we picked up where you left off</p>
+            <p className="text-xs text-muted-foreground">
+              {messages.length} message{messages.length === 1 ? '' : 's'} restored
+              {draft.sections_complete?.length
+                ? ` · ${draft.sections_complete.length} section${draft.sections_complete.length === 1 ? '' : 's'} already filled`
+                : ''}. Your progress is auto-saved as you chat.
+            </p>
+          </div>
+          <button
+            onClick={() => setResumeBannerOpen(false)}
+            className="text-muted-foreground hover:text-foreground"
+            aria-label="Dismiss"
+          >
+            <XIcon className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
       <div className="flex-1 flex gap-4 min-h-0">
+
         {/* Chat panel - 60% */}
         <div className="w-3/5 flex flex-col border rounded-lg bg-card">
           {currentPhase && (
