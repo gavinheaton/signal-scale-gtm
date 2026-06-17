@@ -220,6 +220,122 @@ async function extractPdfText(blob: Blob): Promise<string> {
   }
 }
 
+const FIRECRAWL_API_KEY = Deno.env.get("FIRECRAWL_API_KEY");
+const FIRECRAWL_V2 = "https://api.firecrawl.dev/v2";
+
+const BLOG_PATH_HINTS = ["/blog", "/insights", "/articles", "/article", "/news", "/resources", "/posts", "/post", "/stories", "/thinking", "/journal"];
+const BLOG_EXCLUDE_HINTS = ["/tag/", "/tags/", "/category/", "/categories/", "/author/", "/authors/", "/page/", "/feed", "/rss", "?page=", "/archive"];
+
+function isLikelyBlogPost(url: string): boolean {
+  try {
+    const u = new URL(url);
+    const path = u.pathname.toLowerCase();
+    if (BLOG_EXCLUDE_HINTS.some((h) => path.includes(h) || u.search.toLowerCase().includes(h))) return false;
+    // Must include one of the hints and have a slug-like segment after it
+    for (const hint of BLOG_PATH_HINTS) {
+      if (path.includes(hint)) {
+        const after = path.split(hint)[1] || "";
+        if (after.replace(/\//g, "").length > 3) return true;
+      }
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+function originOf(url: string): string | null {
+  try { return new URL(url).origin; } catch { return null; }
+}
+
+type DiscoveredSample = {
+  title: string;
+  url: string;
+  publishedTime?: string;
+  excerpt: string;
+};
+
+async function discoverWritingSamples(websiteUrl: string): Promise<{ samples: DiscoveredSample[]; error?: string }> {
+  if (!FIRECRAWL_API_KEY) return { samples: [], error: "Firecrawl not configured" };
+  const origin = originOf(websiteUrl);
+  if (!origin) return { samples: [], error: "Invalid website URL" };
+
+  try {
+    const mapRes = await fetch(`${FIRECRAWL_V2}/map`, {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${FIRECRAWL_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ url: origin, search: "blog", limit: 50, includeSubdomains: true }),
+    });
+    if (!mapRes.ok) {
+      const t = await mapRes.text();
+      console.error("Firecrawl map failed:", mapRes.status, t.slice(0, 200));
+      return { samples: [], error: `map failed: ${mapRes.status}` };
+    }
+    const mapData = await mapRes.json();
+    const links: string[] = (mapData?.links || mapData?.data?.links || []).map((l: any) => typeof l === "string" ? l : l?.url).filter(Boolean);
+    const candidates = links.filter(isLikelyBlogPost).slice(0, 3);
+    if (candidates.length === 0) return { samples: [], error: "No blog posts found" };
+
+    const scrapes = await Promise.all(candidates.map(async (url) => {
+      try {
+        const r = await fetch(`${FIRECRAWL_V2}/scrape`, {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${FIRECRAWL_API_KEY}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ url, formats: ["markdown"], onlyMainContent: true }),
+        });
+        if (!r.ok) { await r.text(); return null; }
+        const d = await r.json();
+        const md: string = d?.data?.markdown || d?.markdown || "";
+        const meta = d?.data?.metadata || d?.metadata || {};
+        if (!md || md.length < 200) return null;
+        return {
+          title: meta.title || meta.ogTitle || url,
+          url: meta.sourceURL || url,
+          publishedTime: meta.publishedTime || meta.publishedDate || meta["article:published_time"],
+          excerpt: md.replace(/\s+/g, " ").trim().slice(0, 1500),
+        } as DiscoveredSample;
+      } catch (e) {
+        console.error("Scrape error:", url, e);
+        return null;
+      }
+    }));
+
+    const samples = scrapes.filter((s): s is DiscoveredSample => !!s);
+    samples.sort((a, b) => {
+      if (a.publishedTime && b.publishedTime) return b.publishedTime.localeCompare(a.publishedTime);
+      if (a.publishedTime) return -1;
+      if (b.publishedTime) return 1;
+      return 0;
+    });
+    return { samples: samples.slice(0, 3) };
+  } catch (err) {
+    console.error("discoverWritingSamples error:", err);
+    return { samples: [], error: err instanceof Error ? err.message : "unknown" };
+  }
+}
+
+function resolveWebsiteUrl(draft: Record<string, any>, messages: Array<{ role: string; content: string }>): string | null {
+  const fromDraft = draft?.brand_identity?.website_url;
+  if (fromDraft && /^https?:\/\//i.test(fromDraft)) return fromDraft;
+  const urlRegex = /https?:\/\/[^\s<>"{}|\\^`\[\]]+/i;
+  for (const m of messages) {
+    if (m.role !== "user") continue;
+    const match = m.content.match(urlRegex);
+    if (match) return match[0];
+  }
+  return null;
+}
+
+function isSamplesGapNext(draft: Record<string, any>): boolean {
+  const complete: string[] = Array.isArray(draft?.sections_complete) ? draft.sections_complete : [];
+  if (complete.includes("writing_samples")) return false;
+  // Require some voice signal exists to validate against
+  const hasVoice = (Array.isArray(draft?.personality_adjectives) && draft.personality_adjectives.length > 0)
+    || (typeof draft?.tone_description === "string" && draft.tone_description.length > 20)
+    || (Array.isArray(draft?.writing_principles) && draft.writing_principles.length > 0);
+  return hasVoice;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -431,6 +547,41 @@ Deno.serve(async (req) => {
 - Update ONLY the targeted section in the <draft> based on the user's answer; preserve all other fields exactly as they were.
 - When a section now has substantive content, add its key to sections_complete.
 - When all 10 sections are in sections_complete, set is_complete: true and present a final summary instead of another question.`;
+
+    // === Writing-samples auto-discovery ===
+    // When writing_samples is the next gap and we know the website, pull recent blog posts
+    // via Firecrawl and inject them so the AI can validate them against the developing voice.
+    if (
+      isSamplesGapNext(existingDraft) &&
+      !existingDraft?.samples_discovery_attempted
+    ) {
+      const websiteUrl = resolveWebsiteUrl(existingDraft, messages) || brandContext.website_url;
+      if (websiteUrl) {
+        console.log("Discovering writing samples from:", websiteUrl);
+        const { samples, error: discErr } = await discoverWritingSamples(websiteUrl);
+        // Mark attempted regardless of outcome so we don't re-run every turn
+        existingDraft = mergeDrafts(existingDraft, {
+          samples_discovery_attempted: true,
+          discovered_sample_urls: samples.map((s) => s.url),
+        });
+        await supabase.from("wizard_sessions").update({ draft_output: existingDraft }).eq("id", sessionId);
+
+        if (samples.length > 0) {
+          const sampleBlock = samples.map((s, i) =>
+            `Sample ${i + 1}: ${s.title}\nURL: ${s.url}${s.publishedTime ? `\nPublished: ${s.publishedTime}` : ""}\nExcerpt:\n${s.excerpt}`
+          ).join("\n\n---\n\n");
+          systemPrompt += `\n\nDISCOVERED WRITING SAMPLES (auto-fetched from ${websiteUrl}):\n${sampleBlock}\n\nWRITING SAMPLES VALIDATION (do this on this turn):
+1. Briefly list the 3 samples to the user as a bulleted list of "Title — URL" (no full text).
+2. For each sample, give a short alignment scorecard (1–5) against the current draft on: personality_adjectives, tone_description, writing_principles. Call out any banned_phrases that appear verbatim and any principle violations.
+3. Populate the writing_samples array in <draft> with one entry per sample: { type: "blog", sample: "<one-sentence summary> — <url>" }. Add "writing_samples" to sections_complete if alignment is strong.
+4. End with ONE focused question: do these samples represent the voice you want going forward, or should we treat the drift as the gap to close (and update the voice to match how they actually write)?`;
+        } else {
+          systemPrompt += `\n\nWRITING SAMPLES DISCOVERY: Attempted to auto-fetch blog posts from ${websiteUrl} but found none${discErr ? ` (${discErr})` : ""}. Ask the user to paste 1–2 representative pieces of their writing so we can validate the voice.`;
+        }
+      }
+    }
+
+
 
 
     const anthropicMessages = messages.map((m) => ({
