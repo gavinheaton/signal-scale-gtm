@@ -167,9 +167,12 @@ Deno.serve(async (req) => {
     } else {
       if (!base_url) throw new Error("base_url required");
       const mapped = await firecrawlMap(base_url, scope === "deep" ? 200 : 30);
+      // Exclude non-content pages (sitemaps, feeds, api docs, assets, auth, admin, etc.)
+      const EXCLUDE_RE = /(\/sitemap[^/]*\.xml|\/sitemap[^/]*\/|\/robots\.txt|\/rss|\/feed(\/|$|\.xml)|\.xml($|\?)|\.json($|\?)|\.txt($|\?)|\.pdf($|\?)|\.zip($|\?)|\.csv($|\?)|\.ics($|\?)|\.(png|jpe?g|gif|svg|webp|ico|mp4|mp3|webm|woff2?|ttf|eot|css|js|map)($|\?)|\/api\/|\/api($|\?)|\/wp-json|\/wp-admin|\/wp-login|\/wp-content\/|\/cdn-cgi\/|\/_next\/|\/static\/|\/assets\/|\/admin(\/|$)|\/login(\/|$)|\/signin(\/|$)|\/signup(\/|$)|\/register(\/|$)|\/logout(\/|$)|\/account(\/|$)|\/cart(\/|$)|\/checkout(\/|$)|\/search(\/|$|\?)|\/tag\/|\/tags\/|\/category\/|\/categories\/|\/author\/|\/page\/\d+|\/docs?\/api|\/api-docs|\/swagger|\/openapi|\/graphql|\/privacy|\/terms|\/cookie|\/legal|\/dmca|\/disclaimer|\/404|\/500)/i;
+      const contentUrls = mapped.filter(u => !EXCLUDE_RE.test(u));
       // Prioritize root + about + common pages first
-      const priority = mapped.filter(u => /\/(about|home|services|product|pricing|contact)/i.test(u) || u.replace(/\/$/, "") === base_url.replace(/\/$/, ""));
-      const rest = mapped.filter(u => !priority.includes(u));
+      const priority = contentUrls.filter(u => /\/(about|home|services|product|pricing|contact)/i.test(u) || u.replace(/\/$/, "") === base_url.replace(/\/$/, ""));
+      const rest = contentUrls.filter(u => !priority.includes(u));
       urls = [...priority, ...rest].slice(0, effectiveLimit);
     }
 
