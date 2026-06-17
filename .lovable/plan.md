@@ -1,61 +1,51 @@
-# Brand Audit improvements
+## 1. Prepopulate website URL (actually work)
 
-Three changes to `BrandAudit.tsx` and `brand-audit-run/index.ts`.
+**File:** `src/pages/BrandAudit.tsx`
 
-## 1. Delete audit reports
+Today `load()` reads `brand_voices.brand_identity.website_url` from the latest row by `created_at`. If the latest BV is a draft with no `brand_identity` yet, or `website_url` was never captured, the field is blank.
 
-In `src/pages/BrandAudit.tsx`, add a delete affordance per row in Audit History:
+Make it robust with a chain of fallbacks:
+1. Latest **completed** `brand_voices.brand_identity.website_url` (filter by `status = 'complete'`, then fall back to any latest row).
+2. Most recent prior `brand_audit_runs.base_url` for this project (skip empty/custom-only).
+3. Empty.
 
-- Add a small trash icon button on the right of each run row (stops propagation so it doesn't navigate).
-- Confirm via `AlertDialog` ("Delete this audit run? This removes the run and all its scored pages.").
-- On confirm: delete child pages first, then the run, then refresh:
-  ```ts
-  await supabase.from('brand_audit_pages').delete().eq('run_id', id);
-  await supabase.from('brand_audit_runs').delete().eq('id', id);
-  ```
-- Toast success/error and reload.
+Also:
+- Set `baseUrl` from this derived value on every project change (currently only sets if `prev` is empty — stale state from a previous project sticks).
+- In `openDialog()`, always reset `baseUrl` to `defaultWebsite` if the user hasn't manually typed something different this session. Tracked via a simple `userEditedRef` flag set in the input's `onChange`.
 
-Also add the same delete button on the `BrandAuditDetail` page header so a user viewing a report can delete it and bounce back to `/project/brand-audit`.
+## 2. Stop scoring blog/insights index & category pages
 
-RLS on `brand_audit_runs` / `brand_audit_pages` already scopes by project, so no SQL changes needed.
+**File:** `supabase/functions/brand-audit-run/index.ts`
 
-## 2. Prepopulate website URL
+Right now `/blog`, `/insights`, `/news` (bare index pages) match `BLOG_RE` and get picked as content. They're listings, not content.
 
-The Brand Voice wizard already stores `brand_identity.website_url` on `brand_voices`. In `BrandAudit.tsx`:
+Change discovery so:
+- **Exclude** bare listing/index URLs: a regex `INDEX_RE` matching paths whose final segment is one of `blog|insights|news|articles|resources|stories|perspectives|thinking|journal|posts|press|media|library` with nothing after (e.g. `/blog`, `/blog/`, `/insights/`). Add to filter pass.
+- **Include** their children: a URL matching `BLOG_RE` qualifies as a "blog post" only if there is a slug after it (e.g. `/blog/<slug>`). Update `blogPages` filter accordingly.
+- Apply the same rule to other index-style key pages where it makes sense to keep the index (about, pricing, contact) — these are legitimate content, so leave them.
+- Increase `keepBlog` from 2 → up to 3 actual blog posts (still capped by `effectiveLimit`).
 
-- Extend the existing `load()` query to also select `brand_identity` from the latest brand voice.
-- Derive `defaultWebsite = bv?.brand_identity?.website_url ?? ''` and set it into `baseUrl` state on load.
-- When the "New Audit" dialog opens, if `baseUrl` is empty, fall back to that derived value.
-- Show it pre-filled in the input (user can still edit).
+Also add a final sanity log: print the bucket counts (`home/key/blog/rest`) before slicing, so it's easy to diagnose future audits in the function logs.
 
-## 3. Better page discovery (find more important pages)
+## 3. Visually distinguish Voice / ICP / Persona / Clarity tiles
 
-Problem: Firecrawl `map` with `limit: 30` for quick scope is too small and too unranked — last run only surfaced 1 usable page. Fix in `supabase/functions/brand-audit-run/index.ts`:
+**Files:** `src/pages/BrandAudit.tsx` (Brand Health card) and `src/pages/BrandAuditDetail.tsx` (matching score blocks, if present).
 
-**Map call changes** (`firecrawlMap`):
-- Always request a large pool: `limit: 200` for quick, `limit: 500` for deep.
-- Make two parallel `map` calls and merge/dedupe results to bias toward high-value pages:
-  1. Plain map (full sitemap).
-  2. Map with `search: "about services solutions pricing customers case study blog"` — Firecrawl's `search` param returns links ranked by relevance to those terms, which is exactly what we want.
-- Merge: relevance-search results first (in order), then plain-map results, deduped.
+Each tile gets a distinct icon + accent color tied to the dimension:
 
-**Selection logic** (replace current single-pass filter):
-- Apply `EXCLUDE_RE` first.
-- Bucket into: `home`, `keyPages` (KEY_PAGE_RE), `blogPages` (BLOG_RE), `rest`.
-- Build the final list by interleaving so we always include a healthy spread when the user asks for ~8:
-  ```
-  [home, ...keyPages.slice(0, max(4, limit-3)), ...blogPages.slice(0, 2), ...rest]
-   .slice(0, effectiveLimit)
-  ```
-- If after filtering we still have fewer than `effectiveLimit` URLs, fall back to including filtered-out `rest` URLs rather than returning a 1-page audit.
-- Log the chosen URLs (`console.log("Audit URLs:", urls)`) for debugging.
+| Dimension | Icon (lucide) | Accent |
+|---|---|---|
+| Voice | `MessageSquareQuote` | purple `#8833ff` |
+| ICP | `Target` | navy `#0f284c` |
+| Persona | `Users` | orange `#e33e23` |
+| Clarity | `Sparkles` | teal `#0ea5a4` |
 
-**Guardrail**: if `urls.length < 2` after all of the above, return a 400 with a clear message ("Couldn't discover enough content pages on this site — try Custom URLs.") instead of silently scoring 1 page.
+Tile layout change:
+- Icon chip in a tinted circle (`bg-{accent}/10`, icon in accent color) top-left.
+- Label + weight pill ("30%", "25%", etc.) next to icon.
+- Score number remains the dominant element, but its color stays driven by `scoreColor()` (red/orange/green pass/fail), not the dimension accent — so users can still read pass/fail at a glance while the icon/accent identifies which dimension.
+- Add a thin top border in the accent color to reinforce identity.
 
-## Files changed
+Apply the same treatment to the equivalent tiles on `BrandAuditDetail.tsx` so it's consistent.
 
-- `src/pages/BrandAudit.tsx` — delete button + confirm dialog, prepopulate website URL from brand voice.
-- `src/pages/BrandAuditDetail.tsx` — delete button in header.
-- `supabase/functions/brand-audit-run/index.ts` — dual `map` calls with relevance search, smarter bucket interleaving, fallback + guardrail, debug log.
-
-No DB schema or RLS changes.
+No DB or RLS changes. No new dependencies.
