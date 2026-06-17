@@ -37,7 +37,41 @@ export default function BrandVoiceWizard() {
   const [draft, setDraft] = useState<BrandVoiceDraft>({});
   const [saving, setSaving] = useState(false);
   const [prevDraft, setPrevDraft] = useState<BrandVoiceDraft>({});
+  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
+  const [savedTick, setSavedTick] = useState(0);
+  const [resumed, setResumed] = useState(false);
+  const [resumeBannerOpen, setResumeBannerOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Re-render the "Saved · Xs ago" label every 15s.
+  useEffect(() => {
+    const id = setInterval(() => setSavedTick(t => t + 1), 15000);
+    return () => clearInterval(id);
+  }, []);
+
+  // Warn before unload if an AI request is in-flight.
+  useEffect(() => {
+    if (!loading) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [loading]);
+
+  const formatSavedAgo = (d: Date | null) => {
+    if (!d) return null;
+    void savedTick;
+    const s = Math.max(0, Math.floor((Date.now() - d.getTime()) / 1000));
+    if (s < 5) return 'just now';
+    if (s < 60) return `${s}s ago`;
+    const m = Math.floor(s / 60);
+    if (m < 60) return `${m}m ago`;
+    const h = Math.floor(m / 60);
+    return `${h}h ago`;
+  };
+
 
   useEffect(() => {
     if (!draft.sections_complete || !prevDraft.sections_complete) return;
