@@ -208,12 +208,19 @@ export default function BrandAuditDetail({ runId }: { runId: string }) {
                   ) : null}
                 </div>
                 <div className="col-span-3 grid grid-cols-4 gap-1 text-[10px]">
-                  {[p.voice_score, p.icp_score, p.persona_score, p.clarity_score].map((s, i) => (
-                    <div key={i} className="text-center">
-                      <div className={`font-semibold text-sm ${scoreColor(s)}`}>{s ?? '—'}</div>
-                      <div className="text-muted-foreground">{['V','I','P','C'][i]}</div>
-                    </div>
-                  ))}
+                  {DIMENSIONS.map((d) => {
+                    const s = p[`${d.key}_score` as keyof Page] as number | null;
+                    const Icon = d.icon;
+                    return (
+                      <div key={d.key} className="text-center">
+                        <div className={`font-semibold text-sm ${scoreColor(s)}`}>{s ?? '—'}</div>
+                        <div className="inline-flex items-center justify-center gap-0.5" style={{ color: d.color }}>
+                          <Icon className="h-2.5 w-2.5" />
+                          <span>{d.short}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
                 <div className={`col-span-1 text-right text-xl font-bold ${scoreColor(p.headline_score)}`}>{p.headline_score ?? '—'}</div>
               </button>
