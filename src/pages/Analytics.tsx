@@ -4,15 +4,13 @@ import { useProject } from '@/contexts/ProjectContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import {
   LineChart, Line, BarChart, Bar, AreaChart, Area, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend,
 } from 'recharts';
-import { Navigate } from 'react-router-dom';
-import { Lightbulb, CheckCircle2, AlertCircle, RefreshCw, Link as LinkIcon } from 'lucide-react';
+import { Link, Navigate } from 'react-router-dom';
+import { Lightbulb, RefreshCw, Settings as SettingsIcon } from 'lucide-react';
 import { toast } from 'sonner';
-import PropertyPicker from '@/components/analytics/PropertyPicker';
 
 
 interface GoogleData {
@@ -38,7 +36,6 @@ export default function Analytics() {
   const [days, setDays] = useState(28);
   const [data, setData] = useState<GoogleData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [connecting, setConnecting] = useState(false);
 
   const fetchData = useCallback(async () => {
     if (!currentProject) return;
@@ -56,51 +53,6 @@ export default function Analytics() {
   }, [currentProject, days]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
-
-  // Refresh when oauth popup posts back
-  useEffect(() => {
-    const handler = (e: MessageEvent) => {
-      if (e.data?.type === 'google-oauth') {
-        if (e.data.success) {
-          toast.success('Google connected');
-          fetchData();
-        } else {
-          toast.error('Google connection failed');
-        }
-        setConnecting(false);
-      }
-    };
-    window.addEventListener('message', handler);
-    return () => window.removeEventListener('message', handler);
-  }, [fetchData]);
-
-  // If returned via redirect (no popup), pick up query param
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.has('connected')) {
-      if (params.get('connected') === '1') toast.success('Google connected');
-      else toast.error('Google connection failed');
-      window.history.replaceState({}, '', window.location.pathname);
-      fetchData();
-    }
-  }, [fetchData]);
-
-  const handleConnect = async () => {
-    if (!currentProject) return;
-    setConnecting(true);
-    const { data: res, error } = await supabase.functions.invoke('google-oauth-start', {
-      body: { project_id: currentProject.id, return_url: '/analytics' },
-    });
-    if (error || !res?.url) {
-      toast.error(error?.message || 'Failed to start Google auth');
-      setConnecting(false);
-      return;
-    }
-    const popup = window.open(res.url, 'google-oauth', 'width=520,height=720');
-    if (!popup) {
-      window.location.href = res.url;
-    }
-  };
 
   if (!currentProject) return <Navigate to="/projects" replace />;
 
@@ -160,43 +112,6 @@ export default function Analytics() {
         </div>
       </div>
 
-      {/* Connection card */}
-      <Card>
-        <CardContent className="pt-6 flex items-center justify-between gap-4 flex-wrap">
-          {data?.connected ? (
-            <div className="flex items-center gap-3">
-              <CheckCircle2 className="h-5 w-5 text-emerald-600" />
-              <div>
-                <p className="text-sm font-semibold">Google connected · {data.google_email}</p>
-                <div className="flex gap-2 mt-1 flex-wrap">
-                  {data.gsc_site_url
-                    ? <Badge variant="secondary">GSC: {data.gsc_site_url}</Badge>
-                    : <Badge variant="outline" className="text-amber-600 border-amber-300">No Search Console property selected</Badge>}
-                  {data.ga4_property_id
-                    ? <Badge variant="secondary">GA4: {data.ga4_property_id}</Badge>
-                    : <Badge variant="outline" className="text-amber-600 border-amber-300">No GA4 property selected</Badge>}
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="flex items-center gap-3">
-              <AlertCircle className="h-5 w-5 text-amber-600" />
-              <div>
-                <p className="text-sm font-semibold">No Google account connected</p>
-                <p className="text-xs text-muted-foreground">Connect Google to pull Search Console and Analytics 4 data for this project.</p>
-              </div>
-            </div>
-          )}
-          <Button onClick={handleConnect} disabled={connecting}>
-            <LinkIcon className="h-4 w-4 mr-2" />
-            {data?.connected ? 'Reconnect' : 'Connect Google'}
-          </Button>
-        </CardContent>
-      </Card>
-
-      {data?.connected && <PropertyPicker projectId={currentProject.id} onSaved={fetchData} />}
-
-
       {/* Callout */}
       <Card className="border-l-4" style={{ borderLeftColor: 'hsl(var(--purple))' }}>
         <CardContent className="pt-6 flex gap-3 items-start">
@@ -209,7 +124,29 @@ export default function Analytics() {
       </Card>
 
       {!data?.connected ? (
-        <Card><CardContent className="py-12 text-center text-sm text-muted-foreground">Connect Google to see your data.</CardContent></Card>
+        <Card>
+          <CardContent className="py-12 flex flex-col items-center gap-3 text-center">
+            <p className="text-sm text-muted-foreground">No Google account connected for this project yet.</p>
+            <Button asChild variant="outline" size="sm">
+              <Link to="/project/settings">
+                <SettingsIcon className="h-4 w-4 mr-2" />
+                Connect in Project Settings
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (!data.gsc_site_url && !data.ga4_property_id) ? (
+        <Card>
+          <CardContent className="py-12 flex flex-col items-center gap-3 text-center">
+            <p className="text-sm text-muted-foreground">Google is connected, but no Search Console or GA4 property is selected yet.</p>
+            <Button asChild variant="outline" size="sm">
+              <Link to="/project/settings">
+                <SettingsIcon className="h-4 w-4 mr-2" />
+                Pick properties in Project Settings
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
       ) : (
         <>
           <div className="grid gap-6 md:grid-cols-2">
