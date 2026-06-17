@@ -5,7 +5,14 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
-import { ArrowLeft, ExternalLink, Loader2, Copy, Trash2 } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Loader2, Copy, Trash2, MessageSquareQuote, Target, Users, Sparkles, type LucideIcon } from 'lucide-react';
+
+const DIMENSIONS: { key: 'voice' | 'icp' | 'persona' | 'clarity'; label: string; short: string; weight: string; icon: LucideIcon; color: string }[] = [
+  { key: 'voice',   label: 'Voice',   short: 'V', weight: '30%', icon: MessageSquareQuote, color: '#8833ff' },
+  { key: 'icp',     label: 'ICP',     short: 'I', weight: '30%', icon: Target,             color: '#0f284c' },
+  { key: 'persona', label: 'Persona', short: 'P', weight: '25%', icon: Users,              color: '#e33e23' },
+  { key: 'clarity', label: 'Clarity', short: 'C', weight: '15%', icon: Sparkles,           color: '#0ea5a4' },
+];
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import {
@@ -143,16 +150,27 @@ export default function BrandAuditDetail({ runId }: { runId: string }) {
             <div className="text-xs text-muted-foreground mt-1">Headline</div>
           </CardContent>
         </Card>
-        {[
-          ['Voice', run.voice_score], ['ICP', run.icp_score], ['Persona', run.persona_score], ['Clarity', run.clarity_score],
-        ].map(([l, v]) => (
-          <Card key={l as string}>
-            <CardContent className="p-4 text-center">
-              <div className={`text-3xl font-semibold ${scoreColor(v as number | null)}`}>{(v as number | null) ?? '—'}</div>
-              <div className="text-xs text-muted-foreground mt-1">{l}</div>
-            </CardContent>
-          </Card>
-        ))}
+        {DIMENSIONS.map((d) => {
+          const v = run[`${d.key}_score` as keyof Run] as number | null;
+          const Icon = d.icon;
+          return (
+            <Card key={d.key} style={{ borderTop: `3px solid ${d.color}` }}>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2">
+                  <span
+                    className="inline-flex items-center justify-center h-7 w-7 rounded-full"
+                    style={{ backgroundColor: `${d.color}1A`, color: d.color }}
+                  >
+                    <Icon className="h-4 w-4" />
+                  </span>
+                  <span className="text-xs font-medium" style={{ color: d.color }}>{d.label}</span>
+                  <span className="text-[10px] text-muted-foreground ml-auto">{d.weight}</span>
+                </div>
+                <div className={`text-3xl font-semibold mt-2 ${scoreColor(v)}`}>{v ?? '—'}</div>
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
 
       <Card>
@@ -190,12 +208,19 @@ export default function BrandAuditDetail({ runId }: { runId: string }) {
                   ) : null}
                 </div>
                 <div className="col-span-3 grid grid-cols-4 gap-1 text-[10px]">
-                  {[p.voice_score, p.icp_score, p.persona_score, p.clarity_score].map((s, i) => (
-                    <div key={i} className="text-center">
-                      <div className={`font-semibold text-sm ${scoreColor(s)}`}>{s ?? '—'}</div>
-                      <div className="text-muted-foreground">{['V','I','P','C'][i]}</div>
-                    </div>
-                  ))}
+                  {DIMENSIONS.map((d) => {
+                    const s = p[`${d.key}_score` as keyof Page] as number | null;
+                    const Icon = d.icon;
+                    return (
+                      <div key={d.key} className="text-center">
+                        <div className={`font-semibold text-sm ${scoreColor(s)}`}>{s ?? '—'}</div>
+                        <div className="inline-flex items-center justify-center gap-0.5" style={{ color: d.color }}>
+                          <Icon className="h-2.5 w-2.5" />
+                          <span>{d.short}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
                 <div className={`col-span-1 text-right text-xl font-bold ${scoreColor(p.headline_score)}`}>{p.headline_score ?? '—'}</div>
               </button>
@@ -230,12 +255,18 @@ export default function BrandAuditDetail({ runId }: { runId: string }) {
                       <div className={`text-2xl font-bold ${scoreColor(selected.headline_score)}`}>{selected.headline_score}</div>
                       <div className="text-[10px] uppercase text-muted-foreground mt-1">Headline</div>
                     </div>
-                    {[['Voice', selected.voice_score], ['ICP', selected.icp_score], ['Persona', selected.persona_score], ['Clarity', selected.clarity_score]].map(([l, v]) => (
-                      <div key={l as string} className="border rounded p-2">
-                        <div className={`text-lg font-semibold ${scoreColor(v as number | null)}`}>{v as number | null}</div>
-                        <div className="text-[10px] uppercase text-muted-foreground mt-1">{l}</div>
-                      </div>
-                    ))}
+                    {DIMENSIONS.map((d) => {
+                      const v = selected[`${d.key}_score` as keyof Page] as number | null;
+                      const Icon = d.icon;
+                      return (
+                        <div key={d.key} className="border rounded p-2" style={{ borderTop: `2px solid ${d.color}` }}>
+                          <div className={`text-lg font-semibold ${scoreColor(v)}`}>{v ?? '—'}</div>
+                          <div className="text-[10px] uppercase mt-1 inline-flex items-center justify-center gap-1" style={{ color: d.color }}>
+                            <Icon className="h-3 w-3" />{d.label}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
 
                   {([

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useProject } from '@/contexts/ProjectContext';
@@ -15,8 +15,15 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
-import { Activity, Plus, Loader2, ArrowRight, AlertTriangle, CheckCircle2, Gauge, Trash2 } from 'lucide-react';
+import { Activity, Plus, Loader2, ArrowRight, AlertTriangle, CheckCircle2, Gauge, Trash2, MessageSquareQuote, Target, Users, Sparkles, type LucideIcon } from 'lucide-react';
 import { format } from 'date-fns';
+
+const DIMENSIONS: { key: 'voice' | 'icp' | 'persona' | 'clarity'; label: string; weight: string; icon: LucideIcon; color: string }[] = [
+  { key: 'voice',   label: 'Voice',   weight: '30%', icon: MessageSquareQuote, color: '#8833ff' },
+  { key: 'icp',     label: 'ICP',     weight: '30%', icon: Target,             color: '#0f284c' },
+  { key: 'persona', label: 'Persona', weight: '25%', icon: Users,              color: '#e33e23' },
+  { key: 'clarity', label: 'Clarity', weight: '15%', icon: Sparkles,           color: '#0ea5a4' },
+];
 
 type Scope = 'quick' | 'deep' | 'custom';
 interface Run {
@@ -59,30 +66,39 @@ export default function BrandAudit() {
   const [submitting, setSubmitting] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<Run | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const userEditedRef = useRef(false);
 
   useEffect(() => {
     if (!currentProject) return;
+    userEditedRef.current = false;
     void load();
   }, [currentProject]);
 
   async function load() {
     setLoading(true);
-    const [{ data: rs }, { data: bv }] = await Promise.all([
-      supabase.from('brand_audit_runs').select('*').eq('project_id', currentProject!.id).order('created_at', { ascending: false }),
+    const [{ data: bvComplete }, { data: bvLatest }, { data: rs }] = await Promise.all([
+      supabase.from('brand_voices').select('brand_identity').eq('project_id', currentProject!.id).eq('status', 'complete').order('created_at', { ascending: false }).limit(1).maybeSingle(),
       supabase.from('brand_voices').select('status, brand_identity').eq('project_id', currentProject!.id).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+      supabase.from('brand_audit_runs').select('*').eq('project_id', currentProject!.id).order('created_at', { ascending: false }),
     ]);
     setRuns((rs ?? []) as unknown as Run[]);
-    setBvReady(bv?.status === 'complete');
-    const website = (bv?.brand_identity as any)?.website_url ?? '';
+    setBvReady(bvLatest?.status === 'complete');
+
+    const bvWebsite =
+      (bvComplete?.brand_identity as any)?.website_url ??
+      (bvLatest?.brand_identity as any)?.website_url ??
+      '';
+    const lastRunUrl = (rs ?? []).find(r => r.base_url && r.scope !== 'custom')?.base_url ?? '';
+    const website = bvWebsite || lastRunUrl || '';
     setDefaultWebsite(website);
-    setBaseUrl((prev) => prev || website);
+    if (!userEditedRef.current) setBaseUrl(website);
     setLoading(false);
   }
 
   const latest = runs[0];
 
   function openDialog() {
-    if (!baseUrl && defaultWebsite) setBaseUrl(defaultWebsite);
+    if (!userEditedRef.current && defaultWebsite) setBaseUrl(defaultWebsite);
     setOpen(true);
   }
 
@@ -192,17 +208,29 @@ export default function BrandAudit() {
                 </div>
                 <div className="text-xs text-muted-foreground mt-1">Headline (latest)</div>
               </div>
-              {[
-                { label: 'Voice', val: latest.voice_score, w: '30%' },
-                { label: 'ICP', val: latest.icp_score, w: '30%' },
-                { label: 'Persona', val: latest.persona_score, w: '25%' },
-                { label: 'Clarity', val: latest.clarity_score, w: '15%' },
-              ].map((s) => (
-                <div key={s.label} className="border rounded-lg p-4">
-                  <div className="text-xs text-muted-foreground">{s.label} <span className="opacity-60">({s.w})</span></div>
-                  <div className={`text-3xl font-semibold mt-2 ${scoreColor(s.val)}`}>{s.val ?? '—'}</div>
-                </div>
-              ))}
+              {DIMENSIONS.map((d) => {
+                const val = latest[`${d.key}_score` as keyof Run] as number | null;
+                const Icon = d.icon;
+                return (
+                  <div
+                    key={d.key}
+                    className="border rounded-lg p-4 relative overflow-hidden"
+                    style={{ borderTop: `3px solid ${d.color}` }}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span
+                        className="inline-flex items-center justify-center h-7 w-7 rounded-full"
+                        style={{ backgroundColor: `${d.color}1A`, color: d.color }}
+                      >
+                        <Icon className="h-4 w-4" />
+                      </span>
+                      <span className="text-xs font-medium" style={{ color: d.color }}>{d.label}</span>
+                      <span className="text-[10px] text-muted-foreground ml-auto">{d.weight}</span>
+                    </div>
+                    <div className={`text-3xl font-semibold mt-2 ${scoreColor(val)}`}>{val ?? '—'}</div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </CardContent>
@@ -285,7 +313,7 @@ export default function BrandAudit() {
             {scope !== 'custom' && (
               <div>
                 <Label className="text-xs">Website URL</Label>
-                <Input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} placeholder="https://example.com" />
+                <Input value={baseUrl} onChange={(e) => { userEditedRef.current = true; setBaseUrl(e.target.value); }} placeholder="https://example.com" />
                 {defaultWebsite && baseUrl === defaultWebsite && (
                   <p className="text-[11px] text-muted-foreground mt-1">Prefilled from your Brand Voice.</p>
                 )}
