@@ -10,8 +10,12 @@ interface PropsList {
   connected: boolean;
   gscSites: Array<{ siteUrl: string; permissionLevel: string }>;
   ga4Properties: Array<{ propertyId: string; propertyName: string; accountName: string; defaultUri?: string }>;
+  gscError?: string | null;
+  ga4Error?: string | null;
+  grantedScopes?: string;
   current: { gsc_site_url: string | null; ga4_property_id: string | null };
 }
+
 
 const NONE = '__none__';
 
