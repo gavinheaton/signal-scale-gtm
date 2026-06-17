@@ -1,43 +1,36 @@
-# Fix "No matching properties" on Google connect
+# Diagnose "0 GSC sites / 0 GA4 properties"
 
-## Why it happened
-Auto-match reads the project website from `brand_voices.brand_identity.website_url` (latest completed brand voice). If that's missing — or the host doesn't exactly match a GSC site / GA4 web stream URL — both fields are left null and the user has no way to fix it from the UI.
+## Suspected cause
+Logs from the most recent connect:
+```
+auto-match websiteHost= null
+GSC sites=0, matched=null
+GA4 properties=0, matched=null
+```
 
-## What to build
+Two plausible reasons, indistinguishable from current logs:
+1. **Granular scopes not granted** — Google's consent screen now shows one checkbox per scope (`webmasters.readonly`, `analytics.readonly`). If the user didn't tick them, the access token is issued but the list endpoints return empty/403. This is the most common cause.
+2. **Account has no GSC/GA4 access** — the signed-in Google account genuinely owns no properties (or they're under a different account).
 
-### 1. New edge function: `analytics-list-properties`
-- Auth: verify user JWT, confirm org access to the `project_id`.
-- Load the stored Google tokens for that project, refresh if expired (reuse the refresh helper already in `analytics-fetch`).
-- Returns:
-  - `gscSites`: full list from `GET /webmasters/v3/sites` (siteUrl + permissionLevel).
-  - `ga4Properties`: flattened list from `accountSummaries` (accountName, propertyId, propertyDisplayName, plus defaultUri from the first webStreamData lookup — cached per request).
-  - `current`: the project's currently saved `gsc_site_url` and `ga4_property_id`.
+## What to add
 
-### 2. New edge function: `analytics-save-selection`
-- Auth + org check.
-- Body: `{ project_id, gsc_site_url, ga4_property_id }` (either may be null).
-- Updates `project_google_connections` row.
+### 1. Log granted scopes in `google-oauth-callback`
+After token exchange, log `tokens.scope` (Google returns the actual granted scope string). If `webmasters.readonly` or `analytics.readonly` is missing, **don't save the connection** — return a clear error: "You declined the Search Console / Analytics permission. Reconnect and tick both boxes."
 
-### 3. Analytics page UI changes (`src/pages/Analytics.tsx`)
-- When a connection exists, add a small **Connection** card near the top showing:
-  - Connected Google account email.
-  - Two `Select` dropdowns: "Search Console property" and "GA4 property", populated from `analytics-list-properties`.
-  - "Save" button → calls `analytics-save-selection`, then refetches analytics.
-  - "Disconnect" button (already exists or add it) — deletes the row.
-- If `gsc_site_url` or `ga4_property_id` is null, show an inline warning ("Auto-match couldn't find a property — pick one below").
-- Keep the existing auto-match success badge.
+### 2. Surface API errors in `analytics-list-properties`
+Currently the function silently returns empty arrays on API errors. Change it to also return:
+- `gscError`: HTTP status + Google error message if `/sites` fails
+- `ga4Error`: same for `/accountSummaries`
+- `grantedScopes`: from a `tokeninfo` lookup so the UI can show what was actually granted
 
-### 4. Callback diagnostics (`google-oauth-callback`)
-- Log counts: `gsc sites=N`, `ga4 properties=M`, and the `websiteHost` used for matching.
-- When no website host is known (no completed brand voice with url), still succeed but show a clearer message: "Connected — please choose properties on the Analytics page."
-
-## Out of scope
-- No DB schema changes (table already has both columns).
-- No new scopes (existing OAuth scopes already cover list endpoints).
-- No change to `analytics-fetch`; it continues to read whatever ids are saved.
+### 3. Show diagnostics in the PropertyPicker UI
+When both lists are empty, render an inline alert that shows:
+- The Google account email
+- The granted scopes
+- Any API error returned
+- A "Reconnect" button that re-runs the OAuth flow
 
 ## Files
-- create `supabase/functions/analytics-list-properties/index.ts`
-- create `supabase/functions/analytics-save-selection/index.ts`
-- edit `supabase/functions/google-oauth-callback/index.ts` (logging + message)
-- edit `src/pages/Analytics.tsx` (Connection card with pickers)
+- edit `supabase/functions/google-oauth-callback/index.ts` (scope check + early fail)
+- edit `supabase/functions/analytics-list-properties/index.ts` (return errors + granted scopes)
+- edit `src/components/analytics/PropertyPicker.tsx` (diagnostics alert)
