@@ -171,21 +171,66 @@ Deno.serve(async (req) => {
       urls = (custom_urls as string[]).filter(Boolean).slice(0, effectiveLimit);
     } else {
       if (!base_url) throw new Error("base_url required");
-      const mapped = await firecrawlMap(base_url, scope === "deep" ? 200 : 30);
+      const mapLimit = scope === "deep" ? 500 : 200;
+      // Two parallel maps: plain sitemap + relevance-ranked search for high-value marketing pages.
+      const [mappedPlain, mappedSearch] = await Promise.all([
+        firecrawlMap(base_url, mapLimit),
+        firecrawlMap(base_url, mapLimit, "about services solutions products pricing customers case study blog insights"),
+      ]);
+      // Search results first (already relevance-ranked), then plain map; dedupe preserving order.
+      const seen = new Set<string>();
+      const mapped: string[] = [];
+      for (const u of [...mappedSearch, ...mappedPlain]) {
+        if (!seen.has(u)) { seen.add(u); mapped.push(u); }
+      }
+      console.log(`Firecrawl discovered ${mapped.length} URLs (${mappedSearch.length} search + ${mappedPlain.length} plain) for ${base_url}`);
+
       const baseNorm = base_url.replace(/\/$/, "");
       // Exclude non-content pages (sitemaps, feeds, docs/api references, assets, auth, admin, archives, legal, etc.)
       const EXCLUDE_RE = /(\/sitemap[^/]*\.xml|\/sitemap[^/]*\/|\/robots\.txt|\/rss|\/feed(\/|$|\.xml)|\.xml($|\?)|\.json($|\?)|\.txt($|\?)|\.pdf($|\?)|\.zip($|\?)|\.csv($|\?)|\.ics($|\?)|\.(png|jpe?g|gif|svg|webp|ico|mp4|mp3|webm|woff2?|ttf|eot|css|js|map)($|\?)|\/api\/|\/api($|\?)|\/wp-json|\/wp-admin|\/wp-login|\/wp-content\/|\/cdn-cgi\/|\/_next\/|\/static\/|\/assets\/|\/admin(\/|$)|\/login(\/|$)|\/signin(\/|$)|\/signup(\/|$)|\/register(\/|$)|\/logout(\/|$)|\/account(\/|$)|\/cart(\/|$)|\/checkout(\/|$)|\/search(\/|$|\?)|\/tag\/|\/tags\/|\/category\/|\/categories\/|\/author\/|\/page\/\d+|\/docs?(\/|$)|\/documentation(\/|$)|\/developers?(\/|$)|\/reference(\/|$)|\/api-docs|\/swagger|\/openapi|\/graphql|\/changelog|\/release-notes|\/status(\/|$)|\/help(\/|$)|\/support(\/|$)|\/kb(\/|$)|\/knowledge-base|\/privacy|\/terms|\/cookie|\/legal|\/dmca|\/disclaimer|\/404|\/500)/i;
-      // Whitelist of key marketing/content page patterns
       const KEY_PAGE_RE = /\/(about|about-us|company|team|mission|story|services?|solutions?|products?|platform|features?|use-cases?|industries|pricing|plans|contact|customers?|case-stud(y|ies)|clients|testimonials|partners?|why-[a-z-]+|how-it-works|approach|methodology|capabilities|offerings?)(\/|$)/i;
       const BLOG_RE = /\/(blog|insights?|articles?|news|resources?|stories|perspectives?|thinking|journal|posts?)(\/|$)/i;
+
       const contentUrls = mapped.filter(u => !EXCLUDE_RE.test(u));
+      const excludedUrls = mapped.filter(u => EXCLUDE_RE.test(u));
       const isHome = (u: string) => u.replace(/\/$/, "") === baseNorm;
-      // Priority order: home → key marketing pages → blog/insights → other content
       const homeUrl = contentUrls.filter(isHome);
+      // Always include home if we have base_url but didn't find it in the map
+      if (homeUrl.length === 0) homeUrl.push(base_url);
       const keyPages = contentUrls.filter(u => !isHome(u) && KEY_PAGE_RE.test(u));
       const blogPages = contentUrls.filter(u => !isHome(u) && !KEY_PAGE_RE.test(u) && BLOG_RE.test(u));
       const rest = contentUrls.filter(u => !isHome(u) && !KEY_PAGE_RE.test(u) && !BLOG_RE.test(u));
-      urls = [...homeUrl, ...keyPages, ...blogPages, ...rest].slice(0, effectiveLimit);
+
+      // Interleave for a healthy spread: home + bulk of key pages + a couple of blog/news + filler.
+      const keepKey = Math.max(4, effectiveLimit - 3);
+      const keepBlog = Math.min(2, blogPages.length);
+      const ordered = [
+        ...homeUrl,
+        ...keyPages.slice(0, keepKey),
+        ...blogPages.slice(0, keepBlog),
+        ...keyPages.slice(keepKey),
+        ...blogPages.slice(keepBlog),
+        ...rest,
+      ];
+      // Dedupe again
+      const finalSeen = new Set<string>();
+      urls = ordered.filter(u => { if (finalSeen.has(u)) return false; finalSeen.add(u); return true; }).slice(0, effectiveLimit);
+
+      // Fallback: if still too few, top up with excluded URLs rather than running a 1-page audit
+      if (urls.length < Math.min(effectiveLimit, 3)) {
+        for (const u of excludedUrls) {
+          if (!finalSeen.has(u)) { finalSeen.add(u); urls.push(u); }
+          if (urls.length >= effectiveLimit) break;
+        }
+      }
+
+      console.log(`Audit URLs (${urls.length}):`, urls);
+
+      if (urls.length < 2) {
+        return new Response(JSON.stringify({
+          error: "Couldn't discover enough content pages on this site. Try the Custom URLs option and paste the pages you want scored.",
+        }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
     }
 
     // Create run
