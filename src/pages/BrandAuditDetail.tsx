@@ -5,9 +5,13 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
-import { ArrowLeft, ExternalLink, Loader2, Copy } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Loader2, Copy, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 interface Run {
   id: string; scope: string; status: string; base_url: string;
@@ -48,6 +52,24 @@ export default function BrandAuditDetail({ runId }: { runId: string }) {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'on_brand' | 'drifting' | 'off_brand'>('all');
   const [selected, setSelected] = useState<Page | null>(null);
+  const [confirmDel, setConfirmDel] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  async function deleteRun() {
+    setDeleting(true);
+    try {
+      const { error: pErr } = await supabase.from('brand_audit_pages').delete().eq('run_id', runId);
+      if (pErr) throw pErr;
+      const { error: rErr } = await supabase.from('brand_audit_runs').delete().eq('id', runId);
+      if (rErr) throw rErr;
+      toast.success('Audit deleted');
+      navigate('/project/brand-audit');
+    } catch (e: any) {
+      toast.error(e.message ?? 'Failed to delete audit');
+      setDeleting(false);
+      setConfirmDel(false);
+    }
+  }
 
   useEffect(() => {
     void load();
@@ -80,13 +102,39 @@ export default function BrandAuditDetail({ runId }: { runId: string }) {
 
   return (
     <div className="p-8 space-y-6 max-w-7xl mx-auto">
-      <div>
-        <Button variant="ghost" size="sm" onClick={() => navigate('/project/brand-audit')} className="-ml-2 mb-2">
-          <ArrowLeft className="h-4 w-4 mr-1" /> Back to Audits
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <Button variant="ghost" size="sm" onClick={() => navigate('/project/brand-audit')} className="-ml-2 mb-2">
+            <ArrowLeft className="h-4 w-4 mr-1" /> Back to Audits
+          </Button>
+          <h1 className="text-2xl font-bold" style={{ color: '#0f284c' }}>Audit · {run.base_url || 'custom URLs'}</h1>
+          <p className="text-sm text-muted-foreground">{format(new Date(run.created_at), 'MMM d, yyyy HH:mm')} · {run.pages_scored}/{run.pages_total} pages scored</p>
+        </div>
+        <Button variant="outline" size="sm" onClick={() => setConfirmDel(true)} className="text-red-600 hover:text-red-700 hover:bg-red-50">
+          <Trash2 className="h-4 w-4 mr-1" /> Delete
         </Button>
-        <h1 className="text-2xl font-bold" style={{ color: '#0f284c' }}>Audit · {run.base_url || 'custom URLs'}</h1>
-        <p className="text-sm text-muted-foreground">{format(new Date(run.created_at), 'MMM d, yyyy HH:mm')} · {run.pages_scored}/{run.pages_total} pages scored</p>
       </div>
+
+      <AlertDialog open={confirmDel} onOpenChange={(o) => !deleting && setConfirmDel(o)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this audit run?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This removes the run and all its scored pages. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); void deleteRun(); }}
+              disabled={deleting}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {deleting ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Deleting…</> : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <Card>
