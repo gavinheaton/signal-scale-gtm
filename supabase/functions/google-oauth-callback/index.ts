@@ -94,42 +94,44 @@ Deno.serve(async (req) => {
       .maybeSingle();
     const websiteHost = hostFromUrl((bv?.brand_identity as Record<string, unknown> | null)?.website_url as string | undefined);
 
+    console.log('auto-match websiteHost=', websiteHost);
+
     // Auto-match GSC site
     let gscSiteUrl: string | null = null;
+    let gscCount = 0;
     try {
       const sitesRes = await fetch('https://searchconsole.googleapis.com/webmasters/v3/sites', {
         headers: { Authorization: `Bearer ${accessToken}` },
       });
       const sitesData = await sitesRes.json();
-      if (sitesRes.ok && websiteHost && Array.isArray(sitesData.siteEntry)) {
+      if (sitesRes.ok && Array.isArray(sitesData.siteEntry)) {
         const entries = sitesData.siteEntry as Array<{ siteUrl: string; permissionLevel: string }>;
-        // Prefer sc-domain match
-        const domainMatch = entries.find((e) => e.siteUrl === `sc-domain:${websiteHost}`);
-        const urlMatch = entries.find((e) => hostFromUrl(e.siteUrl) === websiteHost);
-        gscSiteUrl = domainMatch?.siteUrl || urlMatch?.siteUrl || null;
+        gscCount = entries.length;
+        if (websiteHost) {
+          const domainMatch = entries.find((e) => e.siteUrl === `sc-domain:${websiteHost}`);
+          const urlMatch = entries.find((e) => hostFromUrl(e.siteUrl) === websiteHost);
+          gscSiteUrl = domainMatch?.siteUrl || urlMatch?.siteUrl || null;
+        }
       }
     } catch (e) {
       console.error('GSC site list failed', e);
     }
+    console.log(`GSC sites=${gscCount}, matched=${gscSiteUrl}`);
 
     // Auto-match GA4 property
     let ga4PropertyId: string | null = null;
+    let ga4Count = 0;
     try {
       const summariesRes = await fetch(
         'https://analyticsadmin.googleapis.com/v1beta/accountSummaries?pageSize=200',
         { headers: { Authorization: `Bearer ${accessToken}` } }
       );
       const summariesData = await summariesRes.json();
-      if (summariesRes.ok && websiteHost && Array.isArray(summariesData.accountSummaries)) {
+      if (summariesRes.ok && Array.isArray(summariesData.accountSummaries)) {
         outer: for (const acc of summariesData.accountSummaries) {
           for (const prop of acc.propertySummaries || []) {
-            // Fetch property details to get defaultUri
-            const propRes = await fetch(
-              `https://analyticsadmin.googleapis.com/v1beta/${prop.property}`,
-              { headers: { Authorization: `Bearer ${accessToken}` } }
-            );
-            const propData = await propRes.json();
-            // dataStreams to get default URI
+            ga4Count++;
+            if (!websiteHost) continue;
             const streamsRes = await fetch(
               `https://analyticsadmin.googleapis.com/v1beta/${prop.property}/dataStreams`,
               { headers: { Authorization: `Bearer ${accessToken}` } }
@@ -143,13 +145,13 @@ Deno.serve(async (req) => {
               ga4PropertyId = prop.property.replace('properties/', '');
               break outer;
             }
-            void propData;
           }
         }
       }
     } catch (e) {
       console.error('GA4 property match failed', e);
     }
+    console.log(`GA4 properties=${ga4Count}, matched=${ga4PropertyId}`);
 
     // Upsert connection
     const { error: upsertErr } = await svc
@@ -171,11 +173,17 @@ Deno.serve(async (req) => {
       return htmlResponse(upsertErr.message, returnUrl, false);
     }
 
-    const matched = [
-      gscSiteUrl ? 'Search Console' : null,
-      ga4PropertyId ? 'Analytics 4' : null,
-    ].filter(Boolean).join(' & ') || 'no matching properties';
-    return htmlResponse(`Connected as ${googleEmail}. Matched: ${matched}.`, returnUrl, true);
+    let message: string;
+    if (gscSiteUrl || ga4PropertyId) {
+      const matched = [gscSiteUrl ? 'Search Console' : null, ga4PropertyId ? 'Analytics 4' : null].filter(Boolean).join(' & ');
+      message = `Connected as ${googleEmail}. Matched: ${matched}.`;
+    } else if (!websiteHost) {
+      message = `Connected as ${googleEmail}. Please choose properties on the Analytics page.`;
+    } else {
+      message = `Connected as ${googleEmail}. No properties matched ${websiteHost} — pick them manually on the Analytics page.`;
+    }
+    return htmlResponse(message, returnUrl, true);
+
   } catch (e) {
     console.error('callback error', e);
     return htmlResponse(String(e), returnUrl, false);
