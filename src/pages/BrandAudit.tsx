@@ -6,12 +6,16 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
-import { Activity, Plus, Loader2, ArrowRight, AlertTriangle, CheckCircle2, Gauge } from 'lucide-react';
+import { Activity, Plus, Loader2, ArrowRight, AlertTriangle, CheckCircle2, Gauge, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 
 type Scope = 'quick' | 'deep' | 'custom';
@@ -46,12 +50,15 @@ export default function BrandAudit() {
   const [runs, setRuns] = useState<Run[]>([]);
   const [loading, setLoading] = useState(true);
   const [bvReady, setBvReady] = useState<boolean | null>(null);
+  const [defaultWebsite, setDefaultWebsite] = useState('');
   const [open, setOpen] = useState(false);
   const [scope, setScope] = useState<Scope>('quick');
   const [baseUrl, setBaseUrl] = useState('');
   const [customUrls, setCustomUrls] = useState('');
   const [pageLimit, setPageLimit] = useState(8);
   const [submitting, setSubmitting] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<Run | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (!currentProject) return;
@@ -62,14 +69,22 @@ export default function BrandAudit() {
     setLoading(true);
     const [{ data: rs }, { data: bv }] = await Promise.all([
       supabase.from('brand_audit_runs').select('*').eq('project_id', currentProject!.id).order('created_at', { ascending: false }),
-      supabase.from('brand_voices').select('status').eq('project_id', currentProject!.id).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+      supabase.from('brand_voices').select('status, brand_identity').eq('project_id', currentProject!.id).order('created_at', { ascending: false }).limit(1).maybeSingle(),
     ]);
     setRuns((rs ?? []) as unknown as Run[]);
     setBvReady(bv?.status === 'complete');
+    const website = (bv?.brand_identity as any)?.website_url ?? '';
+    setDefaultWebsite(website);
+    setBaseUrl((prev) => prev || website);
     setLoading(false);
   }
 
   const latest = runs[0];
+
+  function openDialog() {
+    if (!baseUrl && defaultWebsite) setBaseUrl(defaultWebsite);
+    setOpen(true);
+  }
 
   async function startAudit() {
     if (!currentProject) return;
@@ -82,7 +97,7 @@ export default function BrandAudit() {
       return;
     }
     setSubmitting(true);
-    const t = toast.loading('Running audit — scraping pages and scoring against your brand voice…');
+    const t = toast.loading('Running audit — discovering, scraping and scoring pages…');
     try {
       const { data, error } = await supabase.functions.invoke('brand-audit-run', {
         body: {
@@ -107,6 +122,24 @@ export default function BrandAudit() {
     }
   }
 
+  async function confirmDelete() {
+    if (!pendingDelete) return;
+    setDeleting(true);
+    try {
+      const { error: pErr } = await supabase.from('brand_audit_pages').delete().eq('run_id', pendingDelete.id);
+      if (pErr) throw pErr;
+      const { error: rErr } = await supabase.from('brand_audit_runs').delete().eq('id', pendingDelete.id);
+      if (rErr) throw rErr;
+      toast.success('Audit deleted');
+      setPendingDelete(null);
+      await load();
+    } catch (e: any) {
+      toast.error(e.message ?? 'Failed to delete audit');
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   if (!currentProject) {
     return <div className="p-8">Select a project first.</div>;
   }
@@ -121,7 +154,7 @@ export default function BrandAudit() {
           </p>
         </div>
         <Button
-          onClick={() => setOpen(true)}
+          onClick={openDialog}
           disabled={!bvReady}
           className="gap-2"
           style={{ backgroundColor: '#8833ff' }}
@@ -186,28 +219,38 @@ export default function BrandAudit() {
           ) : (
             <div className="divide-y">
               {runs.map((r) => (
-                <button
-                  key={r.id}
-                  onClick={() => navigate(`/project/brand-audit?run=${r.id}`)}
-                  className="w-full py-3 flex items-center gap-4 text-left hover:bg-muted/40 px-2 rounded"
-                >
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <Badge variant="outline">{scopeLabel[r.scope]}</Badge>
-                      <span className="text-sm font-medium truncate">{r.base_url || '(custom URLs)'}</span>
-                      {r.status === 'completed' ? (
-                        <CheckCircle2 className="h-4 w-4 text-green-600" />
-                      ) : (
-                        <Badge variant="secondary" className="text-xs">{r.status}</Badge>
-                      )}
+                <div key={r.id} className="flex items-center gap-2 hover:bg-muted/40 rounded">
+                  <button
+                    onClick={() => navigate(`/project/brand-audit?run=${r.id}`)}
+                    className="flex-1 py-3 flex items-center gap-4 text-left px-2"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline">{scopeLabel[r.scope]}</Badge>
+                        <span className="text-sm font-medium truncate">{r.base_url || '(custom URLs)'}</span>
+                        {r.status === 'completed' ? (
+                          <CheckCircle2 className="h-4 w-4 text-green-600" />
+                        ) : (
+                          <Badge variant="secondary" className="text-xs">{r.status}</Badge>
+                        )}
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-0.5">
+                        {format(new Date(r.created_at), 'MMM d, yyyy · HH:mm')} · {r.pages_scored}/{r.pages_total} pages
+                      </div>
                     </div>
-                    <div className="text-xs text-muted-foreground mt-0.5">
-                      {format(new Date(r.created_at), 'MMM d, yyyy · HH:mm')} · {r.pages_scored}/{r.pages_total} pages
-                    </div>
-                  </div>
-                  <div className={`text-2xl font-bold ${scoreColor(r.headline_score)}`}>{r.headline_score ?? '—'}</div>
-                  <ArrowRight className="h-4 w-4 text-muted-foreground" />
-                </button>
+                    <div className={`text-2xl font-bold ${scoreColor(r.headline_score)}`}>{r.headline_score ?? '—'}</div>
+                    <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                  </button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-muted-foreground hover:text-red-600 mr-2"
+                    onClick={(e) => { e.stopPropagation(); setPendingDelete(r); }}
+                    aria-label="Delete audit"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
               ))}
             </div>
           )}
@@ -225,7 +268,7 @@ export default function BrandAudit() {
           <div className="space-y-4 py-2">
             <RadioGroup value={scope} onValueChange={(v) => { setScope(v as Scope); setPageLimit(v === 'deep' ? 25 : v === 'quick' ? 8 : 10); }}>
               {[
-                { v: 'quick', t: 'Quick audit', d: 'Home, About + top 6 pages (~8 total)' },
+                { v: 'quick', t: 'Quick audit', d: 'Home, About + top key pages (~8 total)' },
                 { v: 'deep', t: 'Deep audit', d: 'Full crawl, up to 25 pages' },
                 { v: 'custom', t: 'Custom URLs', d: 'Paste the exact URLs you want scored' },
               ].map(o => (
@@ -243,6 +286,9 @@ export default function BrandAudit() {
               <div>
                 <Label className="text-xs">Website URL</Label>
                 <Input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} placeholder="https://example.com" />
+                {defaultWebsite && baseUrl === defaultWebsite && (
+                  <p className="text-[11px] text-muted-foreground mt-1">Prefilled from your Brand Voice.</p>
+                )}
               </div>
             )}
 
@@ -267,6 +313,27 @@ export default function BrandAudit() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!pendingDelete} onOpenChange={(o) => !o && setPendingDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this audit run?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This removes the run and all its scored pages. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); void confirmDelete(); }}
+              disabled={deleting}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {deleting ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Deleting…</> : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
