@@ -167,13 +167,20 @@ Deno.serve(async (req) => {
     } else {
       if (!base_url) throw new Error("base_url required");
       const mapped = await firecrawlMap(base_url, scope === "deep" ? 200 : 30);
-      // Exclude non-content pages (sitemaps, feeds, api docs, assets, auth, admin, etc.)
-      const EXCLUDE_RE = /(\/sitemap[^/]*\.xml|\/sitemap[^/]*\/|\/robots\.txt|\/rss|\/feed(\/|$|\.xml)|\.xml($|\?)|\.json($|\?)|\.txt($|\?)|\.pdf($|\?)|\.zip($|\?)|\.csv($|\?)|\.ics($|\?)|\.(png|jpe?g|gif|svg|webp|ico|mp4|mp3|webm|woff2?|ttf|eot|css|js|map)($|\?)|\/api\/|\/api($|\?)|\/wp-json|\/wp-admin|\/wp-login|\/wp-content\/|\/cdn-cgi\/|\/_next\/|\/static\/|\/assets\/|\/admin(\/|$)|\/login(\/|$)|\/signin(\/|$)|\/signup(\/|$)|\/register(\/|$)|\/logout(\/|$)|\/account(\/|$)|\/cart(\/|$)|\/checkout(\/|$)|\/search(\/|$|\?)|\/tag\/|\/tags\/|\/category\/|\/categories\/|\/author\/|\/page\/\d+|\/docs?\/api|\/api-docs|\/swagger|\/openapi|\/graphql|\/privacy|\/terms|\/cookie|\/legal|\/dmca|\/disclaimer|\/404|\/500)/i;
+      const baseNorm = base_url.replace(/\/$/, "");
+      // Exclude non-content pages (sitemaps, feeds, docs/api references, assets, auth, admin, archives, legal, etc.)
+      const EXCLUDE_RE = /(\/sitemap[^/]*\.xml|\/sitemap[^/]*\/|\/robots\.txt|\/rss|\/feed(\/|$|\.xml)|\.xml($|\?)|\.json($|\?)|\.txt($|\?)|\.pdf($|\?)|\.zip($|\?)|\.csv($|\?)|\.ics($|\?)|\.(png|jpe?g|gif|svg|webp|ico|mp4|mp3|webm|woff2?|ttf|eot|css|js|map)($|\?)|\/api\/|\/api($|\?)|\/wp-json|\/wp-admin|\/wp-login|\/wp-content\/|\/cdn-cgi\/|\/_next\/|\/static\/|\/assets\/|\/admin(\/|$)|\/login(\/|$)|\/signin(\/|$)|\/signup(\/|$)|\/register(\/|$)|\/logout(\/|$)|\/account(\/|$)|\/cart(\/|$)|\/checkout(\/|$)|\/search(\/|$|\?)|\/tag\/|\/tags\/|\/category\/|\/categories\/|\/author\/|\/page\/\d+|\/docs?(\/|$)|\/documentation(\/|$)|\/developers?(\/|$)|\/reference(\/|$)|\/api-docs|\/swagger|\/openapi|\/graphql|\/changelog|\/release-notes|\/status(\/|$)|\/help(\/|$)|\/support(\/|$)|\/kb(\/|$)|\/knowledge-base|\/privacy|\/terms|\/cookie|\/legal|\/dmca|\/disclaimer|\/404|\/500)/i;
+      // Whitelist of key marketing/content page patterns
+      const KEY_PAGE_RE = /\/(about|about-us|company|team|mission|story|services?|solutions?|products?|platform|features?|use-cases?|industries|pricing|plans|contact|customers?|case-stud(y|ies)|clients|testimonials|partners?|why-[a-z-]+|how-it-works|approach|methodology|capabilities|offerings?)(\/|$)/i;
+      const BLOG_RE = /\/(blog|insights?|articles?|news|resources?|stories|perspectives?|thinking|journal|posts?)(\/|$)/i;
       const contentUrls = mapped.filter(u => !EXCLUDE_RE.test(u));
-      // Prioritize root + about + common pages first
-      const priority = contentUrls.filter(u => /\/(about|home|services|product|pricing|contact)/i.test(u) || u.replace(/\/$/, "") === base_url.replace(/\/$/, ""));
-      const rest = contentUrls.filter(u => !priority.includes(u));
-      urls = [...priority, ...rest].slice(0, effectiveLimit);
+      const isHome = (u: string) => u.replace(/\/$/, "") === baseNorm;
+      // Priority order: home → key marketing pages → blog/insights → other content
+      const homeUrl = contentUrls.filter(isHome);
+      const keyPages = contentUrls.filter(u => !isHome(u) && KEY_PAGE_RE.test(u));
+      const blogPages = contentUrls.filter(u => !isHome(u) && !KEY_PAGE_RE.test(u) && BLOG_RE.test(u));
+      const rest = contentUrls.filter(u => !isHome(u) && !KEY_PAGE_RE.test(u) && !BLOG_RE.test(u));
+      urls = [...homeUrl, ...keyPages, ...blogPages, ...rest].slice(0, effectiveLimit);
     }
 
     // Create run
