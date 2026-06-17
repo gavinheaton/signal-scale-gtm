@@ -74,12 +74,26 @@ Deno.serve(async (req) => {
     const refreshToken = tokens.refresh_token as string | undefined;
     const expiresIn = tokens.expires_in as number;
     const expiresAt = new Date(Date.now() + expiresIn * 1000).toISOString();
+    const grantedScopes = (tokens.scope as string | undefined) || '';
+    console.log('granted scopes:', grantedScopes);
+
+    const missing: string[] = [];
+    if (!grantedScopes.includes('webmasters.readonly')) missing.push('Search Console');
+    if (!grantedScopes.includes('analytics.readonly')) missing.push('Analytics');
+    if (missing.length) {
+      return htmlResponse(
+        `You didn't grant ${missing.join(' & ')} access on the Google consent screen. Click Reconnect and tick both checkboxes.`,
+        returnUrl,
+        false
+      );
+    }
 
     // Get user email
     const userInfo = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
       headers: { Authorization: `Bearer ${accessToken}` },
     }).then((r) => r.json());
     const googleEmail = userInfo.email as string | undefined;
+
 
     const svc = createClient(SUPABASE_URL, SERVICE_ROLE);
 
