@@ -16,6 +16,7 @@ import ApiAccessCard from '@/components/settings/ApiAccessCard';
 import NotionSyncStatus from '@/components/settings/NotionSyncStatus';
 import VisualStyleSettings from '@/components/settings/VisualStyleSettings';
 import OrgWordPressConnectionCard from '@/components/settings/OrgWordPressConnectionCard';
+import GoogleAnalyticsConnectionCard from '@/components/settings/GoogleAnalyticsConnectionCard';
 import PropresenceConnectionCard from '@/components/settings/PropresenceConnectionCard';
 import PropresenceSetupWizard from '@/components/settings/PropresenceSetupWizard';
 import NotionAdoptWorkspaceDialog from '@/components/settings/NotionAdoptWorkspaceDialog';
@@ -375,6 +376,7 @@ export default function SettingsPage() {
 
       <OrgWordPressConnectionCard />
 
+      {canManageConnections && currentProject && <GoogleAnalyticsConnectionCard />}
 
       {currentProject && <VisualStyleSettings />}
 
