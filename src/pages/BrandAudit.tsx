@@ -313,7 +313,7 @@ export default function BrandAudit() {
             {scope !== 'custom' && (
               <div>
                 <Label className="text-xs">Website URL</Label>
-                <Input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} placeholder="https://example.com" />
+                <Input value={baseUrl} onChange={(e) => { userEditedRef.current = true; setBaseUrl(e.target.value); }} placeholder="https://example.com" />
                 {defaultWebsite && baseUrl === defaultWebsite && (
                   <p className="text-[11px] text-muted-foreground mt-1">Prefilled from your Brand Voice.</p>
                 )}
