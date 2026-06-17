@@ -356,7 +356,11 @@ Deno.serve(async (req) => {
       messages = session.messages as typeof messages;
       existingDraft = (session.draft_output as Record<string, any>) || {};
       messages.push({ role: "user", content: message, timestamp: new Date().toISOString() });
+
+      // Persist the user's message immediately so it survives a tab close mid-AI-call.
+      await supabase.from("wizard_sessions").update({ messages }).eq("id", sessionId);
     }
+
 
     // URL fetching
     const lastUserMsg = messages[messages.length - 1];
