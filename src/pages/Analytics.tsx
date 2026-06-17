@@ -12,6 +12,8 @@ import {
 import { Navigate } from 'react-router-dom';
 import { Lightbulb, CheckCircle2, AlertCircle, RefreshCw, Link as LinkIcon } from 'lucide-react';
 import { toast } from 'sonner';
+import PropertyPicker from '@/components/analytics/PropertyPicker';
+
 
 interface GoogleData {
   connected: boolean;
