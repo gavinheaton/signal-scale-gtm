@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
-import { ArrowLeft, Send, Sparkles, Loader2, RotateCcw } from 'lucide-react';
+import { ArrowLeft, Send, Sparkles, Loader2, RotateCcw, Check, X as XIcon } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import {
   AlertDialog,
@@ -37,7 +37,41 @@ export default function BrandVoiceWizard() {
   const [draft, setDraft] = useState<BrandVoiceDraft>({});
   const [saving, setSaving] = useState(false);
   const [prevDraft, setPrevDraft] = useState<BrandVoiceDraft>({});
+  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
+  const [savedTick, setSavedTick] = useState(0);
+  const [resumed, setResumed] = useState(false);
+  const [resumeBannerOpen, setResumeBannerOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Re-render the "Saved · Xs ago" label every 15s.
+  useEffect(() => {
+    const id = setInterval(() => setSavedTick(t => t + 1), 15000);
+    return () => clearInterval(id);
+  }, []);
+
+  // Warn before unload if an AI request is in-flight.
+  useEffect(() => {
+    if (!loading) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [loading]);
+
+  const formatSavedAgo = (d: Date | null) => {
+    if (!d) return null;
+    void savedTick;
+    const s = Math.max(0, Math.floor((Date.now() - d.getTime()) / 1000));
+    if (s < 5) return 'just now';
+    if (s < 60) return `${s}s ago`;
+    const m = Math.floor(s / 60);
+    if (m < 60) return `${m}m ago`;
+    const h = Math.floor(m / 60);
+    return `${h}h ago`;
+  };
+
 
   useEffect(() => {
     if (!draft.sections_complete || !prevDraft.sections_complete) return;
@@ -86,9 +120,12 @@ export default function BrandVoiceWizard() {
         if (session.draft_output && Object.keys(session.draft_output as object).length > 0) {
           setDraft(session.draft_output as BrandVoiceDraft);
         }
-        toast.info('Resumed your previous session');
+        setLastSavedAt(new Date((session as any).updated_at || (session as any).created_at || Date.now()));
+        setResumed(true);
+        setResumeBannerOpen(true);
         return;
       }
+
 
       if (fileUrl) {
         setMessages([{ role: 'assistant', content: 'Analysing your document and mapping it to the Signal+Scale brand voice sections…' }]);
@@ -102,6 +139,8 @@ export default function BrandVoiceWizard() {
       setSessionId(data.session_id);
       setMessages([{ role: 'assistant', content: data.reply }]);
       if (data.updated_draft) setDraft(data.updated_draft);
+      setLastSavedAt(new Date());
+
     } catch (err: any) {
       toast.error('Failed to start wizard: ' + (err.message || 'Unknown error'));
     } finally {
@@ -127,7 +166,9 @@ export default function BrandVoiceWizard() {
         setPrevDraft(draft);
         setDraft(data.updated_draft);
       }
+      setLastSavedAt(new Date());
     } catch (err: any) {
+
       toast.error('AI error: ' + (err.message || 'Unknown error'));
     } finally {
       setLoading(false);
@@ -221,6 +262,13 @@ export default function BrandVoiceWizard() {
           </h1>
           <p className="text-xs text-muted-foreground">AI-guided brand voice builder</p>
         </div>
+        {lastSavedAt && (
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground" title={lastSavedAt.toLocaleString()}>
+            <Check className="h-3.5 w-3.5 text-green-600" />
+            <span>Saved · {formatSavedAgo(lastSavedAt)}</span>
+          </div>
+        )}
+
         <AlertDialog>
           <AlertDialogTrigger asChild>
             <Button variant="outline" size="sm" disabled={loading} className="gap-2">
@@ -243,7 +291,30 @@ export default function BrandVoiceWizard() {
         </AlertDialog>
       </div>
 
+      {resumed && resumeBannerOpen && (
+        <div className="flex items-start gap-3 rounded-lg border border-primary/20 bg-primary/5 p-3 mb-3">
+          <Sparkles className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+          <div className="flex-1 text-sm">
+            <p className="font-medium text-foreground">Welcome back — we picked up where you left off</p>
+            <p className="text-xs text-muted-foreground">
+              {messages.length} message{messages.length === 1 ? '' : 's'} restored
+              {draft.sections_complete?.length
+                ? ` · ${draft.sections_complete.length} section${draft.sections_complete.length === 1 ? '' : 's'} already filled`
+                : ''}. Your progress is auto-saved as you chat.
+            </p>
+          </div>
+          <button
+            onClick={() => setResumeBannerOpen(false)}
+            className="text-muted-foreground hover:text-foreground"
+            aria-label="Dismiss"
+          >
+            <XIcon className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
       <div className="flex-1 flex gap-4 min-h-0">
+
         {/* Chat panel - 60% */}
         <div className="w-3/5 flex flex-col border rounded-lg bg-card">
           {currentPhase && (
