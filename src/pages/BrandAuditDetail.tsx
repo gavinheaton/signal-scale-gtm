@@ -255,12 +255,18 @@ export default function BrandAuditDetail({ runId }: { runId: string }) {
                       <div className={`text-2xl font-bold ${scoreColor(selected.headline_score)}`}>{selected.headline_score}</div>
                       <div className="text-[10px] uppercase text-muted-foreground mt-1">Headline</div>
                     </div>
-                    {[['Voice', selected.voice_score], ['ICP', selected.icp_score], ['Persona', selected.persona_score], ['Clarity', selected.clarity_score]].map(([l, v]) => (
-                      <div key={l as string} className="border rounded p-2">
-                        <div className={`text-lg font-semibold ${scoreColor(v as number | null)}`}>{v as number | null}</div>
-                        <div className="text-[10px] uppercase text-muted-foreground mt-1">{l}</div>
-                      </div>
-                    ))}
+                    {DIMENSIONS.map((d) => {
+                      const v = selected[`${d.key}_score` as keyof Page] as number | null;
+                      const Icon = d.icon;
+                      return (
+                        <div key={d.key} className="border rounded p-2" style={{ borderTop: `2px solid ${d.color}` }}>
+                          <div className={`text-lg font-semibold ${scoreColor(v)}`}>{v ?? '—'}</div>
+                          <div className="text-[10px] uppercase mt-1 inline-flex items-center justify-center gap-1" style={{ color: d.color }}>
+                            <Icon className="h-3 w-3" />{d.label}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
 
                   {([
