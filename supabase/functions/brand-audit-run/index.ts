@@ -50,14 +50,19 @@ const SCORE_TOOL = {
   },
 };
 
-async function firecrawlMap(url: string, limit: number): Promise<string[]> {
+async function firecrawlMap(url: string, limit: number, search?: string): Promise<string[]> {
+  const body: any = { url, limit, includeSubdomains: false };
+  if (search) body.search = search;
   const res = await fetch(`${FIRECRAWL_V2}/map`, {
     method: "POST",
     headers: { Authorization: `Bearer ${FIRECRAWL_API_KEY}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ url, limit, includeSubdomains: false }),
+    body: JSON.stringify(body),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(`Firecrawl map failed: ${data.error ?? res.statusText}`);
+  if (!res.ok) {
+    console.error("Firecrawl map failed:", data);
+    return [];
+  }
   const links: string[] = data.links ?? data.data?.links ?? [];
   return links.map((l: any) => typeof l === "string" ? l : l.url).filter(Boolean);
 }
