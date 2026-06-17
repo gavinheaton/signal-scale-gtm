@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
-import { ArrowLeft, Send, Sparkles, Loader2, RotateCcw } from 'lucide-react';
+import { ArrowLeft, Send, Sparkles, Loader2, RotateCcw, Check, X as XIcon } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import {
   AlertDialog,
