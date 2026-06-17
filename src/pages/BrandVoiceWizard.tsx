@@ -166,7 +166,9 @@ export default function BrandVoiceWizard() {
         setPrevDraft(draft);
         setDraft(data.updated_draft);
       }
+      setLastSavedAt(new Date());
     } catch (err: any) {
+
       toast.error('AI error: ' + (err.message || 'Unknown error'));
     } finally {
       setLoading(false);
