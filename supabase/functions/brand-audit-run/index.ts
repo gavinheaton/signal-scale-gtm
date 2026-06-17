@@ -189,21 +189,25 @@ Deno.serve(async (req) => {
       // Exclude non-content pages (sitemaps, feeds, docs/api references, assets, auth, admin, archives, legal, etc.)
       const EXCLUDE_RE = /(\/sitemap[^/]*\.xml|\/sitemap[^/]*\/|\/robots\.txt|\/rss|\/feed(\/|$|\.xml)|\.xml($|\?)|\.json($|\?)|\.txt($|\?)|\.pdf($|\?)|\.zip($|\?)|\.csv($|\?)|\.ics($|\?)|\.(png|jpe?g|gif|svg|webp|ico|mp4|mp3|webm|woff2?|ttf|eot|css|js|map)($|\?)|\/api\/|\/api($|\?)|\/wp-json|\/wp-admin|\/wp-login|\/wp-content\/|\/cdn-cgi\/|\/_next\/|\/static\/|\/assets\/|\/admin(\/|$)|\/login(\/|$)|\/signin(\/|$)|\/signup(\/|$)|\/register(\/|$)|\/logout(\/|$)|\/account(\/|$)|\/cart(\/|$)|\/checkout(\/|$)|\/search(\/|$|\?)|\/tag\/|\/tags\/|\/category\/|\/categories\/|\/author\/|\/page\/\d+|\/docs?(\/|$)|\/documentation(\/|$)|\/developers?(\/|$)|\/reference(\/|$)|\/api-docs|\/swagger|\/openapi|\/graphql|\/changelog|\/release-notes|\/status(\/|$)|\/help(\/|$)|\/support(\/|$)|\/kb(\/|$)|\/knowledge-base|\/privacy|\/terms|\/cookie|\/legal|\/dmca|\/disclaimer|\/404|\/500)/i;
       const KEY_PAGE_RE = /\/(about|about-us|company|team|mission|story|services?|solutions?|products?|platform|features?|use-cases?|industries|pricing|plans|contact|customers?|case-stud(y|ies)|clients|testimonials|partners?|why-[a-z-]+|how-it-works|approach|methodology|capabilities|offerings?)(\/|$)/i;
-      const BLOG_RE = /\/(blog|insights?|articles?|news|resources?|stories|perspectives?|thinking|journal|posts?)(\/|$)/i;
+      // A blog/insights post: the listing prefix plus a non-empty slug after it.
+      const BLOG_POST_RE = /\/(blog|insights?|articles?|news|resources?|stories|perspectives?|thinking|journal|posts?|press|media|library)\/[^/?#]+/i;
+      // Bare listing/index pages we don't want to score (category-style).
+      const INDEX_RE = /\/(blog|insights?|articles?|news|resources?|stories|perspectives?|thinking|journal|posts?|press|media|library)\/?(\?.*)?$/i;
 
-      const contentUrls = mapped.filter(u => !EXCLUDE_RE.test(u));
-      const excludedUrls = mapped.filter(u => EXCLUDE_RE.test(u));
+      const contentUrls = mapped.filter(u => !EXCLUDE_RE.test(u) && !INDEX_RE.test(u));
+      const excludedUrls = mapped.filter(u => EXCLUDE_RE.test(u) || INDEX_RE.test(u));
       const isHome = (u: string) => u.replace(/\/$/, "") === baseNorm;
       const homeUrl = contentUrls.filter(isHome);
-      // Always include home if we have base_url but didn't find it in the map
       if (homeUrl.length === 0) homeUrl.push(base_url);
       const keyPages = contentUrls.filter(u => !isHome(u) && KEY_PAGE_RE.test(u));
-      const blogPages = contentUrls.filter(u => !isHome(u) && !KEY_PAGE_RE.test(u) && BLOG_RE.test(u));
-      const rest = contentUrls.filter(u => !isHome(u) && !KEY_PAGE_RE.test(u) && !BLOG_RE.test(u));
+      const blogPages = contentUrls.filter(u => !isHome(u) && !KEY_PAGE_RE.test(u) && BLOG_POST_RE.test(u));
+      const rest = contentUrls.filter(u => !isHome(u) && !KEY_PAGE_RE.test(u) && !BLOG_POST_RE.test(u));
 
-      // Interleave for a healthy spread: home + bulk of key pages + a couple of blog/news + filler.
-      const keepKey = Math.max(4, effectiveLimit - 3);
-      const keepBlog = Math.min(2, blogPages.length);
+      console.log(`Buckets — home:${homeUrl.length} key:${keyPages.length} blog:${blogPages.length} rest:${rest.length}`);
+
+      // Interleave for a healthy spread: home + key pages + up to 3 blog posts + filler.
+      const keepBlog = Math.min(3, blogPages.length);
+      const keepKey = Math.max(3, effectiveLimit - 1 - keepBlog);
       const ordered = [
         ...homeUrl,
         ...keyPages.slice(0, keepKey),
