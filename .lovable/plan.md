@@ -1,51 +1,101 @@
-## 1. Prepopulate website URL (actually work)
+## Goal
 
-**File:** `src/pages/BrandAudit.tsx`
+Replace (or augment) the placeholder charts on `/analytics` with real data pulled from Google Search Console and Google Analytics 4, scoped per project, auto-matched to the project's website URL.
 
-Today `load()` reads `brand_voices.brand_identity.website_url` from the latest row by `created_at`. If the latest BV is a draft with no `brand_identity` yet, or `website_url` was never captured, the field is blank.
+## Architecture
 
-Make it robust with a chain of fallbacks:
-1. Latest **completed** `brand_voices.brand_identity.website_url` (filter by `status = 'complete'`, then fall back to any latest row).
-2. Most recent prior `brand_audit_runs.base_url` for this project (skip empty/custom-only).
-3. Empty.
+```text
+Browser /analytics
+   │
+   ▼
+Edge fn: analytics-fetch            ◄── reads stored OAuth tokens per project
+   │                                    auto-selects GSC site & GA4 property
+   ├─► GSC: searchanalytics.query (impressions, clicks, queries, pages)
+   └─► GA4 Data API: runReport      (sessions, sources, conversions, engagement)
 
-Also:
-- Set `baseUrl` from this derived value on every project change (currently only sets if `prev` is empty — stale state from a previous project sticks).
-- In `openDialog()`, always reset `baseUrl` to `defaultWebsite` if the user hasn't manually typed something different this session. Tracked via a simple `userEditedRef` flag set in the input's `onChange`.
+Edge fn: google-oauth-callback      ◄── exchanges code → tokens, stores per project
+Edge fn: google-oauth-start         ◄── builds consent URL with project state
+```
 
-## 2. Stop scoring blog/insights index & category pages
+Per-project OAuth (rather than the workspace connector) because each client needs to grant their own account, and GA4 has no Lovable connector.
 
-**File:** `supabase/functions/brand-audit-run/index.ts`
+## Integrations
 
-Right now `/blog`, `/insights`, `/news` (bare index pages) match `BLOG_RE` and get picked as content. They're listings, not content.
+**Google Search Console** — already available as a Lovable workspace connector (gateway-backed). We will NOT use the agency connector here because the user picked "per project / per client". Instead we'll register one Google OAuth Client (single set of credentials shared by all clients) and ask each client to authorize their own Google account.
 
-Change discovery so:
-- **Exclude** bare listing/index URLs: a regex `INDEX_RE` matching paths whose final segment is one of `blog|insights|news|articles|resources|stories|perspectives|thinking|journal|posts|press|media|library` with nothing after (e.g. `/blog`, `/blog/`, `/insights/`). Add to filter pass.
-- **Include** their children: a URL matching `BLOG_RE` qualifies as a "blog post" only if there is a slug after it (e.g. `/blog/<slug>`). Update `blogPages` filter accordingly.
-- Apply the same rule to other index-style key pages where it makes sense to keep the index (about, pricing, contact) — these are legitimate content, so leave them.
-- Increase `keepBlog` from 2 → up to 3 actual blog posts (still capped by `effectiveLimit`).
+**Google Analytics 4** — no Lovable connector exists; per-project OAuth is the only option. Same OAuth client handles both APIs (scopes combined).
 
-Also add a final sanity log: print the bucket counts (`home/key/blog/rest`) before slicing, so it's easy to diagnose future audits in the function logs.
+## Step 1 — Google Cloud project & OAuth client (one-time, user-side)
 
-## 3. Visually distinguish Voice / ICP / Persona / Clarity tiles
+User creates an OAuth 2.0 Web Client in Google Cloud Console with:
+- Scopes: `webmasters.readonly`, `analytics.readonly`, `userinfo.email`
+- Authorized redirect URI: `https://xiufgczyecwgnkbyroow.supabase.co/functions/v1/google-oauth-callback`
+- Enabled APIs: Search Console API, Google Analytics Data API
 
-**Files:** `src/pages/BrandAudit.tsx` (Brand Health card) and `src/pages/BrandAuditDetail.tsx` (matching score blocks, if present).
+Stores client ID + secret as Supabase secrets: `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`.
 
-Each tile gets a distinct icon + accent color tied to the dimension:
+## Step 2 — Database
 
-| Dimension | Icon (lucide) | Accent |
-|---|---|---|
-| Voice | `MessageSquareQuote` | purple `#8833ff` |
-| ICP | `Target` | navy `#0f284c` |
-| Persona | `Users` | orange `#e33e23` |
-| Clarity | `Sparkles` | teal `#0ea5a4` |
+New table `project_google_connections` (per-project token storage):
 
-Tile layout change:
-- Icon chip in a tinted circle (`bg-{accent}/10`, icon in accent color) top-left.
-- Label + weight pill ("30%", "25%", etc.) next to icon.
-- Score number remains the dominant element, but its color stays driven by `scoreColor()` (red/orange/green pass/fail), not the dimension accent — so users can still read pass/fail at a glance while the icon/accent identifies which dimension.
-- Add a thin top border in the accent color to reinforce identity.
+```text
+id uuid PK
+project_id uuid → projects (unique)
+google_email text
+access_token text
+refresh_token text
+expires_at timestamptz
+gsc_site_url text         -- auto-matched, user-overridable later
+ga4_property_id text      -- auto-matched, user-overridable later
+connected_at, updated_at
+```
 
-Apply the same treatment to the equivalent tiles on `BrandAuditDetail.tsx` so it's consistent.
+RLS via existing org membership pattern. Tokens are sensitive but acceptable in DB encrypted-at-rest; alternative is Vault, more setup.
 
-No DB or RLS changes. No new dependencies.
+## Step 3 — Edge functions
+
+1. `google-oauth-start` — builds Google consent URL with `state = project_id + nonce`, returns it.
+2. `google-oauth-callback` — exchanges code, stores tokens, then calls GSC `sites.list` + GA4 `accountSummaries.list`, picks the entry whose URL host matches the project's website URL (from latest completed `brand_voices.brand_identity.website_url`), saves to `gsc_site_url` / `ga4_property_id`. Redirects back to `/analytics?connected=1`.
+3. `analytics-fetch` — refreshes token if expired, runs:
+   - GSC `searchanalytics.query` for date range, dimensions `date`, `query`, `page`
+   - GA4 `runReport` for `sessions`, `engagedSessions`, `conversions` by `date` and `sessionDefaultChannelGroup`
+   Returns a normalized JSON payload.
+
+## Step 4 — Analytics page UI
+
+- Top: connection card. If no `project_google_connections` row → "Connect Google" button → opens `google-oauth-start` URL in popup. After callback, show connected email + matched site/property.
+- Real charts replace placeholders:
+  - **Brand Search Volume** — GSC impressions for queries containing brand name (line, weekly)
+  - **Inbound Referrals** — GA4 sessions where channel = Referral / Organic Social (bar, weekly)
+  - **Pipeline Influenced** — kept from `campaign_metrics` (no Google source)
+  - **Share of Voice** — GSC clicks / total category impressions estimate (gauge)
+  - **Top Queries / Top Pages** — new tables from GSC
+  - **Traffic by Channel** — GA4 stacked area
+- Date range selector (7d / 28d / 90d), campaign selector retained.
+
+## Step 5 — Auto-matching logic
+
+On callback and on a manual "Re-match" button:
+1. Pull `website_url` from latest completed brand voice for the project.
+2. Normalize to host (strip `www.`, protocol).
+3. GSC: pick site whose host matches (prefer `sc-domain:` property if present, else `https://host/`).
+4. GA4: list properties via `accountSummaries.list`, pick property whose `defaultUri` host matches.
+5. If no match, leave null and surface a Settings link (future) so the user can pick manually.
+
+## Out of scope (this round)
+
+- Tag Manager (user deferred).
+- Manual GSC/GA4 picker UI (auto-match only; we'll add a picker later if mismatches are common).
+- Historical backfill beyond what the APIs return (GSC ~16 months, GA4 from property start).
+
+## Technical notes
+
+- Token refresh: standard `oauth2/v4/token` with `grant_type=refresh_token`; do in `analytics-fetch` if `expires_at < now() + 60s`.
+- All Google calls go direct to `googleapis.com` (no gateway), authed with the per-project access token.
+- New runtime secrets needed: `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET` (added via `add_secret` after user confirms).
+- No changes to existing brand audit, campaign, or ICP code paths.
+
+## What I need from you to start building
+
+1. Confirm you're OK creating the Google Cloud OAuth client (I'll give exact steps).
+2. Confirm storing OAuth tokens in a Supabase table (RLS-protected) is acceptable vs. Vault.
