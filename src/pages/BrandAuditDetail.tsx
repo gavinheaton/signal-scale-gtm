@@ -5,7 +5,14 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
-import { ArrowLeft, ExternalLink, Loader2, Copy, Trash2 } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Loader2, Copy, Trash2, MessageSquareQuote, Target, Users, Sparkles, type LucideIcon } from 'lucide-react';
+
+const DIMENSIONS: { key: 'voice' | 'icp' | 'persona' | 'clarity'; label: string; short: string; weight: string; icon: LucideIcon; color: string }[] = [
+  { key: 'voice',   label: 'Voice',   short: 'V', weight: '30%', icon: MessageSquareQuote, color: '#8833ff' },
+  { key: 'icp',     label: 'ICP',     short: 'I', weight: '30%', icon: Target,             color: '#0f284c' },
+  { key: 'persona', label: 'Persona', short: 'P', weight: '25%', icon: Users,              color: '#e33e23' },
+  { key: 'clarity', label: 'Clarity', short: 'C', weight: '15%', icon: Sparkles,           color: '#0ea5a4' },
+];
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import {
