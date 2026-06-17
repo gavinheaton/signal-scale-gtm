@@ -53,48 +53,74 @@ Deno.serve(async (req) => {
 
     const accessToken = await refreshIfNeeded(svc, conn);
 
+    // Granted scopes from tokeninfo
+    let grantedScopes = '';
+    try {
+      const ti = await fetch(`https://oauth2.googleapis.com/tokeninfo?access_token=${encodeURIComponent(accessToken)}`).then(r => r.json());
+      grantedScopes = ti.scope || '';
+    } catch (_) { /* ignore */ }
+    console.log('list-properties granted scopes:', grantedScopes);
+
     // GSC sites
+    let gscError: string | null = null;
+    let gscSites: Array<{ siteUrl: string; permissionLevel: string }> = [];
     const sitesRes = await fetch('https://searchconsole.googleapis.com/webmasters/v3/sites', {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
     const sitesData = await sitesRes.json();
-    const gscSites = (sitesData.siteEntry || []).map((e: { siteUrl: string; permissionLevel: string }) => ({
-      siteUrl: e.siteUrl, permissionLevel: e.permissionLevel,
-    }));
+    if (!sitesRes.ok) {
+      gscError = `${sitesRes.status}: ${sitesData?.error?.message || JSON.stringify(sitesData)}`;
+      console.error('GSC sites error', gscError);
+    } else {
+      gscSites = (sitesData.siteEntry || []).map((e: { siteUrl: string; permissionLevel: string }) => ({
+        siteUrl: e.siteUrl, permissionLevel: e.permissionLevel,
+      }));
+    }
 
     // GA4 properties
+    let ga4Error: string | null = null;
+    const ga4Properties: Array<{ propertyId: string; propertyName: string; accountName: string; defaultUri?: string }> = [];
     const summariesRes = await fetch('https://analyticsadmin.googleapis.com/v1beta/accountSummaries?pageSize=200', {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
     const summariesData = await summariesRes.json();
-    const ga4Properties: Array<{ propertyId: string; propertyName: string; accountName: string; defaultUri?: string }> = [];
-    for (const acc of summariesData.accountSummaries || []) {
-      for (const prop of acc.propertySummaries || []) {
-        const id = String(prop.property).replace('properties/', '');
-        let defaultUri: string | undefined;
-        try {
-          const streamsRes = await fetch(`https://analyticsadmin.googleapis.com/v1beta/${prop.property}/dataStreams`, {
-            headers: { Authorization: `Bearer ${accessToken}` },
+    if (!summariesRes.ok) {
+      ga4Error = `${summariesRes.status}: ${summariesData?.error?.message || JSON.stringify(summariesData)}`;
+      console.error('GA4 summaries error', ga4Error);
+    } else {
+      for (const acc of summariesData.accountSummaries || []) {
+        for (const prop of acc.propertySummaries || []) {
+          const id = String(prop.property).replace('properties/', '');
+          let defaultUri: string | undefined;
+          try {
+            const streamsRes = await fetch(`https://analyticsadmin.googleapis.com/v1beta/${prop.property}/dataStreams`, {
+              headers: { Authorization: `Bearer ${accessToken}` },
+            });
+            const streamsData = await streamsRes.json();
+            const web = (streamsData.dataStreams || []).find((s: { webStreamData?: { defaultUri?: string } }) => s.webStreamData?.defaultUri);
+            defaultUri = web?.webStreamData?.defaultUri;
+          } catch (_) { /* ignore */ }
+          ga4Properties.push({
+            propertyId: id,
+            propertyName: prop.displayName || id,
+            accountName: acc.displayName || '',
+            defaultUri,
           });
-          const streamsData = await streamsRes.json();
-          const web = (streamsData.dataStreams || []).find((s: { webStreamData?: { defaultUri?: string } }) => s.webStreamData?.defaultUri);
-          defaultUri = web?.webStreamData?.defaultUri;
-        } catch (_) { /* ignore */ }
-        ga4Properties.push({
-          propertyId: id,
-          propertyName: prop.displayName || id,
-          accountName: acc.displayName || '',
-          defaultUri,
-        });
+        }
       }
     }
+    console.log(`list-properties result: gsc=${gscSites.length} ga4=${ga4Properties.length}`);
 
     return new Response(JSON.stringify({
       connected: true,
       gscSites,
       ga4Properties,
+      gscError,
+      ga4Error,
+      grantedScopes,
       current: { gsc_site_url: conn.gsc_site_url, ga4_property_id: conn.ga4_property_id },
     }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+
   } catch (e) {
     console.error('analytics-list-properties error', e);
     return new Response(JSON.stringify({ error: String(e) }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
