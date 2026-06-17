@@ -120,9 +120,12 @@ export default function BrandVoiceWizard() {
         if (session.draft_output && Object.keys(session.draft_output as object).length > 0) {
           setDraft(session.draft_output as BrandVoiceDraft);
         }
-        toast.info('Resumed your previous session');
+        setLastSavedAt(new Date((session as any).updated_at || (session as any).created_at || Date.now()));
+        setResumed(true);
+        setResumeBannerOpen(true);
         return;
       }
+
 
       if (fileUrl) {
         setMessages([{ role: 'assistant', content: 'Analysing your document and mapping it to the Signal+Scale brand voice sections…' }]);
