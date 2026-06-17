@@ -79,6 +79,30 @@ export default function PropertyPicker({ projectId, onSaved }: { projectId: stri
           <p className="text-sm text-muted-foreground">No data.</p>
         ) : (
           <>
+            {(list.gscError || list.ga4Error || (list.gscSites.length === 0 && list.ga4Properties.length === 0)) && (
+              <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-xs space-y-1">
+                <p className="font-semibold text-amber-800">Diagnostics</p>
+                {list.grantedScopes && (
+                  <p className="text-amber-900">
+                    Granted scopes:{' '}
+                    <span className="font-mono">
+                      {[
+                        list.grantedScopes.includes('webmasters.readonly') ? '✓ Search Console' : '✗ Search Console',
+                        list.grantedScopes.includes('analytics.readonly') ? '✓ Analytics' : '✗ Analytics',
+                      ].join(' · ')}
+                    </span>
+                  </p>
+                )}
+                {list.gscError && <p className="text-amber-900">GSC API: {list.gscError}</p>}
+                {list.ga4Error && <p className="text-amber-900">GA4 API: {list.ga4Error}</p>}
+                {!list.gscError && !list.ga4Error && list.gscSites.length === 0 && list.ga4Properties.length === 0 && (
+                  <p className="text-amber-900">
+                    The connected Google account returned no Search Console sites and no GA4 properties. Either
+                    the account doesn't own any, or scope checkboxes were unticked on the consent screen. Reconnect and make sure both boxes are checked.
+                  </p>
+                )}
+              </div>
+            )}
             <div className="grid gap-4 md:grid-cols-2">
               <div>
                 <label className="text-xs font-medium text-muted-foreground">Search Console site</label>
@@ -92,7 +116,7 @@ export default function PropertyPicker({ projectId, onSaved }: { projectId: stri
                   </SelectContent>
                 </Select>
                 {list.gscSites.length === 0 && (
-                  <p className="text-xs text-amber-600 mt-1">This Google account has no Search Console sites.</p>
+                  <p className="text-xs text-amber-600 mt-1">No Search Console sites available.</p>
                 )}
               </div>
               <div>
@@ -109,7 +133,7 @@ export default function PropertyPicker({ projectId, onSaved }: { projectId: stri
                   </SelectContent>
                 </Select>
                 {list.ga4Properties.length === 0 && (
-                  <p className="text-xs text-amber-600 mt-1">This Google account has no GA4 properties.</p>
+                  <p className="text-xs text-amber-600 mt-1">No GA4 properties available.</p>
                 )}
               </div>
             </div>
@@ -120,6 +144,7 @@ export default function PropertyPicker({ projectId, onSaved }: { projectId: stri
               </Button>
             </div>
           </>
+
         )}
       </CardContent>
     </Card>
