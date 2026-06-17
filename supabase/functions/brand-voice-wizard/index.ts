@@ -548,6 +548,41 @@ Deno.serve(async (req) => {
 - When a section now has substantive content, add its key to sections_complete.
 - When all 10 sections are in sections_complete, set is_complete: true and present a final summary instead of another question.`;
 
+    // === Writing-samples auto-discovery ===
+    // When writing_samples is the next gap and we know the website, pull recent blog posts
+    // via Firecrawl and inject them so the AI can validate them against the developing voice.
+    if (
+      isSamplesGapNext(existingDraft) &&
+      !existingDraft?.samples_discovery_attempted
+    ) {
+      const websiteUrl = resolveWebsiteUrl(existingDraft, messages) || brandContext.website_url;
+      if (websiteUrl) {
+        console.log("Discovering writing samples from:", websiteUrl);
+        const { samples, error: discErr } = await discoverWritingSamples(websiteUrl);
+        // Mark attempted regardless of outcome so we don't re-run every turn
+        existingDraft = mergeDrafts(existingDraft, {
+          samples_discovery_attempted: true,
+          discovered_sample_urls: samples.map((s) => s.url),
+        });
+        await supabase.from("wizard_sessions").update({ draft_output: existingDraft }).eq("id", sessionId);
+
+        if (samples.length > 0) {
+          const sampleBlock = samples.map((s, i) =>
+            `Sample ${i + 1}: ${s.title}\nURL: ${s.url}${s.publishedTime ? `\nPublished: ${s.publishedTime}` : ""}\nExcerpt:\n${s.excerpt}`
+          ).join("\n\n---\n\n");
+          systemPrompt += `\n\nDISCOVERED WRITING SAMPLES (auto-fetched from ${websiteUrl}):\n${sampleBlock}\n\nWRITING SAMPLES VALIDATION (do this on this turn):
+1. Briefly list the 3 samples to the user as a bulleted list of "Title — URL" (no full text).
+2. For each sample, give a short alignment scorecard (1–5) against the current draft on: personality_adjectives, tone_description, writing_principles. Call out any banned_phrases that appear verbatim and any principle violations.
+3. Populate the writing_samples array in <draft> with one entry per sample: { type: "blog", sample: "<one-sentence summary> — <url>" }. Add "writing_samples" to sections_complete if alignment is strong.
+4. End with ONE focused question: do these samples represent the voice you want going forward, or should we treat the drift as the gap to close (and update the voice to match how they actually write)?`;
+        } else {
+          systemPrompt += `\n\nWRITING SAMPLES DISCOVERY: Attempted to auto-fetch blog posts from ${websiteUrl} but found none${discErr ? ` (${discErr})` : ""}. Ask the user to paste 1–2 representative pieces of their writing so we can validate the voice.`;
+        }
+      }
+    }
+
+
+
 
     const anthropicMessages = messages.map((m) => ({
       role: m.role as "user" | "assistant",
