@@ -208,17 +208,29 @@ export default function BrandAudit() {
                 </div>
                 <div className="text-xs text-muted-foreground mt-1">Headline (latest)</div>
               </div>
-              {[
-                { label: 'Voice', val: latest.voice_score, w: '30%' },
-                { label: 'ICP', val: latest.icp_score, w: '30%' },
-                { label: 'Persona', val: latest.persona_score, w: '25%' },
-                { label: 'Clarity', val: latest.clarity_score, w: '15%' },
-              ].map((s) => (
-                <div key={s.label} className="border rounded-lg p-4">
-                  <div className="text-xs text-muted-foreground">{s.label} <span className="opacity-60">({s.w})</span></div>
-                  <div className={`text-3xl font-semibold mt-2 ${scoreColor(s.val)}`}>{s.val ?? '—'}</div>
-                </div>
-              ))}
+              {DIMENSIONS.map((d) => {
+                const val = latest[`${d.key}_score` as keyof Run] as number | null;
+                const Icon = d.icon;
+                return (
+                  <div
+                    key={d.key}
+                    className="border rounded-lg p-4 relative overflow-hidden"
+                    style={{ borderTop: `3px solid ${d.color}` }}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span
+                        className="inline-flex items-center justify-center h-7 w-7 rounded-full"
+                        style={{ backgroundColor: `${d.color}1A`, color: d.color }}
+                      >
+                        <Icon className="h-4 w-4" />
+                      </span>
+                      <span className="text-xs font-medium" style={{ color: d.color }}>{d.label}</span>
+                      <span className="text-[10px] text-muted-foreground ml-auto">{d.weight}</span>
+                    </div>
+                    <div className={`text-3xl font-semibold mt-2 ${scoreColor(val)}`}>{val ?? '—'}</div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </CardContent>
