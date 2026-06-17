@@ -1,57 +1,196 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useProject } from '@/contexts/ProjectContext';
-import { Campaign, CampaignMetric } from '@/types/database';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { LineChart, Line, BarChart, Bar, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import {
+  LineChart, Line, BarChart, Bar, AreaChart, Area, XAxis, YAxis, CartesianGrid,
+  Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend,
+} from 'recharts';
 import { Navigate } from 'react-router-dom';
-import { Lightbulb } from 'lucide-react';
+import { Lightbulb, CheckCircle2, AlertCircle, RefreshCw, Link as LinkIcon } from 'lucide-react';
+import { toast } from 'sonner';
+
+interface GoogleData {
+  connected: boolean;
+  google_email?: string;
+  gsc_site_url?: string | null;
+  ga4_property_id?: string | null;
+  range?: { startDate: string; endDate: string; days: number };
+  gsc?: {
+    byDate: Array<{ keys: string[]; clicks: number; impressions: number; ctr: number; position: number }>;
+    topQueries: Array<{ keys: string[]; clicks: number; impressions: number; ctr: number; position: number }>;
+    topPages: Array<{ keys: string[]; clicks: number; impressions: number; ctr: number; position: number }>;
+  };
+  ga4?: {
+    report: {
+      rows?: Array<{ dimensionValues: Array<{ value: string }>; metricValues: Array<{ value: string }> }>;
+    } | null;
+  };
+}
 
 export default function Analytics() {
   const { currentProject } = useProject();
-  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
-  const [metrics, setMetrics] = useState<CampaignMetric[]>([]);
-  const [selectedCampaign, setSelectedCampaign] = useState<string>('all');
+  const [days, setDays] = useState(28);
+  const [data, setData] = useState<GoogleData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [connecting, setConnecting] = useState(false);
 
-  useEffect(() => {
+  const fetchData = useCallback(async () => {
     if (!currentProject) return;
-    supabase.from('campaigns').select('*').eq('project_id', currentProject.id).then(({ data }) => {
-      if (data) setCampaigns(data as unknown as Campaign[]);
+    setLoading(true);
+    const { data: res, error } = await supabase.functions.invoke('analytics-fetch', {
+      body: { project_id: currentProject.id, days },
     });
-    supabase.from('campaign_metrics').select('*').then(({ data }) => {
-      if (data) setMetrics(data as unknown as CampaignMetric[]);
-      setLoading(false);
+    if (error) {
+      toast.error(error.message || 'Failed to load analytics');
+      setData(null);
+    } else {
+      setData(res as GoogleData);
+    }
+    setLoading(false);
+  }, [currentProject, days]);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  // Refresh when oauth popup posts back
+  useEffect(() => {
+    const handler = (e: MessageEvent) => {
+      if (e.data?.type === 'google-oauth') {
+        if (e.data.success) {
+          toast.success('Google connected');
+          fetchData();
+        } else {
+          toast.error('Google connection failed');
+        }
+        setConnecting(false);
+      }
+    };
+    window.addEventListener('message', handler);
+    return () => window.removeEventListener('message', handler);
+  }, [fetchData]);
+
+  // If returned via redirect (no popup), pick up query param
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.has('connected')) {
+      if (params.get('connected') === '1') toast.success('Google connected');
+      else toast.error('Google connection failed');
+      window.history.replaceState({}, '', window.location.pathname);
+      fetchData();
+    }
+  }, [fetchData]);
+
+  const handleConnect = async () => {
+    if (!currentProject) return;
+    setConnecting(true);
+    const { data: res, error } = await supabase.functions.invoke('google-oauth-start', {
+      body: { project_id: currentProject.id, return_url: '/analytics' },
     });
-  }, [currentProject]);
+    if (error || !res?.url) {
+      toast.error(error?.message || 'Failed to start Google auth');
+      setConnecting(false);
+      return;
+    }
+    const popup = window.open(res.url, 'google-oauth', 'width=520,height=720');
+    if (!popup) {
+      window.location.href = res.url;
+    }
+  };
 
   if (!currentProject) return <Navigate to="/projects" replace />;
-  if (loading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>;
 
-  const filtered = selectedCampaign === 'all' ? metrics : metrics.filter(m => m.campaign_id === selectedCampaign);
-  const sorted = [...filtered].sort((a, b) => a.date.localeCompare(b.date));
+  const gscByDate = (data?.gsc?.byDate || []).map((r) => ({
+    date: r.keys[0],
+    clicks: r.clicks,
+    impressions: r.impressions,
+    ctr: +(r.ctr * 100).toFixed(2),
+    position: +r.position.toFixed(1),
+  }));
 
-  const cumulativePipeline = sorted.reduce<{ date: string; value: number }[]>((acc, m) => {
-    const prev = acc.length > 0 ? acc[acc.length - 1].value : 0;
-    acc.push({ date: m.date, value: prev + m.pipeline_influenced });
-    return acc;
-  }, []);
+  // GA4: pivot rows into per-date totals + channel breakdown
+  const ga4Rows = data?.ga4?.report?.rows || [];
+  const ga4ByDate = new Map<string, { date: string; sessions: number; engaged: number; conversions: number; channels: Record<string, number> }>();
+  for (const row of ga4Rows) {
+    const date = row.dimensionValues[0]?.value || '';
+    const channel = row.dimensionValues[1]?.value || 'Unassigned';
+    const sessions = Number(row.metricValues[0]?.value || 0);
+    const engaged = Number(row.metricValues[1]?.value || 0);
+    const conversions = Number(row.metricValues[2]?.value || 0);
+    const formatted = date.length === 8 ? `${date.slice(0, 4)}-${date.slice(4, 6)}-${date.slice(6, 8)}` : date;
+    const entry = ga4ByDate.get(formatted) || { date: formatted, sessions: 0, engaged: 0, conversions: 0, channels: {} };
+    entry.sessions += sessions;
+    entry.engaged += engaged;
+    entry.conversions += conversions;
+    entry.channels[channel] = (entry.channels[channel] || 0) + sessions;
+    ga4ByDate.set(formatted, entry);
+  }
+  const ga4Series = [...ga4ByDate.values()].sort((a, b) => a.date.localeCompare(b.date));
 
-  const latestSov = sorted.length > 0 ? sorted[sorted.length - 1].share_of_voice_pct : 0;
+  // Channel totals for donut
+  const channelTotals: Record<string, number> = {};
+  for (const e of ga4Series) {
+    for (const [ch, v] of Object.entries(e.channels)) {
+      channelTotals[ch] = (channelTotals[ch] || 0) + v;
+    }
+  }
+  const channelData = Object.entries(channelTotals).map(([name, value]) => ({ name, value }));
+  const CHANNEL_COLORS = ['hsl(263 100% 60%)', 'hsl(8 82% 51%)', 'hsl(217 80% 18%)', 'hsl(174 60% 33%)', 'hsl(40 90% 55%)', 'hsl(0 0% 60%)'];
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-foreground">Analytics</h1>
-        <Select value={selectedCampaign} onValueChange={setSelectedCampaign}>
-          <SelectTrigger className="w-52"><SelectValue placeholder="All Campaigns" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Campaigns</SelectItem>
-            {campaigns.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-          </SelectContent>
-        </Select>
+        <div className="flex items-center gap-2">
+          <Select value={String(days)} onValueChange={(v) => setDays(Number(v))}>
+            <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="7">Last 7 days</SelectItem>
+              <SelectItem value="28">Last 28 days</SelectItem>
+              <SelectItem value="90">Last 90 days</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button variant="outline" size="icon" onClick={fetchData} disabled={loading}>
+            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+          </Button>
+        </div>
       </div>
+
+      {/* Connection card */}
+      <Card>
+        <CardContent className="pt-6 flex items-center justify-between gap-4 flex-wrap">
+          {data?.connected ? (
+            <div className="flex items-center gap-3">
+              <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+              <div>
+                <p className="text-sm font-semibold">Google connected · {data.google_email}</p>
+                <div className="flex gap-2 mt-1 flex-wrap">
+                  {data.gsc_site_url
+                    ? <Badge variant="secondary">GSC: {data.gsc_site_url}</Badge>
+                    : <Badge variant="outline" className="text-amber-600 border-amber-300">No matching Search Console site</Badge>}
+                  {data.ga4_property_id
+                    ? <Badge variant="secondary">GA4: {data.ga4_property_id}</Badge>
+                    : <Badge variant="outline" className="text-amber-600 border-amber-300">No matching GA4 property</Badge>}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center gap-3">
+              <AlertCircle className="h-5 w-5 text-amber-600" />
+              <div>
+                <p className="text-sm font-semibold">No Google account connected</p>
+                <p className="text-xs text-muted-foreground">Connect Google to pull Search Console and Analytics 4 data for this project.</p>
+              </div>
+            </div>
+          )}
+          <Button onClick={handleConnect} disabled={connecting}>
+            <LinkIcon className="h-4 w-4 mr-2" />
+            {data?.connected ? 'Reconnect' : 'Connect Google'}
+          </Button>
+        </CardContent>
+      </Card>
 
       {/* Callout */}
       <Card className="border-l-4" style={{ borderLeftColor: 'hsl(var(--purple))' }}>
@@ -59,96 +198,122 @@ export default function Analytics() {
           <Lightbulb className="h-5 w-5 text-primary shrink-0 mt-0.5" />
           <div>
             <p className="font-semibold text-sm">Measure like a brand, not just a funnel</p>
-            <p className="text-xs text-muted-foreground mt-1">These metrics focus on long-term growth signals — brand awareness, share of voice, and community engagement — not just last-click conversions.</p>
+            <p className="text-xs text-muted-foreground mt-1">These metrics focus on long-term growth signals — search impressions, organic traffic, channel mix and engagement — not just last-click conversions.</p>
           </div>
         </CardContent>
       </Card>
 
-      <div className="grid gap-6 md:grid-cols-2">
-        {/* Brand Search Volume */}
-        <Card>
-          <CardHeader><CardTitle className="text-base">Brand Search Volume</CardTitle></CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={200}>
-              <LineChart data={sorted}>
-                <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-                <XAxis dataKey="date" tick={{ fontSize: 10 }} />
-                <YAxis tick={{ fontSize: 10 }} />
-                <Tooltip />
-                <Line type="monotone" dataKey="brand_search_volume" stroke="hsl(263 100% 60%)" strokeWidth={2} dot={false} />
-              </LineChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
+      {!data?.connected ? (
+        <Card><CardContent className="py-12 text-center text-sm text-muted-foreground">Connect Google to see your data.</CardContent></Card>
+      ) : (
+        <>
+          <div className="grid gap-6 md:grid-cols-2">
+            {/* GSC Impressions */}
+            <Card>
+              <CardHeader><CardTitle className="text-base">Search Impressions</CardTitle></CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={220}>
+                  <LineChart data={gscByDate}>
+                    <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                    <XAxis dataKey="date" tick={{ fontSize: 10 }} />
+                    <YAxis tick={{ fontSize: 10 }} />
+                    <Tooltip />
+                    <Line type="monotone" dataKey="impressions" stroke="hsl(263 100% 60%)" strokeWidth={2} dot={false} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
 
-        {/* Inbound Referrals */}
-        <Card>
-          <CardHeader><CardTitle className="text-base">Inbound Referrals</CardTitle></CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={sorted}>
-                <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-                <XAxis dataKey="date" tick={{ fontSize: 10 }} />
-                <YAxis tick={{ fontSize: 10 }} />
-                <Tooltip />
-                <Bar dataKey="inbound_referrals" fill="hsl(8 82% 51%)" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
+            {/* GSC Clicks */}
+            <Card>
+              <CardHeader><CardTitle className="text-base">Search Clicks</CardTitle></CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={220}>
+                  <BarChart data={gscByDate}>
+                    <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                    <XAxis dataKey="date" tick={{ fontSize: 10 }} />
+                    <YAxis tick={{ fontSize: 10 }} />
+                    <Tooltip />
+                    <Bar dataKey="clicks" fill="hsl(8 82% 51%)" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
 
-        {/* Pipeline Influenced */}
-        <Card>
-          <CardHeader><CardTitle className="text-base">Pipeline Influenced (Cumulative)</CardTitle></CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={200}>
-              <AreaChart data={cumulativePipeline}>
-                <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-                <XAxis dataKey="date" tick={{ fontSize: 10 }} />
-                <YAxis tick={{ fontSize: 10 }} />
-                <Tooltip />
-                <Area type="monotone" dataKey="value" stroke="hsl(263 100% 60%)" fill="hsl(263 100% 60% / 0.2)" />
-              </AreaChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
+            {/* GA4 Sessions */}
+            <Card>
+              <CardHeader><CardTitle className="text-base">Sessions (GA4)</CardTitle></CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={220}>
+                  <AreaChart data={ga4Series}>
+                    <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                    <XAxis dataKey="date" tick={{ fontSize: 10 }} />
+                    <YAxis tick={{ fontSize: 10 }} />
+                    <Tooltip />
+                    <Area type="monotone" dataKey="sessions" stroke="hsl(263 100% 60%)" fill="hsl(263 100% 60% / 0.2)" />
+                    <Area type="monotone" dataKey="engaged" stroke="hsl(174 60% 33%)" fill="hsl(174 60% 33% / 0.2)" />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
 
-        {/* Share of Voice */}
-        <Card>
-          <CardHeader><CardTitle className="text-base">Share of Voice</CardTitle></CardHeader>
-          <CardContent className="flex items-center justify-center">
-            <ResponsiveContainer width="100%" height={200}>
-              <PieChart>
-                <Pie
-                  data={[{ value: latestSov }, { value: 100 - latestSov }]}
-                  cx="50%" cy="50%" innerRadius={60} outerRadius={80}
-                  startAngle={90} endAngle={-270} dataKey="value"
-                >
-                  <Cell fill="hsl(263 100% 60%)" />
-                  <Cell fill="hsl(220 20% 90%)" />
-                </Pie>
-                <text x="50%" y="50%" textAnchor="middle" dominantBaseline="middle" className="text-2xl font-bold fill-foreground">{latestSov.toFixed(1)}%</text>
-              </PieChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-      </div>
+            {/* GA4 Channel Mix */}
+            <Card>
+              <CardHeader><CardTitle className="text-base">Traffic by Channel</CardTitle></CardHeader>
+              <CardContent className="flex items-center justify-center">
+                <ResponsiveContainer width="100%" height={220}>
+                  <PieChart>
+                    <Pie data={channelData} cx="50%" cy="50%" innerRadius={50} outerRadius={80} dataKey="value" nameKey="name">
+                      {channelData.map((_, i) => <Cell key={i} fill={CHANNEL_COLORS[i % CHANNEL_COLORS.length]} />)}
+                    </Pie>
+                    <Tooltip />
+                    <Legend wrapperStyle={{ fontSize: 11 }} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          </div>
 
-      {/* Community Engagement */}
-      <Card>
-        <CardHeader><CardTitle className="text-base">Community Engagement</CardTitle></CardHeader>
-        <CardContent>
-          <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={sorted}>
-              <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-              <XAxis dataKey="date" tick={{ fontSize: 10 }} />
-              <YAxis tick={{ fontSize: 10 }} />
-              <Tooltip />
-              <Bar dataKey="community_engagement" fill="hsl(263 100% 60%)" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </CardContent>
-      </Card>
+          {/* Top queries + pages */}
+          <div className="grid gap-6 md:grid-cols-2">
+            <Card>
+              <CardHeader><CardTitle className="text-base">Top Search Queries</CardTitle></CardHeader>
+              <CardContent>
+                <div className="space-y-2 max-h-80 overflow-auto">
+                  {(data.gsc?.topQueries || []).map((q, i) => (
+                    <div key={i} className="flex items-center justify-between text-sm border-b border-border/40 py-1.5">
+                      <span className="truncate pr-2">{q.keys[0]}</span>
+                      <div className="flex gap-3 text-xs text-muted-foreground shrink-0">
+                        <span>{q.clicks} clicks</span>
+                        <span>{q.impressions} imp</span>
+                        <span>#{q.position.toFixed(1)}</span>
+                      </div>
+                    </div>
+                  ))}
+                  {(data.gsc?.topQueries || []).length === 0 && <p className="text-xs text-muted-foreground">No query data yet.</p>}
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader><CardTitle className="text-base">Top Landing Pages</CardTitle></CardHeader>
+              <CardContent>
+                <div className="space-y-2 max-h-80 overflow-auto">
+                  {(data.gsc?.topPages || []).map((p, i) => (
+                    <div key={i} className="flex items-center justify-between text-sm border-b border-border/40 py-1.5">
+                      <a href={p.keys[0]} target="_blank" rel="noreferrer" className="truncate pr-2 hover:underline">{p.keys[0]}</a>
+                      <div className="flex gap-3 text-xs text-muted-foreground shrink-0">
+                        <span>{p.clicks} clicks</span>
+                        <span>{p.impressions} imp</span>
+                      </div>
+                    </div>
+                  ))}
+                  {(data.gsc?.topPages || []).length === 0 && <p className="text-xs text-muted-foreground">No page data yet.</p>}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </>
+      )}
     </div>
   );
 }
