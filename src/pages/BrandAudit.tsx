@@ -66,30 +66,39 @@ export default function BrandAudit() {
   const [submitting, setSubmitting] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<Run | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const userEditedRef = useRef(false);
 
   useEffect(() => {
     if (!currentProject) return;
+    userEditedRef.current = false;
     void load();
   }, [currentProject]);
 
   async function load() {
     setLoading(true);
-    const [{ data: rs }, { data: bv }] = await Promise.all([
-      supabase.from('brand_audit_runs').select('*').eq('project_id', currentProject!.id).order('created_at', { ascending: false }),
+    const [{ data: bvComplete }, { data: bvLatest }, { data: rs }] = await Promise.all([
+      supabase.from('brand_voices').select('brand_identity').eq('project_id', currentProject!.id).eq('status', 'complete').order('created_at', { ascending: false }).limit(1).maybeSingle(),
       supabase.from('brand_voices').select('status, brand_identity').eq('project_id', currentProject!.id).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+      supabase.from('brand_audit_runs').select('*').eq('project_id', currentProject!.id).order('created_at', { ascending: false }),
     ]);
     setRuns((rs ?? []) as unknown as Run[]);
-    setBvReady(bv?.status === 'complete');
-    const website = (bv?.brand_identity as any)?.website_url ?? '';
+    setBvReady(bvLatest?.status === 'complete');
+
+    const bvWebsite =
+      (bvComplete?.brand_identity as any)?.website_url ??
+      (bvLatest?.brand_identity as any)?.website_url ??
+      '';
+    const lastRunUrl = (rs ?? []).find(r => r.base_url && r.scope !== 'custom')?.base_url ?? '';
+    const website = bvWebsite || lastRunUrl || '';
     setDefaultWebsite(website);
-    setBaseUrl((prev) => prev || website);
+    if (!userEditedRef.current) setBaseUrl(website);
     setLoading(false);
   }
 
   const latest = runs[0];
 
   function openDialog() {
-    if (!baseUrl && defaultWebsite) setBaseUrl(defaultWebsite);
+    if (!userEditedRef.current && defaultWebsite) setBaseUrl(defaultWebsite);
     setOpen(true);
   }
 
