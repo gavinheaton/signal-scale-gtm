@@ -139,6 +139,8 @@ export default function BrandVoiceWizard() {
       setSessionId(data.session_id);
       setMessages([{ role: 'assistant', content: data.reply }]);
       if (data.updated_draft) setDraft(data.updated_draft);
+      setLastSavedAt(new Date());
+
     } catch (err: any) {
       toast.error('Failed to start wizard: ' + (err.message || 'Unknown error'));
     } finally {
