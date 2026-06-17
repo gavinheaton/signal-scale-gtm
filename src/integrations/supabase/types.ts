@@ -774,6 +774,53 @@ export type Database = {
           },
         ]
       }
+      project_google_connections: {
+        Row: {
+          access_token: string | null
+          connected_at: string
+          expires_at: string | null
+          ga4_property_id: string | null
+          google_email: string | null
+          gsc_site_url: string | null
+          id: string
+          project_id: string
+          refresh_token: string | null
+          updated_at: string
+        }
+        Insert: {
+          access_token?: string | null
+          connected_at?: string
+          expires_at?: string | null
+          ga4_property_id?: string | null
+          google_email?: string | null
+          gsc_site_url?: string | null
+          id?: string
+          project_id: string
+          refresh_token?: string | null
+          updated_at?: string
+        }
+        Update: {
+          access_token?: string | null
+          connected_at?: string
+          expires_at?: string | null
+          ga4_property_id?: string | null
+          google_email?: string | null
+          gsc_site_url?: string | null
+          id?: string
+          project_id?: string
+          refresh_token?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_google_connections_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: true
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       project_visual_settings: {
         Row: {
           created_at: string
