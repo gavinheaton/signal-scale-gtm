@@ -529,6 +529,409 @@ export type Database = {
           },
         ]
       }
+      discovery_campaigns: {
+        Row: {
+          created_at: string
+          description: string | null
+          disqualifying_signals: string[]
+          icp_ids: string[]
+          id: string
+          name: string
+          outreach_sequence: Json
+          persona_ids: string[]
+          project_id: string
+          qualifying_signals: string[]
+          status: Database["public"]["Enums"]["discovery_campaign_status"]
+          target_segment: string | null
+          tiers: Json
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          disqualifying_signals?: string[]
+          icp_ids?: string[]
+          id?: string
+          name: string
+          outreach_sequence?: Json
+          persona_ids?: string[]
+          project_id: string
+          qualifying_signals?: string[]
+          status?: Database["public"]["Enums"]["discovery_campaign_status"]
+          target_segment?: string | null
+          tiers?: Json
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          disqualifying_signals?: string[]
+          icp_ids?: string[]
+          id?: string
+          name?: string
+          outreach_sequence?: Json
+          persona_ids?: string[]
+          project_id?: string
+          qualifying_signals?: string[]
+          status?: Database["public"]["Enums"]["discovery_campaign_status"]
+          target_segment?: string | null
+          tiers?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "discovery_campaigns_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      discovery_contacts: {
+        Row: {
+          apollo_person_id: string | null
+          connection_accepted_at: string | null
+          connection_sent_at: string | null
+          created_at: string
+          dm_sent_at: string | null
+          email: string | null
+          email_sent_at: string | null
+          enrichment_source: Database["public"]["Enums"]["discovery_enrichment_source"]
+          id: string
+          linkedin_url: string | null
+          name: string
+          notes: string | null
+          org_role_id: string | null
+          organization_id: string
+          outreach_status: Database["public"]["Enums"]["discovery_outreach_status"]
+          persona_id: string | null
+          reminder_date: string | null
+          reminder_note: string | null
+          title: string | null
+          updated_at: string
+        }
+        Insert: {
+          apollo_person_id?: string | null
+          connection_accepted_at?: string | null
+          connection_sent_at?: string | null
+          created_at?: string
+          dm_sent_at?: string | null
+          email?: string | null
+          email_sent_at?: string | null
+          enrichment_source?: Database["public"]["Enums"]["discovery_enrichment_source"]
+          id?: string
+          linkedin_url?: string | null
+          name: string
+          notes?: string | null
+          org_role_id?: string | null
+          organization_id: string
+          outreach_status?: Database["public"]["Enums"]["discovery_outreach_status"]
+          persona_id?: string | null
+          reminder_date?: string | null
+          reminder_note?: string | null
+          title?: string | null
+          updated_at?: string
+        }
+        Update: {
+          apollo_person_id?: string | null
+          connection_accepted_at?: string | null
+          connection_sent_at?: string | null
+          created_at?: string
+          dm_sent_at?: string | null
+          email?: string | null
+          email_sent_at?: string | null
+          enrichment_source?: Database["public"]["Enums"]["discovery_enrichment_source"]
+          id?: string
+          linkedin_url?: string | null
+          name?: string
+          notes?: string | null
+          org_role_id?: string | null
+          organization_id?: string
+          outreach_status?: Database["public"]["Enums"]["discovery_outreach_status"]
+          persona_id?: string | null
+          reminder_date?: string | null
+          reminder_note?: string | null
+          title?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "discovery_contacts_org_role_id_fkey"
+            columns: ["org_role_id"]
+            isOneToOne: false
+            referencedRelation: "discovery_org_roles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "discovery_contacts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "discovery_organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "discovery_contacts_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      discovery_conversations: {
+        Row: {
+          contact_id: string
+          created_at: string
+          customer_profile_snapshot: string | null
+          date: string | null
+          duration_minutes: number | null
+          guiding_questions: string[]
+          id: string
+          key_topics: string[]
+          next_steps: string | null
+          objective: string | null
+          raw_notes: string | null
+          updated_at: string
+        }
+        Insert: {
+          contact_id: string
+          created_at?: string
+          customer_profile_snapshot?: string | null
+          date?: string | null
+          duration_minutes?: number | null
+          guiding_questions?: string[]
+          id?: string
+          key_topics?: string[]
+          next_steps?: string | null
+          objective?: string | null
+          raw_notes?: string | null
+          updated_at?: string
+        }
+        Update: {
+          contact_id?: string
+          created_at?: string
+          customer_profile_snapshot?: string | null
+          date?: string | null
+          duration_minutes?: number | null
+          guiding_questions?: string[]
+          id?: string
+          key_topics?: string[]
+          next_steps?: string | null
+          objective?: string | null
+          raw_notes?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "discovery_conversations_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "discovery_contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      discovery_insights: {
+        Row: {
+          campaign_id: string
+          conversation_id: string
+          created_at: string
+          id: string
+          is_quote: boolean
+          kind: Database["public"]["Enums"]["discovery_insight_kind"]
+          text: string
+          theme_id: string | null
+        }
+        Insert: {
+          campaign_id: string
+          conversation_id: string
+          created_at?: string
+          id?: string
+          is_quote?: boolean
+          kind?: Database["public"]["Enums"]["discovery_insight_kind"]
+          text: string
+          theme_id?: string | null
+        }
+        Update: {
+          campaign_id?: string
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          is_quote?: boolean
+          kind?: Database["public"]["Enums"]["discovery_insight_kind"]
+          text?: string
+          theme_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "discovery_insights_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "discovery_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "discovery_insights_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "discovery_conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "discovery_insights_theme_id_fkey"
+            columns: ["theme_id"]
+            isOneToOne: false
+            referencedRelation: "discovery_themes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      discovery_org_roles: {
+        Row: {
+          created_at: string
+          id: string
+          organization_id: string
+          persona_id: string | null
+          role_title: string
+          source_snippet: string | null
+          source_url: string | null
+          status: Database["public"]["Enums"]["discovery_role_status"]
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          organization_id: string
+          persona_id?: string | null
+          role_title: string
+          source_snippet?: string | null
+          source_url?: string | null
+          status?: Database["public"]["Enums"]["discovery_role_status"]
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          organization_id?: string
+          persona_id?: string | null
+          role_title?: string
+          source_snippet?: string | null
+          source_url?: string | null
+          status?: Database["public"]["Enums"]["discovery_role_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "discovery_org_roles_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "discovery_organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "discovery_org_roles_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      discovery_organizations: {
+        Row: {
+          campaign_id: string
+          created_at: string
+          domain: string | null
+          fit_notes: string | null
+          id: string
+          name: string
+          segment: string | null
+          signals_matched: string[]
+          source: Database["public"]["Enums"]["discovery_org_source"]
+          source_url: string | null
+          status: Database["public"]["Enums"]["discovery_org_status"]
+          tier: string | null
+          updated_at: string
+        }
+        Insert: {
+          campaign_id: string
+          created_at?: string
+          domain?: string | null
+          fit_notes?: string | null
+          id?: string
+          name: string
+          segment?: string | null
+          signals_matched?: string[]
+          source?: Database["public"]["Enums"]["discovery_org_source"]
+          source_url?: string | null
+          status?: Database["public"]["Enums"]["discovery_org_status"]
+          tier?: string | null
+          updated_at?: string
+        }
+        Update: {
+          campaign_id?: string
+          created_at?: string
+          domain?: string | null
+          fit_notes?: string | null
+          id?: string
+          name?: string
+          segment?: string | null
+          signals_matched?: string[]
+          source?: Database["public"]["Enums"]["discovery_org_source"]
+          source_url?: string | null
+          status?: Database["public"]["Enums"]["discovery_org_status"]
+          tier?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "discovery_organizations_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "discovery_campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      discovery_themes: {
+        Row: {
+          campaign_id: string
+          created_at: string
+          description: string | null
+          id: string
+          label: string
+          status: Database["public"]["Enums"]["discovery_theme_status"]
+          updated_at: string
+        }
+        Insert: {
+          campaign_id: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          label: string
+          status?: Database["public"]["Enums"]["discovery_theme_status"]
+          updated_at?: string
+        }
+        Update: {
+          campaign_id?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          label?: string
+          status?: Database["public"]["Enums"]["discovery_theme_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "discovery_themes_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "discovery_campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       icps: {
         Row: {
           access_score: number | null
@@ -1046,6 +1449,26 @@ export type Database = {
       brand_audit_status: "queued" | "running" | "completed" | "failed"
       campaign_status: "brief" | "planning" | "active" | "complete"
       campaign_track: "demand_capture" | "demand_creation"
+      discovery_campaign_status: "active" | "paused" | "archived"
+      discovery_enrichment_source: "apollo" | "manual"
+      discovery_insight_kind: "observation" | "interpretation"
+      discovery_org_source: "firecrawl" | "manual"
+      discovery_org_status:
+        | "researching"
+        | "targeted"
+        | "in_conversation"
+        | "validated"
+        | "disqualified"
+      discovery_outreach_status:
+        | "not_started"
+        | "connection_sent"
+        | "connected"
+        | "dm_sent"
+        | "email_sent"
+        | "responded"
+        | "closed_no_response"
+      discovery_role_status: "identified" | "enriched" | "skipped"
+      discovery_theme_status: "emerging" | "confirmed" | "discarded"
       matrix_category:
         | "now_account"
         | "strategic_nurture"
@@ -1217,6 +1640,28 @@ export const Constants = {
       brand_audit_status: ["queued", "running", "completed", "failed"],
       campaign_status: ["brief", "planning", "active", "complete"],
       campaign_track: ["demand_capture", "demand_creation"],
+      discovery_campaign_status: ["active", "paused", "archived"],
+      discovery_enrichment_source: ["apollo", "manual"],
+      discovery_insight_kind: ["observation", "interpretation"],
+      discovery_org_source: ["firecrawl", "manual"],
+      discovery_org_status: [
+        "researching",
+        "targeted",
+        "in_conversation",
+        "validated",
+        "disqualified",
+      ],
+      discovery_outreach_status: [
+        "not_started",
+        "connection_sent",
+        "connected",
+        "dm_sent",
+        "email_sent",
+        "responded",
+        "closed_no_response",
+      ],
+      discovery_role_status: ["identified", "enriched", "skipped"],
+      discovery_theme_status: ["emerging", "confirmed", "discarded"],
       matrix_category: [
         "now_account",
         "strategic_nurture",
