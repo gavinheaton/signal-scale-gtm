@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Users, Target, Megaphone, TrendingUp, RefreshCw, Loader2, ExternalLink } from 'lucide-react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, Link } from 'react-router-dom';
 import { toast } from 'sonner';
 
 
@@ -112,19 +112,24 @@ export default function Home() {
           <div className="flex items-center gap-2 overflow-x-auto pb-2">
             {phases.map((phase, i) => {
               const status = computedProgress[phase.key] || 'not_started';
+              const inner = (
+                <div className="flex flex-col items-center min-w-[90px]">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
+                    status === 'complete' ? 'bg-green-500 text-white' :
+                    status === 'in_progress' ? 'bg-amber-500 text-white' :
+                    'bg-muted text-muted-foreground'
+                  }`}>{i + 1}</div>
+                  <span className="text-[11px] mt-1 text-center font-medium">{phase.label}</span>
+                  <Badge className={`${phaseColors[status as PhaseStatus]} text-[9px] mt-1`}>
+                    {status.replace('_', ' ')}
+                  </Badge>
+                </div>
+              );
               return (
                 <div key={phase.key} className="flex items-center">
-                  <div className="flex flex-col items-center min-w-[90px]">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
-                      status === 'complete' ? 'bg-green-500 text-white' :
-                      status === 'in_progress' ? 'bg-amber-500 text-white' :
-                      'bg-muted text-muted-foreground'
-                    }`}>{i + 1}</div>
-                    <span className="text-[11px] mt-1 text-center font-medium">{phase.label}</span>
-                    <Badge className={`${phaseColors[status as PhaseStatus]} text-[9px] mt-1`}>
-                      {status.replace('_', ' ')}
-                    </Badge>
-                  </div>
+                  {phase.key === 'customer_conversations'
+                    ? <Link to="/project/discovery" className="hover:opacity-80 transition-opacity">{inner}</Link>
+                    : inner}
                   {i < phases.length - 1 && <div className="w-6 h-0.5 bg-border mt-[-20px]" />}
                 </div>
               );

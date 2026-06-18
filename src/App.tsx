@@ -15,6 +15,9 @@ import ICPWizard from "@/pages/ICPWizard";
 import PersonaWizard from "@/pages/PersonaWizard";
 import Campaigns from "@/pages/Campaigns";
 import CampaignWizard from "@/pages/CampaignWizard";
+import Discovery from "@/pages/Discovery";
+import DiscoveryCampaignForm from "@/pages/DiscoveryCampaignForm";
+import DiscoveryCampaignPage from "@/pages/DiscoveryCampaign";
 import BrandVoice from "@/pages/BrandVoice";
 import BrandVoiceWizard from "@/pages/BrandVoiceWizard";
 import BrandVoiceDetail from "@/pages/BrandVoiceDetail";
@@ -52,6 +55,10 @@ const App = () => (
                 <Route path="/project/brand-audit" element={<BrandAuditPage />} />
                 <Route path="/project/campaigns" element={<Campaigns />} />
                 <Route path="/project/campaign-wizard" element={<CampaignWizard />} />
+                <Route path="/project/discovery" element={<Discovery />} />
+                <Route path="/project/discovery/new" element={<DiscoveryCampaignForm />} />
+                <Route path="/project/discovery/:id" element={<DiscoveryCampaignPage />} />
+                <Route path="/project/discovery/:id/edit" element={<DiscoveryCampaignForm />} />
                 <Route path="/project/content" element={<ContentPipeline />} />
                 <Route path="/project/analytics" element={<Analytics />} />
                 <Route path="/project/settings" element={<SettingsPage />} />
