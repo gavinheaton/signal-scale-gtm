@@ -336,6 +336,9 @@ function SearchPanel({ campaign, onAdded, onClose }: { campaign: DiscoveryCampai
                 )}
                 <div className="flex gap-3 flex-wrap">
                   {typeof debug.raw_hit_count === 'number' && <span>Raw hits: <strong>{debug.raw_hit_count}</strong></span>}
+                  {typeof debug.direct_hits === 'number' && <span>Direct: <strong>{debug.direct_hits}</strong></span>}
+                  {typeof debug.articles_scraped === 'number' && <span>Articles scraped: <strong>{debug.articles_scraped}</strong></span>}
+                  {typeof debug.extracted_from_articles === 'number' && <span>Extracted from articles: <strong>{debug.extracted_from_articles}</strong></span>}
                   {typeof debug.filtered_hit_count === 'number' && <span>Company-like: <strong>{debug.filtered_hit_count}</strong></span>}
                   {typeof debug.ai_returned === 'number' && <span>AI returned: <strong>{debug.ai_returned}</strong></span>}
                 </div>
