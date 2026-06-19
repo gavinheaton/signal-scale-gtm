@@ -144,11 +144,21 @@ function FindOrgsSheet({ campaign, onClose }: { campaign: DiscoveryCampaign; onC
     const { data, error } = await supabase.functions.invoke('discovery-find-orgs', { body: { campaign_id: campaign.id } });
     setRunning(false);
     if (error) {
-      toast.error(error.message || 'Failed to find organisations');
+      const detail = (data as any)?.error || (data as any)?.detail;
+      toast.error(detail ? `${error.message}: ${detail}` : (error.message || 'Failed to find organisations'));
+      console.error('[find-orgs] error', error, data);
       return;
     }
-    setCandidates((data?.candidates || []) as FindCandidate[]);
-    setPicked(new Set((data?.candidates || []).map((_: any, i: number) => i)));
+    const cands = (data?.candidates || []) as FindCandidate[];
+    setCandidates(cands);
+    setPicked(new Set(cands.map((_: any, i: number) => i)));
+    if (cands.length === 0) {
+      const dbg = (data as any)?.debug;
+      console.warn('[find-orgs] no candidates', dbg);
+      toast.message('No candidates returned', {
+        description: dbg ? `query: "${dbg.query}" · firecrawl ${dbg.firecrawl_status} · keys: ${(dbg.top_level_keys || []).join(',')}` : 'Try broadening the campaign target segment or qualifying signals.',
+      });
+    }
   };
 
   const save = async () => {
