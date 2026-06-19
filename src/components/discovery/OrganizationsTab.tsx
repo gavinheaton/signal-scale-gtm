@@ -10,7 +10,11 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sh
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Plus, Sparkles, Loader2, Building2, ExternalLink, Users } from 'lucide-react';
+import { Plus, Sparkles, Loader2, Building2, ExternalLink, Users, Trash2, X } from 'lucide-react';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import {
   DiscoveryCampaign,
@@ -42,9 +46,11 @@ export default function OrganizationsTab({ campaign, personas }: { campaign: Dis
   const [orgs, setOrgs] = useState<DiscoveryOrganization[]>([]);
   const [roleCounts, setRoleCounts] = useState<Record<string, { roles: number; contacts: number }>>({});
   const [loading, setLoading] = useState(true);
-  const [findOpen, setFindOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [rolesFor, setRolesFor] = useState<DiscoveryOrganization | null>(null);
+  const [deleting, setDeleting] = useState<DiscoveryOrganization | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
 
   const refresh = async () => {
     setLoading(true);
@@ -71,9 +77,16 @@ export default function OrganizationsTab({ campaign, personas }: { campaign: Dis
         <p className="text-sm text-muted-foreground">{orgs.length} organisations</p>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={() => setAddOpen(true)}><Plus className="h-4 w-4 mr-1" /> Add manually</Button>
-          <Button size="sm" onClick={() => setFindOpen(true)}><Sparkles className="h-4 w-4 mr-1" /> Find organisations</Button>
+          <Button size="sm" onClick={() => setSearchOpen((v) => !v)}>
+            {searchOpen ? <X className="h-4 w-4 mr-1" /> : <Sparkles className="h-4 w-4 mr-1" />}
+            {searchOpen ? 'Close search' : 'Find organisations'}
+          </Button>
         </div>
       </div>
+
+      {searchOpen && (
+        <SearchPanel campaign={campaign} onAdded={refresh} onClose={() => setSearchOpen(false)} />
+      )}
 
       {loading ? (
         <div className="py-12 text-center text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin inline mr-2" /> Loading…</div>
@@ -117,7 +130,14 @@ export default function OrganizationsTab({ campaign, personas }: { campaign: Dis
                   <TableCell className="text-xs">{o.signals_matched.slice(0, 2).join(', ')}{o.signals_matched.length > 2 ? ` +${o.signals_matched.length - 2}` : ''}</TableCell>
                   <TableCell>{roleCounts[o.id]?.roles || 0}</TableCell>
                   <TableCell>{roleCounts[o.id]?.contacts || 0}</TableCell>
-                  <TableCell><Button size="sm" variant="outline" onClick={() => setRolesFor(o)}><Users className="h-3 w-3 mr-1" /> Find roles</Button></TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-1">
+                      <Button size="sm" variant="outline" onClick={() => setRolesFor(o)}><Users className="h-3 w-3 mr-1" /> Find roles</Button>
+                      <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => setDeleting(o)} aria-label={`Delete ${o.name}`}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -125,24 +145,73 @@ export default function OrganizationsTab({ campaign, personas }: { campaign: Dis
         </CardContent></Card>
       )}
 
-      {findOpen && <FindOrgsSheet campaign={campaign} onClose={() => { setFindOpen(false); refresh(); }} />}
       {addOpen && <AddOrgSheet campaign={campaign} onClose={() => { setAddOpen(false); refresh(); }} />}
       {rolesFor && <FindRolesSheet org={rolesFor} personas={personas} onClose={() => { setRolesFor(null); refresh(); }} />}
+
+      <AlertDialog open={!!deleting} onOpenChange={(o) => !o && setDeleting(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {deleting?.name}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This removes the organisation along with its roles, contacts, and conversations. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteBusy}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={deleteBusy}
+              onClick={async (e) => {
+                e.preventDefault();
+                if (!deleting) return;
+                setDeleteBusy(true);
+                try {
+                  const orgId = deleting.id;
+                  const { data: contacts } = await (supabase as any)
+                    .from('discovery_contacts').select('id').eq('organization_id', orgId);
+                  const contactIds = (contacts || []).map((c: any) => c.id);
+                  if (contactIds.length) {
+                    await (supabase as any).from('discovery_conversations').delete().in('contact_id', contactIds);
+                  }
+                  await (supabase as any).from('discovery_contacts').delete().eq('organization_id', orgId);
+                  await (supabase as any).from('discovery_org_roles').delete().eq('organization_id', orgId);
+                  const { error } = await (supabase as any).from('discovery_organizations').delete().eq('id', orgId);
+                  if (error) throw error;
+                  toast.success(`Deleted ${deleting.name}`);
+                  setDeleting(null);
+                  await refresh();
+                } catch (err: any) {
+                  toast.error(err?.message || 'Failed to delete');
+                } finally {
+                  setDeleteBusy(false);
+                }
+              }}
+            >
+              {deleteBusy && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
 
-function FindOrgsSheet({ campaign, onClose }: { campaign: DiscoveryCampaign; onClose: () => void }) {
+function SearchPanel({ campaign, onAdded, onClose }: { campaign: DiscoveryCampaign; onAdded: () => void | Promise<void>; onClose: () => void }) {
   const [running, setRunning] = useState(false);
   const [candidates, setCandidates] = useState<FindCandidate[]>([]);
   const [picked, setPicked] = useState<Set<number>>(new Set());
   const [saving, setSaving] = useState(false);
+  const [debug, setDebug] = useState<any | null>(null);
+  const [lastAdded, setLastAdded] = useState<number | null>(null);
+  const [hasRun, setHasRun] = useState(false);
 
   const run = async () => {
     setRunning(true);
     setCandidates([]);
+    setDebug(null);
+    setLastAdded(null);
     const { data, error } = await supabase.functions.invoke('discovery-find-orgs', { body: { campaign_id: campaign.id } });
     setRunning(false);
+    setHasRun(true);
     if (error) {
       const detail = (data as any)?.error || (data as any)?.detail;
       toast.error(detail ? `${error.message}: ${detail}` : (error.message || 'Failed to find organisations'));
@@ -152,20 +221,7 @@ function FindOrgsSheet({ campaign, onClose }: { campaign: DiscoveryCampaign; onC
     const cands = (data?.candidates || []) as FindCandidate[];
     setCandidates(cands);
     setPicked(new Set(cands.map((_: any, i: number) => i)));
-    if (cands.length === 0) {
-      const dbg = (data as any)?.debug;
-      console.warn('[find-orgs] no candidates', dbg);
-      let desc = 'Try broadening the campaign target segment or qualifying signals.';
-      if (dbg) {
-        const parts: string[] = [];
-        if (typeof dbg.raw_hit_count === 'number') parts.push(`${dbg.raw_hit_count} raw results`);
-        if (typeof dbg.filtered_hit_count === 'number') parts.push(`${dbg.filtered_hit_count} looked like company sites`);
-        if (typeof dbg.ai_returned === 'number') parts.push(`AI returned ${dbg.ai_returned}`);
-        if (dbg.ai_note) parts.push(`AI note: ${dbg.ai_note}`);
-        if (parts.length) desc = parts.join(' · ');
-      }
-      toast.message('No candidates returned', { description: desc });
-    }
+    setDebug((data as any)?.debug || null);
   };
 
   const save = async () => {
@@ -187,60 +243,101 @@ function FindOrgsSheet({ campaign, onClose }: { campaign: DiscoveryCampaign; onC
       toast.error(error.message);
       return;
     }
-    toast.success(`Added ${rows.length} organisations`);
-    onClose();
+    setLastAdded(rows.length);
+    setCandidates([]);
+    setPicked(new Set());
+    await onAdded();
   };
 
   return (
-    <Sheet open onOpenChange={onClose}>
-      <SheetContent className="w-full sm:max-w-2xl overflow-y-auto">
-        <SheetHeader><SheetTitle>Find organisations (Firecrawl)</SheetTitle></SheetHeader>
-        <div className="space-y-4 mt-4">
-          <p className="text-sm text-muted-foreground">
-            Searches the web for orgs matching this campaign's target segment, ICP signals, and tier criteria.
-            Review the candidates before adding — nothing is saved automatically.
-          </p>
-          <Button onClick={run} disabled={running}>
-            {running ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Sparkles className="h-4 w-4 mr-1" />}
-            {running ? 'Searching…' : 'Run search'}
-          </Button>
+    <Card>
+      <CardContent className="p-4 space-y-3">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-semibold">Find organisations</h3>
+            <p className="text-xs text-muted-foreground">Searches the web for orgs matching this campaign's target segment, ICP signals, and tier criteria. Review candidates before adding.</p>
+          </div>
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onClose} aria-label="Close search"><X className="h-4 w-4" /></Button>
+        </div>
 
-          {candidates.length > 0 && (
-            <>
-              <div className="space-y-2 max-h-[60vh] overflow-y-auto border rounded p-2">
-                {candidates.map((c, i) => (
-                  <div key={i} className="flex gap-2 p-2 rounded hover:bg-muted/50">
-                    <Checkbox checked={picked.has(i)} onCheckedChange={(v) => {
-                      const next = new Set(picked);
-                      v ? next.add(i) : next.delete(i);
-                      setPicked(next);
-                    }} />
-                    <div className="flex-1 text-sm">
-                      <div className="flex items-center gap-2">
-                        <strong>{c.name}</strong>
-                        <Badge variant="outline" className="text-xs">{c.suggested_tier}</Badge>
-                        {c.domain && <a href={`https://${c.domain}`} target="_blank" rel="noreferrer" className="text-xs text-primary hover:underline inline-flex items-center gap-1">{c.domain}<ExternalLink className="h-3 w-3" /></a>}
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-1">{c.rationale}</p>
-                      <div className="flex flex-wrap gap-1 mt-1">{c.matched_signals.map((s) => <Badge key={s} variant="secondary" className="text-[10px]">{s}</Badge>)}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={onClose}>Cancel</Button>
-                <Button onClick={save} disabled={saving || picked.size === 0}>
-                  {saving && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
-                  Add {picked.size} organisation{picked.size === 1 ? '' : 's'}
-                </Button>
-              </div>
-            </>
+        <div className="flex items-center gap-2">
+          <Button onClick={run} disabled={running} size="sm">
+            {running ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Sparkles className="h-4 w-4 mr-1" />}
+            {running ? 'Searching…' : hasRun ? 'Run another search' : 'Run search'}
+          </Button>
+          {lastAdded !== null && (
+            <span className="text-xs text-muted-foreground">Added {lastAdded} organisation{lastAdded === 1 ? '' : 's'}.</span>
           )}
         </div>
-      </SheetContent>
-    </Sheet>
+
+        {candidates.length > 0 && (
+          <>
+            <div className="space-y-2 max-h-[55vh] overflow-y-auto border rounded p-2">
+              {candidates.map((c, i) => (
+                <div key={i} className="flex gap-2 p-2 rounded hover:bg-muted/50">
+                  <Checkbox checked={picked.has(i)} onCheckedChange={(v) => {
+                    const next = new Set(picked);
+                    v ? next.add(i) : next.delete(i);
+                    setPicked(next);
+                  }} />
+                  <div className="flex-1 text-sm">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <strong>{c.name}</strong>
+                      <Badge variant="outline" className="text-xs">{c.suggested_tier}</Badge>
+                      {c.domain && <a href={`https://${c.domain}`} target="_blank" rel="noreferrer" className="text-xs text-primary hover:underline inline-flex items-center gap-1">{c.domain}<ExternalLink className="h-3 w-3" /></a>}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">{c.rationale}</p>
+                    <div className="flex flex-wrap gap-1 mt-1">{c.matched_signals.map((s) => <Badge key={s} variant="secondary" className="text-[10px]">{s}</Badge>)}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" size="sm" onClick={() => { setCandidates([]); setPicked(new Set()); }}>Clear</Button>
+              <Button size="sm" onClick={save} disabled={saving || picked.size === 0}>
+                {saving && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+                Add {picked.size} organisation{picked.size === 1 ? '' : 's'}
+              </Button>
+            </div>
+          </>
+        )}
+
+        {hasRun && !running && candidates.length === 0 && (
+          <div className="rounded border bg-muted/30 p-3 text-xs space-y-1">
+            <div className="font-medium text-sm">No candidates returned</div>
+            <p className="text-muted-foreground">Try broadening the campaign target segment or qualifying signals — behavioural signals tend to surface social posts, not company sites.</p>
+            {debug && (
+              <div className="mt-2 space-y-1 text-muted-foreground">
+                {Array.isArray(debug.query_variants) && (
+                  <div><span className="font-medium text-foreground">Queries tried:</span>
+                    <ul className="list-disc pl-5">{debug.query_variants.map((q: string, i: number) => <li key={i}><code className="text-[11px]">{q}</code></li>)}</ul>
+                  </div>
+                )}
+                <div className="flex gap-3 flex-wrap">
+                  {typeof debug.raw_hit_count === 'number' && <span>Raw hits: <strong>{debug.raw_hit_count}</strong></span>}
+                  {typeof debug.filtered_hit_count === 'number' && <span>Company-like: <strong>{debug.filtered_hit_count}</strong></span>}
+                  {typeof debug.ai_returned === 'number' && <span>AI returned: <strong>{debug.ai_returned}</strong></span>}
+                </div>
+                {debug.ai_note && <div><span className="font-medium text-foreground">AI note:</span> {debug.ai_note}</div>}
+                {Array.isArray(debug.sample_dropped) && debug.sample_dropped.length > 0 && (
+                  <details>
+                    <summary className="cursor-pointer">Sample dropped results ({debug.sample_dropped.length})</summary>
+                    <ul className="list-disc pl-5 mt-1">
+                      {debug.sample_dropped.map((d: any, i: number) => (
+                        <li key={i}><span className="text-foreground">{d.title || '(no title)'}</span> — {d.reason}</li>
+                      ))}
+                    </ul>
+                  </details>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
+
 
 function AddOrgSheet({ campaign, onClose }: { campaign: DiscoveryCampaign; onClose: () => void }) {
   const [name, setName] = useState('');
