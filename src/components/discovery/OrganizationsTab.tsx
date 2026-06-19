@@ -130,6 +130,16 @@ export default function OrganizationsTab({ campaign, personas }: { campaign: Dis
                     </Select>
                   </TableCell>
                   <TableCell className="text-xs">{o.signals_matched.slice(0, 2).join(', ')}{o.signals_matched.length > 2 ? ` +${o.signals_matched.length - 2}` : ''}</TableCell>
+                  <TableCell className="text-xs">
+                    {Array.isArray(o.leadership) && o.leadership.length > 0 ? (
+                      <div className="flex flex-col gap-0.5" title={o.leadership.map((l) => `${l.name}${l.role ? ` · ${l.role}` : ''}`).join('\n')}>
+                        {o.leadership.slice(0, 2).map((l, i) => (
+                          <span key={i}>{l.name}{l.role ? <span className="text-muted-foreground"> · {l.role}</span> : null}</span>
+                        ))}
+                        {o.leadership.length > 2 && <span className="text-muted-foreground">+{o.leadership.length - 2} more</span>}
+                      </div>
+                    ) : '—'}
+                  </TableCell>
                   <TableCell>{roleCounts[o.id]?.roles || 0}</TableCell>
                   <TableCell>{roleCounts[o.id]?.contacts || 0}</TableCell>
                   <TableCell className="text-right">
