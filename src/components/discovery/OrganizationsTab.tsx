@@ -250,6 +250,7 @@ function SearchPanel({ campaign, onAdded, onClose }: { campaign: DiscoveryCampai
       source: 'firecrawl',
       source_url: c.source_url,
       leadership: Array.isArray(c.leadership) ? c.leadership : [],
+      confidence: c.confidence || null,
     }));
     const { error } = await (supabase as any).from('discovery_organizations').insert(rows);
     setSaving(false);
