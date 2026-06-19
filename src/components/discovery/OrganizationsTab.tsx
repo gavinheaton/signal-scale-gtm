@@ -33,6 +33,7 @@ interface FindCandidate {
   matched_signals: string[];
   rationale: string;
   source_url: string;
+  leadership?: { name: string; role?: string | null }[];
 }
 
 interface RoleCandidate {
@@ -105,6 +106,7 @@ export default function OrganizationsTab({ campaign, personas }: { campaign: Dis
                 <TableHead>Tier</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Signals</TableHead>
+                <TableHead>Leaders</TableHead>
                 <TableHead>Roles</TableHead>
                 <TableHead>Contacts</TableHead>
                 <TableHead></TableHead>
@@ -128,6 +130,16 @@ export default function OrganizationsTab({ campaign, personas }: { campaign: Dis
                     </Select>
                   </TableCell>
                   <TableCell className="text-xs">{o.signals_matched.slice(0, 2).join(', ')}{o.signals_matched.length > 2 ? ` +${o.signals_matched.length - 2}` : ''}</TableCell>
+                  <TableCell className="text-xs">
+                    {Array.isArray(o.leadership) && o.leadership.length > 0 ? (
+                      <div className="flex flex-col gap-0.5" title={o.leadership.map((l) => `${l.name}${l.role ? ` · ${l.role}` : ''}`).join('\n')}>
+                        {o.leadership.slice(0, 2).map((l, i) => (
+                          <span key={i}>{l.name}{l.role ? <span className="text-muted-foreground"> · {l.role}</span> : null}</span>
+                        ))}
+                        {o.leadership.length > 2 && <span className="text-muted-foreground">+{o.leadership.length - 2} more</span>}
+                      </div>
+                    ) : '—'}
+                  </TableCell>
                   <TableCell>{roleCounts[o.id]?.roles || 0}</TableCell>
                   <TableCell>{roleCounts[o.id]?.contacts || 0}</TableCell>
                   <TableCell className="text-right">
@@ -236,6 +248,7 @@ function SearchPanel({ campaign, onAdded, onClose }: { campaign: DiscoveryCampai
       fit_notes: c.rationale,
       source: 'firecrawl',
       source_url: c.source_url,
+      leadership: Array.isArray(c.leadership) ? c.leadership : [],
     }));
     const { error } = await (supabase as any).from('discovery_organizations').insert(rows);
     setSaving(false);
@@ -287,6 +300,14 @@ function SearchPanel({ campaign, onAdded, onClose }: { campaign: DiscoveryCampai
                       {c.domain && <a href={`https://${c.domain}`} target="_blank" rel="noreferrer" className="text-xs text-primary hover:underline inline-flex items-center gap-1">{c.domain}<ExternalLink className="h-3 w-3" /></a>}
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">{c.rationale}</p>
+                    {Array.isArray(c.leadership) && c.leadership.length > 0 && (
+                      <div className="mt-1 text-xs">
+                        <span className="text-muted-foreground">Leaders identified: </span>
+                        {c.leadership.map((l, j) => (
+                          <Badge key={j} variant="outline" className="text-[10px] mr-1">{l.name}{l.role ? ` · ${l.role}` : ''}</Badge>
+                        ))}
+                      </div>
+                    )}
                     <div className="flex flex-wrap gap-1 mt-1">{c.matched_signals.map((s) => <Badge key={s} variant="secondary" className="text-[10px]">{s}</Badge>)}</div>
                   </div>
                 </div>
@@ -315,6 +336,9 @@ function SearchPanel({ campaign, onAdded, onClose }: { campaign: DiscoveryCampai
                 )}
                 <div className="flex gap-3 flex-wrap">
                   {typeof debug.raw_hit_count === 'number' && <span>Raw hits: <strong>{debug.raw_hit_count}</strong></span>}
+                  {typeof debug.direct_hits === 'number' && <span>Direct: <strong>{debug.direct_hits}</strong></span>}
+                  {typeof debug.articles_scraped === 'number' && <span>Articles scraped: <strong>{debug.articles_scraped}</strong></span>}
+                  {typeof debug.extracted_from_articles === 'number' && <span>Extracted from articles: <strong>{debug.extracted_from_articles}</strong></span>}
                   {typeof debug.filtered_hit_count === 'number' && <span>Company-like: <strong>{debug.filtered_hit_count}</strong></span>}
                   {typeof debug.ai_returned === 'number' && <span>AI returned: <strong>{debug.ai_returned}</strong></span>}
                 </div>

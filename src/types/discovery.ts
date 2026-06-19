@@ -56,6 +56,11 @@ export interface DiscoveryCampaign {
   updated_at: string;
 }
 
+export interface DiscoveryLeader {
+  name: string;
+  role?: string | null;
+}
+
 export interface DiscoveryOrganization {
   id: string;
   campaign_id: string;
@@ -68,6 +73,7 @@ export interface DiscoveryOrganization {
   source: DiscoveryOrgSource;
   source_url: string | null;
   status: DiscoveryOrgStatus;
+  leadership: DiscoveryLeader[];
   created_at: string;
   updated_at: string;
 }
