@@ -33,6 +33,7 @@ interface FindCandidate {
   matched_signals: string[];
   rationale: string;
   source_url: string;
+  leadership?: { name: string; role?: string | null }[];
 }
 
 interface RoleCandidate {
