@@ -263,8 +263,20 @@ export default function DiscoveryCampaignForm() {
           </div>
 
           <div>
-            <Label>Qualifying signals</Label>
-            <p className="text-xs text-muted-foreground mb-2">Indicators an org is a good fit.</p>
+            <div className="flex items-center justify-between mb-1">
+              <Label>Qualifying signals</Label>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={suggestQualifyingSignals}
+                disabled={suggestingSignals || icpIds.length === 0}
+              >
+                {suggestingSignals ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Sparkles className="h-3 w-3 mr-1" />}
+                Suggest with AI
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground mb-2">Observable, falsifiable indicators an org is a good fit (industry, hiring, funding, tech stack, regulatory posture). Seeded from selected ICPs.</p>
             <TagInput value={qualifying} onChange={setQualifying} placeholder="e.g. APRA-regulated" />
           </div>
 
