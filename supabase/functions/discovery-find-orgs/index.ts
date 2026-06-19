@@ -37,9 +37,22 @@ Deno.serve(async (req) => {
     });
     if (!searchRes.ok) return json({ error: `Firecrawl search failed: ${searchRes.status}` }, 502);
     const searchData = await searchRes.json();
-    const hits = (searchData?.data || searchData?.web?.results || []) as any[];
+    // Normalize Firecrawl response shape across v1/v2:
+    // v2: { data: { web: [...], news: [...], images: [...] } }
+    // v1: { data: [...] }
+    let hits: any[] = [];
+    if (Array.isArray(searchData?.data)) hits = searchData.data;
+    else if (Array.isArray(searchData?.data?.web)) hits = searchData.data.web;
+    else if (Array.isArray(searchData?.web?.results)) hits = searchData.web.results;
+    else if (Array.isArray(searchData?.web)) hits = searchData.web;
+    else if (Array.isArray(searchData?.results)) hits = searchData.results;
 
     if (hits.length === 0) return json({ candidates: [] });
+    const mappedHits = hits.slice(0, 10).map((h: any) => ({
+      title: h.title || h.name || "",
+      url: h.url || h.link || h.sourceURL || h?.metadata?.sourceURL || "",
+      description: h.description || h.snippet || h.summary || (typeof h.markdown === "string" ? h.markdown.slice(0, 400) : ""),
+    }));
 
     // Score with AI
     const ai = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
@@ -54,7 +67,7 @@ Deno.serve(async (req) => {
             qualifying_signals: campaign.qualifying_signals,
             disqualifying_signals: campaign.disqualifying_signals,
             tiers: (campaign.tiers || []).map((t: any) => t.label),
-            search_results: hits.slice(0, 10).map((h) => ({ title: h.title, url: h.url, description: h.description || h.markdown?.slice(0, 400) })),
+            search_results: mappedHits,
           }) },
         ],
         response_format: { type: "json_object" },
