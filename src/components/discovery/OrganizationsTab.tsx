@@ -145,9 +145,52 @@ export default function OrganizationsTab({ campaign, personas }: { campaign: Dis
         </CardContent></Card>
       )}
 
-      {findOpen && <FindOrgsSheet campaign={campaign} onClose={() => { setFindOpen(false); refresh(); }} />}
       {addOpen && <AddOrgSheet campaign={campaign} onClose={() => { setAddOpen(false); refresh(); }} />}
       {rolesFor && <FindRolesSheet org={rolesFor} personas={personas} onClose={() => { setRolesFor(null); refresh(); }} />}
+
+      <AlertDialog open={!!deleting} onOpenChange={(o) => !o && setDeleting(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {deleting?.name}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This removes the organisation along with its roles, contacts, and conversations. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteBusy}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={deleteBusy}
+              onClick={async (e) => {
+                e.preventDefault();
+                if (!deleting) return;
+                setDeleteBusy(true);
+                try {
+                  const orgId = deleting.id;
+                  const { data: contacts } = await (supabase as any)
+                    .from('discovery_contacts').select('id').eq('organization_id', orgId);
+                  const contactIds = (contacts || []).map((c: any) => c.id);
+                  if (contactIds.length) {
+                    await (supabase as any).from('discovery_conversations').delete().in('contact_id', contactIds);
+                  }
+                  await (supabase as any).from('discovery_contacts').delete().eq('organization_id', orgId);
+                  await (supabase as any).from('discovery_org_roles').delete().eq('organization_id', orgId);
+                  const { error } = await (supabase as any).from('discovery_organizations').delete().eq('id', orgId);
+                  if (error) throw error;
+                  toast.success(`Deleted ${deleting.name}`);
+                  setDeleting(null);
+                  await refresh();
+                } catch (err: any) {
+                  toast.error(err?.message || 'Failed to delete');
+                } finally {
+                  setDeleteBusy(false);
+                }
+              }}
+            >
+              {deleteBusy && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
