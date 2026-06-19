@@ -30,16 +30,17 @@ Deno.serve(async (req) => {
       campaign.target_segment || "",
       ...(campaign.qualifying_signals || []).slice(0, 3),
     ].filter(Boolean).join(" ");
+    console.log("[find-orgs] query:", q, "campaign:", campaign_id);
     const searchRes = await fetch("https://api.firecrawl.dev/v2/search", {
       method: "POST",
       headers: { Authorization: `Bearer ${FIRECRAWL_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({ query: q, limit: 10 }),
     });
-    if (!searchRes.ok) return json({ error: `Firecrawl search failed: ${searchRes.status}` }, 502);
-    const searchData = await searchRes.json();
-    // Normalize Firecrawl response shape across v1/v2:
-    // v2: { data: { web: [...], news: [...], images: [...] } }
-    // v1: { data: [...] }
+    const rawText = await searchRes.text();
+    console.log("[find-orgs] firecrawl status:", searchRes.status, "body preview:", rawText.slice(0, 800));
+    if (!searchRes.ok) return json({ error: `Firecrawl search failed: ${searchRes.status}`, detail: rawText.slice(0, 500) }, 502);
+    let searchData: any = {};
+    try { searchData = JSON.parse(rawText); } catch { /* leave empty */ }
     let hits: any[] = [];
     if (Array.isArray(searchData?.data)) hits = searchData.data;
     else if (Array.isArray(searchData?.data?.web)) hits = searchData.data.web;
@@ -47,7 +48,20 @@ Deno.serve(async (req) => {
     else if (Array.isArray(searchData?.web)) hits = searchData.web;
     else if (Array.isArray(searchData?.results)) hits = searchData.results;
 
-    if (hits.length === 0) return json({ candidates: [] });
+    console.log("[find-orgs] hits:", hits.length, "keys:", Object.keys(searchData || {}), "data keys:", Object.keys(searchData?.data || {}));
+
+    if (hits.length === 0) {
+      return json({
+        candidates: [],
+        debug: {
+          query: q,
+          firecrawl_status: searchRes.status,
+          top_level_keys: Object.keys(searchData || {}),
+          data_keys: Object.keys(searchData?.data || {}),
+          body_preview: rawText.slice(0, 400),
+        },
+      });
+    }
     const mappedHits = hits.slice(0, 10).map((h: any) => ({
       title: h.title || h.name || "",
       url: h.url || h.link || h.sourceURL || h?.metadata?.sourceURL || "",
