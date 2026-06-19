@@ -299,6 +299,15 @@ function SearchPanel({ campaign, onAdded, onClose }: { campaign: DiscoveryCampai
                     <div className="flex items-center gap-2 flex-wrap">
                       <strong>{c.name}</strong>
                       <Badge variant="outline" className="text-xs">{c.suggested_tier}</Badge>
+                      {c.confidence && (
+                        <Badge
+                          variant={c.confidence === 'high' ? 'default' : 'secondary'}
+                          className="text-[10px]"
+                          title="AI confidence this matches the ICP"
+                        >
+                          {c.confidence} confidence
+                        </Badge>
+                      )}
                       {c.domain && <a href={`https://${c.domain}`} target="_blank" rel="noreferrer" className="text-xs text-primary hover:underline inline-flex items-center gap-1">{c.domain}<ExternalLink className="h-3 w-3" /></a>}
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">{c.rationale}</p>
