@@ -46,9 +46,11 @@ export default function OrganizationsTab({ campaign, personas }: { campaign: Dis
   const [orgs, setOrgs] = useState<DiscoveryOrganization[]>([]);
   const [roleCounts, setRoleCounts] = useState<Record<string, { roles: number; contacts: number }>>({});
   const [loading, setLoading] = useState(true);
-  const [findOpen, setFindOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [rolesFor, setRolesFor] = useState<DiscoveryOrganization | null>(null);
+  const [deleting, setDeleting] = useState<DiscoveryOrganization | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
 
   const refresh = async () => {
     setLoading(true);
