@@ -845,6 +845,7 @@ export type Database = {
           domain: string | null
           fit_notes: string | null
           id: string
+          leadership: Json
           name: string
           segment: string | null
           signals_matched: string[]
@@ -860,6 +861,7 @@ export type Database = {
           domain?: string | null
           fit_notes?: string | null
           id?: string
+          leadership?: Json
           name: string
           segment?: string | null
           signals_matched?: string[]
@@ -875,6 +877,7 @@ export type Database = {
           domain?: string | null
           fit_notes?: string | null
           id?: string
+          leadership?: Json
           name?: string
           segment?: string | null
           signals_matched?: string[]

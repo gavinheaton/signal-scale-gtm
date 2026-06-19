@@ -1,0 +1,1 @@
+ALTER TABLE public.discovery_organizations ADD COLUMN IF NOT EXISTS leadership jsonb NOT NULL DEFAULT '[]'::jsonb;
