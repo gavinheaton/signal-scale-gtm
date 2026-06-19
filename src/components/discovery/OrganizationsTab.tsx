@@ -34,6 +34,7 @@ interface FindCandidate {
   rationale: string;
   source_url: string;
   leadership?: { name: string; role?: string | null }[];
+  confidence?: 'high' | 'medium' | 'low';
 }
 
 interface RoleCandidate {
