@@ -1,24 +1,34 @@
-## Fix `discovery-find-orgs` 500 error
+# Auto-generate qualifying signals from ICPs
 
-**Root cause:** Firecrawl v2 `/search` returns hits in a shape the function doesn't handle, so `hits` ends up as a non-array (object), and `hits.slice(...)` throws `hits.slice is not a function` (visible in edge function logs).
+## Problem
+In `DiscoveryCampaignForm`, when ICPs are selected, only **disqualifying** signals are seeded (from `anti_icp_signals`). Qualifying signals stay empty, so `discovery-find-orgs` has nothing to bias the search/scoring toward — hence weak qualifying-signal output downstream.
 
-Firecrawl v2 search response shape is typically:
-```
-{ success: true, data: { web: [ { title, url, description }, ... ], news: [...], images: [...] } }
-```
-The current code reads `searchData?.data || searchData?.web?.results`, which on v2 returns the `data` object (not an array).
+## Solution
+Add an AI-powered "Suggest qualifying signals" step that derives crisp, observable buying signals from the selected ICPs' firmographics, psychographics, and buyer roles, plus a deterministic fallback so the field is never empty.
 
-### Fix
+## Changes
 
-In `supabase/functions/discovery-find-orgs/index.ts`, normalize hits across possible Firecrawl response shapes:
+### 1. New edge function `supabase/functions/discovery-suggest-qualifying-signals/index.ts`
+- Input: `{ icp_ids: string[], project_id: string }`
+- Loads those ICPs from the DB (RLS via caller JWT).
+- Calls Lovable AI Gateway (`google/gemini-3-flash-preview`) with a system prompt encoding best practice for B2B qualifying signals:
+  - Observable from public sources (job posts, news, filings, tech stack, funding, regulatory status, hiring patterns, leadership changes, product launches, partnerships, certifications).
+  - Specific and falsifiable (e.g. "APRA-regulated entity", "hiring Head of AI in last 90 days", "Series B+ in fintech", "ISO 27001 certified") — not vague ("innovative", "growing").
+  - Tied to the ICP's firmographics (industry, size, geography), psychographics (priorities, triggers), and buyer roles' pain points.
+  - 6–10 signals, deduped, short noun phrases.
+- Returns `{ signals: string[], rationale: string }`.
+- CORS + JWT validation following existing discovery functions.
 
-- If `searchData.data` is an array → use it (v1 style).
-- Else if `searchData.data.web` is an array → use it (v2 style).
-- Else if `searchData.web` is an array → use it.
-- Else → `[]`.
+### 2. `src/pages/DiscoveryCampaignForm.tsx`
+- Replace the empty-qualifying branch of the seed `useEffect` with a deterministic fallback derived from each ICP's `firmographics` (industry, company_size, geography) and `psychographics` (top triggers/priorities) — so something appears immediately.
+- Add a **"Suggest with AI"** button next to the Qualifying signals `TagInput` label. On click → invoke the new edge function with currently selected `icpIds`, merge returned signals into existing qualifying tags (dedup, preserve user edits), toast on success/failure.
+- Also auto-trigger the AI suggestion once when ICPs are first selected during create (only if qualifying is still empty), behind a guard so it runs at most once per session.
+- Show a small loading state on the button.
 
-Also defensively coerce to array before `.slice`, and map fields tolerantly (`title`, `url`, `description` or `snippet`/`markdown`).
+### 3. `src/components/discovery/OrganizationsTab.tsx`
+- No structural change. The improved qualifying signals feed straight into `discovery-find-orgs`'s existing query construction and AI scoring prompt.
 
-Return `{ candidates: [] }` cleanly when no hits, and keep existing AI scoring path unchanged.
-
-No DB, no UI, no other functions touched.
+## Out of scope
+- No schema changes (signals already stored on `discovery_campaigns.qualifying_signals`).
+- No change to `discovery-find-orgs` logic — it already consumes qualifying signals.
+- No edits to disqualifying-signal seeding.
