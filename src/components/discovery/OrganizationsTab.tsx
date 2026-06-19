@@ -77,9 +77,16 @@ export default function OrganizationsTab({ campaign, personas }: { campaign: Dis
         <p className="text-sm text-muted-foreground">{orgs.length} organisations</p>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={() => setAddOpen(true)}><Plus className="h-4 w-4 mr-1" /> Add manually</Button>
-          <Button size="sm" onClick={() => setFindOpen(true)}><Sparkles className="h-4 w-4 mr-1" /> Find organisations</Button>
+          <Button size="sm" onClick={() => setSearchOpen((v) => !v)}>
+            {searchOpen ? <X className="h-4 w-4 mr-1" /> : <Sparkles className="h-4 w-4 mr-1" />}
+            {searchOpen ? 'Close search' : 'Find organisations'}
+          </Button>
         </div>
       </div>
+
+      {searchOpen && (
+        <SearchPanel campaign={campaign} onAdded={refresh} onClose={() => setSearchOpen(false)} />
+      )}
 
       {loading ? (
         <div className="py-12 text-center text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin inline mr-2" /> Loading…</div>
