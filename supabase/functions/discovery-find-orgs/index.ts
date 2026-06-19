@@ -67,7 +67,7 @@ Deno.serve(async (req) => {
             qualifying_signals: campaign.qualifying_signals,
             disqualifying_signals: campaign.disqualifying_signals,
             tiers: (campaign.tiers || []).map((t: any) => t.label),
-            search_results: hits.slice(0, 10).map((h) => ({ title: h.title, url: h.url, description: h.description || h.markdown?.slice(0, 400) })),
+            search_results: mappedHits,
           }) },
         ],
         response_format: { type: "json_object" },
