@@ -106,6 +106,7 @@ export default function OrganizationsTab({ campaign, personas }: { campaign: Dis
                 <TableHead>Tier</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Signals</TableHead>
+                <TableHead>Leaders</TableHead>
                 <TableHead>Roles</TableHead>
                 <TableHead>Contacts</TableHead>
                 <TableHead></TableHead>
