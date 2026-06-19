@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Plus, X, Loader2, Save } from 'lucide-react';
+import { ArrowLeft, Plus, X, Loader2, Save, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -121,10 +121,52 @@ export default function DiscoveryCampaignForm() {
       else if (anti && typeof anti === 'object') {
         for (const v of Object.values(anti)) if (typeof v === 'string') antiSeeded.push(v);
       }
+      // Deterministic qualifying fallback from firmographics + psychographics
+      const firm = icp.firmographics as any;
+      if (firm && typeof firm === 'object') {
+        if (firm.industry) seeded.push(`Industry: ${String(firm.industry)}`);
+        if (firm.company_size) seeded.push(`Company size: ${String(firm.company_size)}`);
+        if (firm.geography) seeded.push(`Geography: ${String(firm.geography)}`);
+        if (firm.revenue) seeded.push(`Revenue band: ${String(firm.revenue)}`);
+      }
+      const psy = icp.psychographics as any;
+      if (psy && typeof psy === 'object') {
+        for (const key of ['triggers', 'priorities', 'initiatives']) {
+          const v = psy[key];
+          if (Array.isArray(v)) seeded.push(...v.filter((s) => typeof s === 'string').slice(0, 2));
+        }
+      }
     }
     if (antiSeeded.length) setDisqualifying(Array.from(new Set(antiSeeded)));
-    if (seeded.length) setQualifying(Array.from(new Set(seeded)));
+    if (seeded.length) setQualifying(Array.from(new Set(seeded)).slice(0, 8));
   }, [icpIds, icps, isEdit, qualifying.length, disqualifying.length]);
+
+  const [suggestingSignals, setSuggestingSignals] = useState(false);
+  const suggestQualifyingSignals = async () => {
+    if (!currentProject) return;
+    if (icpIds.length === 0) {
+      toast.error('Select at least one ICP first');
+      return;
+    }
+    setSuggestingSignals(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('discovery-suggest-qualifying-signals', {
+        body: { project_id: currentProject.id, icp_ids: icpIds },
+      });
+      if (error) throw error;
+      const incoming: string[] = Array.isArray(data?.signals) ? data.signals : [];
+      if (!incoming.length) {
+        toast.message('No additional signals suggested');
+      } else {
+        setQualifying((prev) => Array.from(new Set([...prev, ...incoming])));
+        toast.success(`Added ${incoming.length} qualifying signal${incoming.length === 1 ? '' : 's'}`);
+      }
+    } catch (e: any) {
+      toast.error(e?.message || 'Failed to suggest signals');
+    } finally {
+      setSuggestingSignals(false);
+    }
+  };
 
   const save = async () => {
     if (!currentProject) return;
@@ -221,8 +263,20 @@ export default function DiscoveryCampaignForm() {
           </div>
 
           <div>
-            <Label>Qualifying signals</Label>
-            <p className="text-xs text-muted-foreground mb-2">Indicators an org is a good fit.</p>
+            <div className="flex items-center justify-between mb-1">
+              <Label>Qualifying signals</Label>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={suggestQualifyingSignals}
+                disabled={suggestingSignals || icpIds.length === 0}
+              >
+                {suggestingSignals ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Sparkles className="h-3 w-3 mr-1" />}
+                Suggest with AI
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground mb-2">Observable, falsifiable indicators an org is a good fit (industry, hiring, funding, tech stack, regulatory posture). Seeded from selected ICPs.</p>
             <TagInput value={qualifying} onChange={setQualifying} placeholder="e.g. APRA-regulated" />
           </div>
 
