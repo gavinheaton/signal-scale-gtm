@@ -34,6 +34,7 @@ interface FindCandidate {
   rationale: string;
   source_url: string;
   leadership?: { name: string; role?: string | null }[];
+  confidence?: 'high' | 'medium' | 'low';
 }
 
 interface RoleCandidate {
@@ -249,6 +250,7 @@ function SearchPanel({ campaign, onAdded, onClose }: { campaign: DiscoveryCampai
       source: 'firecrawl',
       source_url: c.source_url,
       leadership: Array.isArray(c.leadership) ? c.leadership : [],
+      confidence: c.confidence || null,
     }));
     const { error } = await (supabase as any).from('discovery_organizations').insert(rows);
     setSaving(false);
@@ -297,6 +299,15 @@ function SearchPanel({ campaign, onAdded, onClose }: { campaign: DiscoveryCampai
                     <div className="flex items-center gap-2 flex-wrap">
                       <strong>{c.name}</strong>
                       <Badge variant="outline" className="text-xs">{c.suggested_tier}</Badge>
+                      {c.confidence && (
+                        <Badge
+                          variant={c.confidence === 'high' ? 'default' : 'secondary'}
+                          className="text-[10px]"
+                          title="AI confidence this matches the ICP"
+                        >
+                          {c.confidence} confidence
+                        </Badge>
+                      )}
                       {c.domain && <a href={`https://${c.domain}`} target="_blank" rel="noreferrer" className="text-xs text-primary hover:underline inline-flex items-center gap-1">{c.domain}<ExternalLink className="h-3 w-3" /></a>}
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">{c.rationale}</p>
@@ -323,38 +334,65 @@ function SearchPanel({ campaign, onAdded, onClose }: { campaign: DiscoveryCampai
           </>
         )}
 
-        {hasRun && !running && candidates.length === 0 && (
-          <div className="rounded border bg-muted/30 p-3 text-xs space-y-1">
-            <div className="font-medium text-sm">No candidates returned</div>
-            <p className="text-muted-foreground">Try broadening the campaign target segment or qualifying signals — behavioural signals tend to surface social posts, not company sites.</p>
-            {debug && (
-              <div className="mt-2 space-y-1 text-muted-foreground">
-                {Array.isArray(debug.query_variants) && (
-                  <div><span className="font-medium text-foreground">Queries tried:</span>
-                    <ul className="list-disc pl-5">{debug.query_variants.map((q: string, i: number) => <li key={i}><code className="text-[11px]">{q}</code></li>)}</ul>
-                  </div>
-                )}
-                <div className="flex gap-3 flex-wrap">
-                  {typeof debug.raw_hit_count === 'number' && <span>Raw hits: <strong>{debug.raw_hit_count}</strong></span>}
-                  {typeof debug.direct_hits === 'number' && <span>Direct: <strong>{debug.direct_hits}</strong></span>}
-                  {typeof debug.articles_scraped === 'number' && <span>Articles scraped: <strong>{debug.articles_scraped}</strong></span>}
-                  {typeof debug.extracted_from_articles === 'number' && <span>Extracted from articles: <strong>{debug.extracted_from_articles}</strong></span>}
-                  {typeof debug.filtered_hit_count === 'number' && <span>Company-like: <strong>{debug.filtered_hit_count}</strong></span>}
-                  {typeof debug.ai_returned === 'number' && <span>AI returned: <strong>{debug.ai_returned}</strong></span>}
-                </div>
-                {debug.ai_note && <div><span className="font-medium text-foreground">AI note:</span> {debug.ai_note}</div>}
-                {Array.isArray(debug.sample_dropped) && debug.sample_dropped.length > 0 && (
-                  <details>
-                    <summary className="cursor-pointer">Sample dropped results ({debug.sample_dropped.length})</summary>
-                    <ul className="list-disc pl-5 mt-1">
-                      {debug.sample_dropped.map((d: any, i: number) => (
-                        <li key={i}><span className="text-foreground">{d.title || '(no title)'}</span> — {d.reason}</li>
-                      ))}
-                    </ul>
-                  </details>
-                )}
-              </div>
+        {hasRun && !running && debug && (
+          <div className="rounded border bg-muted/30 p-3 text-xs space-y-2">
+            <div className="font-medium text-sm">
+              {candidates.length === 0 ? 'No candidates returned' : 'Search diagnostics'}
+            </div>
+            {candidates.length === 0 && (
+              <p className="text-muted-foreground">No time filter is applied to the search. If results are sparse, broaden the target segment or qualifying signals.</p>
             )}
+            <div className="space-y-1 text-muted-foreground">
+              {Array.isArray(debug.query_variants) && (
+                <div><span className="font-medium text-foreground">Queries tried:</span>
+                  <ul className="list-disc pl-5">{debug.query_variants.map((q: string, i: number) => <li key={i}><code className="text-[11px]">{q}</code></li>)}</ul>
+                </div>
+              )}
+              <div className="flex gap-3 flex-wrap">
+                {typeof debug.raw_hit_count === 'number' && <span>Raw hits: <strong>{debug.raw_hit_count}</strong></span>}
+                {typeof debug.direct_hits === 'number' && <span>Direct: <strong>{debug.direct_hits}</strong></span>}
+                {typeof debug.article_sources === 'number' && <span>Article sources: <strong>{debug.article_sources}</strong></span>}
+                {typeof debug.articles_scraped === 'number' && <span>Articles scraped: <strong>{debug.articles_scraped}</strong></span>}
+                {typeof debug.extracted_from_articles === 'number' && <span>Extracted from articles: <strong>{debug.extracted_from_articles}</strong></span>}
+                {typeof debug.merged_candidates === 'number' && <span>Merged: <strong>{debug.merged_candidates}</strong></span>}
+                {typeof debug.ai_returned === 'number' && <span>AI kept: <strong>{debug.ai_returned}</strong></span>}
+              </div>
+              {debug.ai_note && <div><span className="font-medium text-foreground">AI note:</span> {debug.ai_note}</div>}
+              {Array.isArray(debug.scrape_outcomes) && debug.scrape_outcomes.length > 0 && (
+                <details>
+                  <summary className="cursor-pointer">Scrape outcomes ({debug.scrape_outcomes.filter((s: any) => s.kept).length}/{debug.scrape_outcomes.length} kept)</summary>
+                  <ul className="list-disc pl-5 mt-1">
+                    {debug.scrape_outcomes.map((s: any, i: number) => (
+                      <li key={i}>
+                        <span className={s.kept ? 'text-foreground' : ''}>{s.title || s.url}</span>
+                        {' — '}HTTP {s.http_status}, {s.markdown_length} chars, {s.attempts} attempt{s.attempts === 1 ? '' : 's'} {s.kept ? '✓ kept' : '✗ dropped'}
+                        {s.error && <span className="text-destructive"> ({s.error})</span>}
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              )}
+              {Array.isArray(debug.ai_dropped) && debug.ai_dropped.length > 0 && (
+                <details>
+                  <summary className="cursor-pointer">AI rejected ({debug.ai_dropped.length})</summary>
+                  <ul className="list-disc pl-5 mt-1">
+                    {debug.ai_dropped.map((d: any, i: number) => (
+                      <li key={i}><span className="text-foreground">{d.name}</span> — {d.reason}</li>
+                    ))}
+                  </ul>
+                </details>
+              )}
+              {Array.isArray(debug.sample_dropped) && debug.sample_dropped.length > 0 && (
+                <details>
+                  <summary className="cursor-pointer">Filtered search results ({debug.sample_dropped.length})</summary>
+                  <ul className="list-disc pl-5 mt-1">
+                    {debug.sample_dropped.map((d: any, i: number) => (
+                      <li key={i}><span className="text-foreground">{d.title || '(no title)'}</span> — {d.reason}</li>
+                    ))}
+                  </ul>
+                </details>
+              )}
+            </div>
           </div>
         )}
       </CardContent>

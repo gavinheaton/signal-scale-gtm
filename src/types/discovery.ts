@@ -74,6 +74,7 @@ export interface DiscoveryOrganization {
   source_url: string | null;
   status: DiscoveryOrgStatus;
   leadership: DiscoveryLeader[];
+  confidence?: 'high' | 'medium' | 'low' | null;
   created_at: string;
   updated_at: string;
 }
