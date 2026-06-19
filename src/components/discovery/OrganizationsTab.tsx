@@ -155,9 +155,16 @@ function FindOrgsSheet({ campaign, onClose }: { campaign: DiscoveryCampaign; onC
     if (cands.length === 0) {
       const dbg = (data as any)?.debug;
       console.warn('[find-orgs] no candidates', dbg);
-      toast.message('No candidates returned', {
-        description: dbg ? `query: "${dbg.query}" · firecrawl ${dbg.firecrawl_status} · keys: ${(dbg.top_level_keys || []).join(',')}` : 'Try broadening the campaign target segment or qualifying signals.',
-      });
+      let desc = 'Try broadening the campaign target segment or qualifying signals.';
+      if (dbg) {
+        const parts: string[] = [];
+        if (typeof dbg.raw_hit_count === 'number') parts.push(`${dbg.raw_hit_count} raw results`);
+        if (typeof dbg.filtered_hit_count === 'number') parts.push(`${dbg.filtered_hit_count} looked like company sites`);
+        if (typeof dbg.ai_returned === 'number') parts.push(`AI returned ${dbg.ai_returned}`);
+        if (dbg.ai_note) parts.push(`AI note: ${dbg.ai_note}`);
+        if (parts.length) desc = parts.join(' · ');
+      }
+      toast.message('No candidates returned', { description: desc });
     }
   };
 
