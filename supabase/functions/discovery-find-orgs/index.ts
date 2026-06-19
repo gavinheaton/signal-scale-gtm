@@ -273,36 +273,47 @@ HARD RULES:
     const merged = Array.from(byKey.values());
     console.log("[find-orgs] merged candidates:", merged.length);
 
+    const baseDebug = {
+      query_variants: variants,
+      raw_hit_count: rawHits.length,
+      direct_hits: directCandidates.length,
+      article_sources: articleSources.length,
+      articles_scraped: scrapedArticles.length,
+      extracted_from_articles: extracted.length,
+      merged_candidates: merged.length,
+      scrape_outcomes: scrapeOutcomes,
+      sample_dropped: dropped.slice(0, 5),
+    };
+
     if (merged.length === 0) {
-      return json({
-        candidates: [],
-        debug: {
-          query_variants: variants,
-          raw_hit_count: rawHits.length,
-          direct_hits: directCandidates.length,
-          articles_scraped: scrapedArticles.length,
-          extracted_from_articles: extracted.length,
-          sample_dropped: dropped.slice(0, 5),
-        },
-      });
+      return json({ candidates: [], debug: baseDebug });
     }
 
-    // ---- Stage 3: AI scoring against ICP ----
+    // ---- Stage 3: AI scoring against ICP (loose: default-include) ----
     const ai2 = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         model: "google/gemini-2.5-flash",
         messages: [
-          { role: "system", content: `You score organisations against an Ideal Customer Profile.
-Return ONLY JSON: {"candidates":[{"name":string,"domain":string,"suggested_tier":string,"matched_signals":string[],"rationale":string,"source_url":string,"leadership":[{"name":string,"role":string|null}]}],"note":string}
+          { role: "system", content: `You score candidate organisations against an Ideal Customer Profile.
 
-RULES:
-- Preserve names and domains from the input candidates verbatim. Do not invent new orgs.
-- Preserve the "leadership" array unchanged for each candidate you include.
-- "matched_signals" is a subset of qualifying_signals. "suggested_tier" must be one of the provided tier labels.
-- Skip orgs clearly matching a disqualifying_signal.
-- If none fit, return {"candidates": [], "note": "<reason>"}.` },
+Return ONLY JSON:
+{
+  "candidates":[{"name":string,"domain":string,"suggested_tier":string,"matched_signals":string[],"rationale":string,"source_url":string,"leadership":[{"name":string,"role":string|null}],"confidence":"high"|"medium"|"low"}],
+  "dropped":[{"name":string,"reason":string}],
+  "note":string
+}
+
+RULES — default to INCLUDE, not exclude:
+- Preserve names, domains, source_url and leadership from input candidates verbatim. Do not invent organisations.
+- INCLUDE any candidate whose name or domain plausibly fits the target_segment, even if no qualifying_signals are visible in the input. Set "matched_signals": [] in that case.
+- Treat qualifying_signals as scoring HINTS, not gates. Lack of evidence is not a reason to drop.
+- Only put a candidate in "dropped" when it CLEARLY matches a disqualifying_signal, is obviously the wrong industry/geography for the target_segment, or is not a real organisation (e.g. a job board, an article aggregator).
+- "confidence": "high" if the name/domain plus signals strongly match the segment; "medium" if it fits the segment but signals are unverified; "low" if it's a plausible guess only.
+- "suggested_tier" must be one of the provided tier labels (pick the closest fit; if unsure, pick the first tier).
+- For every dropped candidate, give a one-sentence reason.
+- Every input candidate must appear in either "candidates" or "dropped".` },
           { role: "user", content: JSON.stringify({
             target_segment: campaign.target_segment,
             qualifying_signals: allSignals,
@@ -317,13 +328,14 @@ RULES:
     if (!ai2.ok) {
       const t = await ai2.text();
       console.error("[find-orgs] scoring AI failed", ai2.status, t.slice(0, 400));
-      return json({ error: `AI scoring failed: ${ai2.status}` }, 502);
+      return json({ error: `AI scoring failed: ${ai2.status}`, debug: baseDebug }, 502);
     }
     const aiData = await ai2.json();
     const text = aiData?.choices?.[0]?.message?.content as string;
     let parsed: any = {};
     try { parsed = JSON.parse(text); } catch { /* fallback */ }
     const raw = Array.isArray(parsed.candidates) ? parsed.candidates : [];
+    const aiDropped = Array.isArray(parsed.dropped) ? parsed.dropped : [];
 
     const nameSet = new Set(merged.map((m) => m.name.toLowerCase()));
     const validated = raw
@@ -331,34 +343,22 @@ RULES:
       .map((c: any) => ({
         name: c.name.trim(),
         domain: typeof c.domain === "string" ? c.domain.trim() : "",
-        suggested_tier: c.suggested_tier || "",
+        suggested_tier: c.suggested_tier || ((campaign.tiers || [])[0]?.label ?? ""),
         matched_signals: Array.isArray(c.matched_signals) ? c.matched_signals : [],
         rationale: c.rationale || "",
         source_url: c.source_url || "",
         leadership: Array.isArray(c.leadership) ? c.leadership : [],
+        confidence: ["high", "medium", "low"].includes(c.confidence) ? c.confidence : "medium",
       }));
 
     return json({
       candidates: validated,
-      ...(validated.length === 0 ? {
-        debug: {
-          query_variants: variants,
-          raw_hit_count: rawHits.length,
-          direct_hits: directCandidates.length,
-          articles_scraped: scrapedArticles.length,
-          extracted_from_articles: extracted.length,
-          merged_candidates: merged.length,
-          ai_returned: raw.length,
-          ai_note: parsed.note || null,
-          sample_dropped: dropped.slice(0, 5),
-        },
-      } : {
-        stats: {
-          articles_scraped: scrapedArticles.length,
-          extracted_from_articles: extracted.length,
-          direct_hits: directCandidates.length,
-        },
-      }),
+      debug: {
+        ...baseDebug,
+        ai_returned: raw.length,
+        ai_note: parsed.note || null,
+        ai_dropped: aiDropped,
+      },
     });
   } catch (e: any) {
     console.error(e);
