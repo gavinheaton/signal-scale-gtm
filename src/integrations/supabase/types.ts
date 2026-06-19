@@ -841,6 +841,7 @@ export type Database = {
       discovery_organizations: {
         Row: {
           campaign_id: string
+          confidence: string | null
           created_at: string
           domain: string | null
           fit_notes: string | null
@@ -857,6 +858,7 @@ export type Database = {
         }
         Insert: {
           campaign_id: string
+          confidence?: string | null
           created_at?: string
           domain?: string | null
           fit_notes?: string | null
@@ -873,6 +875,7 @@ export type Database = {
         }
         Update: {
           campaign_id?: string
+          confidence?: string | null
           created_at?: string
           domain?: string | null
           fit_notes?: string | null
