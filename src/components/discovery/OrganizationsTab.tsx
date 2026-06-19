@@ -300,6 +300,14 @@ function SearchPanel({ campaign, onAdded, onClose }: { campaign: DiscoveryCampai
                       {c.domain && <a href={`https://${c.domain}`} target="_blank" rel="noreferrer" className="text-xs text-primary hover:underline inline-flex items-center gap-1">{c.domain}<ExternalLink className="h-3 w-3" /></a>}
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">{c.rationale}</p>
+                    {Array.isArray(c.leadership) && c.leadership.length > 0 && (
+                      <div className="mt-1 text-xs">
+                        <span className="text-muted-foreground">Leaders identified: </span>
+                        {c.leadership.map((l, j) => (
+                          <Badge key={j} variant="outline" className="text-[10px] mr-1">{l.name}{l.role ? ` · ${l.role}` : ''}</Badge>
+                        ))}
+                      </div>
+                    )}
                     <div className="flex flex-wrap gap-1 mt-1">{c.matched_signals.map((s) => <Badge key={s} variant="secondary" className="text-[10px]">{s}</Badge>)}</div>
                   </div>
                 </div>
