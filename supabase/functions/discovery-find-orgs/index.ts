@@ -1,4 +1,6 @@
-// Find organisations matching a discovery campaign's ICP + signals using Firecrawl + Lovable AI.
+// Find organisations matching a discovery campaign's ICP + signals.
+// Two-stage: (1) Firecrawl search, (2) scrape article-like results to extract
+// real company names + named leadership, then AI-score the merged candidate set.
 import { corsHeaders } from "../_shared/cors.ts";
 import { requireUser, serviceClient, assertProjectAccess } from "../_shared/auth.ts";
 
@@ -7,16 +9,26 @@ const FIRECRAWL_API_KEY = Deno.env.get("FIRECRAWL_API_KEY")!;
 
 interface Body { campaign_id: string }
 
-// Hosts that almost never represent a company we want to target.
-const BLOCKED_HOSTS = new Set([
+// Pure social/video noise — drop entirely.
+const HARD_BLOCK_HOSTS = new Set([
   "instagram.com", "facebook.com", "tiktok.com", "youtube.com", "youtu.be",
-  "reddit.com", "twitter.com", "x.com", "medium.com", "substack.com",
-  "pinterest.com", "quora.com", "wikipedia.org", "amazon.com", "ebay.com",
-  "vimeo.com", "spotify.com", "soundcloud.com",
+  "twitter.com", "x.com", "pinterest.com", "vimeo.com", "spotify.com", "soundcloud.com",
 ]);
-const BLOCKED_PATH_FRAGMENTS = ["/reel/", "/reels/", "/shorts/", "/watch", "/video/", "/posts/", "/status/"];
+const HARD_BLOCK_PATHS = ["/reel/", "/reels/", "/shorts/", "/watch", "/status/"];
 
-// Multi-label TLDs we should keep two labels of (treat as suffix).
+// Hosts that are usually article/listicle sources — keep, scrape in stage 2.
+const ARTICLE_HOSTS = new Set([
+  "medium.com", "substack.com", "linkedin.com", "reddit.com", "quora.com",
+  "forbes.com", "techcrunch.com", "businessinsider.com", "afr.com", "smh.com.au",
+  "theaustralian.com.au", "startupdaily.net", "fintechmagazine.com", "fintechnews.com.au",
+  "crunchbase.com", "owler.com", "pitchbook.com", "g2.com", "capterra.com",
+  "builtin.com", "wikipedia.org", "businesswire.com", "prnewswire.com",
+]);
+const ARTICLE_PATH_HINTS = [
+  "/best-", "/top-", "/top_", "/list", "/companies/", "/startup", "/founders",
+  "/leaders", "/post/", "/posts/", "/article/", "/blog/", "/news/", "/202",
+];
+
 const COMPOUND_TLDS = new Set([
   "co.uk", "com.au", "co.nz", "co.za", "com.br", "co.in", "co.jp", "com.sg", "com.hk",
 ]);
@@ -37,8 +49,17 @@ function cleanTitle(title: string): string {
     .trim();
 }
 
-const FIRMOGRAPHIC_REGEX = /(industry|sector|size|employees|revenue|geograph|region|country|australia|asia|europe|emea|apac|amer|uk|usa|united states|canada|nz|new zealand|series\s*[a-d]|pre-?series|seed|ipo|listed|asx|nasdaq|nyse|public|private|enterprise|smb|smbs|mid[- ]market|startup|scaleup|regulated|apra|asic|fca|sec|iso\s*\d|soc\s*2|gdpr|hipaa|b[- ]corp|certified|fortune\s*\d+|revenue|\$\d|m\+|b\+|million|billion)/i;
-function isFirmographic(s: string): boolean { return FIRMOGRAPHIC_REGEX.test(s); }
+const FIRMOGRAPHIC_REGEX = /(industry|sector|size|employees|revenue|geograph|region|country|australia|asia|europe|emea|apac|amer|uk|usa|united states|canada|nz|new zealand|series\s*[a-d]|pre-?series|seed|ipo|listed|asx|nasdaq|nyse|public|private|enterprise|smb|smbs|mid[- ]market|startup|scaleup|regulated|apra|asic|fca|sec|iso\s*\d|soc\s*2|gdpr|hipaa|b[- ]corp|certified|fortune\s*\d+|\$\d|m\+|b\+|million|billion)/i;
+const isFirmographic = (s: string) => FIRMOGRAPHIC_REGEX.test(s);
+
+interface Hit { title: string; url: string; description: string; apex: string; host: string; path: string }
+interface ExtractedCandidate {
+  name: string;
+  domain: string | null;
+  source_article_url: string;
+  mention_context?: string;
+  leadership?: { name: string; role?: string | null }[];
+}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -55,23 +76,21 @@ Deno.serve(async (req) => {
     if (error || !campaign) return json({ error: "Campaign not found" }, 404);
     try { await assertProjectAccess(sb, user.id, campaign.project_id); }
     catch (e: any) { return json({ error: e?.message || "Forbidden" }, 403); }
-
     if (!FIRECRAWL_API_KEY) return json({ error: "FIRECRAWL_API_KEY not configured" }, 500);
 
     const allSignals: string[] = Array.isArray(campaign.qualifying_signals) ? campaign.qualifying_signals : [];
     const firmographic = allSignals.filter(isFirmographic).slice(0, 3);
     const segment = (campaign.target_segment || "").trim();
-
-    // Build up to 3 targeted query variants, all weighted toward company sites.
     const baseSegment = segment || firmographic.join(" ");
     const variants = Array.from(new Set([
       [baseSegment, ...firmographic, "companies"].filter(Boolean).join(" "),
       [baseSegment, "companies list directory"].filter(Boolean).join(" "),
-      firmographic[0] ? [baseSegment, firmographic[0], "company"].filter(Boolean).join(" ") : "",
+      firmographic[0] ? [baseSegment, firmographic[0], "founders leadership"].filter(Boolean).join(" ") : "",
     ].filter(Boolean))).slice(0, 3).map((s) => s.slice(0, 140));
 
     console.log("[find-orgs] campaign:", campaign_id, "variants:", variants);
 
+    // ---- Stage 1: search ----
     const searches = await Promise.all(variants.map(async (q) => {
       try {
         const r = await fetch("https://api.firecrawl.dev/v2/search", {
@@ -93,14 +112,14 @@ Deno.serve(async (req) => {
         return { q, status: 0, hits: [] };
       }
     }));
-
     const rawHits: any[] = searches.flatMap((s) => s.hits);
-    console.log("[find-orgs] raw hits:", rawHits.length);
 
-    // Normalize + filter
+    // ---- Classify hits ----
     const seen = new Set<string>();
     const dropped: { title: string; reason: string }[] = [];
-    const filtered: { title: string; url: string; description: string; apex: string }[] = [];
+    const directCandidates: Hit[] = [];
+    const articleSources: Hit[] = [];
+
     for (const h of rawHits) {
       const url = h.url || h.link || h.sourceURL || h?.metadata?.sourceURL || "";
       const title = cleanTitle(h.title || h.name || "");
@@ -110,89 +129,201 @@ Deno.serve(async (req) => {
       try { const u = new URL(url); host = u.hostname.toLowerCase().replace(/^www\./, ""); path = u.pathname.toLowerCase(); }
       catch { dropped.push({ title, reason: "bad-url" }); continue; }
       const apex = apexDomain(host);
-      // LinkedIn company pages are OK; LinkedIn posts/profiles are not.
-      if (host.endsWith("linkedin.com")) {
-        if (!path.startsWith("/company/") && !path.startsWith("/school/")) {
-          dropped.push({ title, reason: "linkedin-non-company" }); continue;
-        }
-      } else if (BLOCKED_HOSTS.has(apex)) {
-        dropped.push({ title, reason: `blocked-host:${apex}` }); continue;
-      }
-      if (BLOCKED_PATH_FRAGMENTS.some((p) => path.includes(p))) {
-        dropped.push({ title, reason: "blocked-path" }); continue;
-      }
-      const key = apex + (host.endsWith("linkedin.com") ? path : "");
+
+      if (HARD_BLOCK_HOSTS.has(apex)) { dropped.push({ title, reason: `blocked-host:${apex}` }); continue; }
+      if (HARD_BLOCK_PATHS.some((p) => path.includes(p))) { dropped.push({ title, reason: "blocked-path" }); continue; }
+
+      const key = apex + path;
       if (seen.has(key)) continue;
       seen.add(key);
-      filtered.push({ title, url, description, apex });
-    }
-    console.log("[find-orgs] filtered hits:", filtered.length, "dropped:", dropped.length);
 
-    if (filtered.length === 0) {
+      const hit: Hit = { title, url, description, apex, host, path };
+      const isLinkedinCompany = host.endsWith("linkedin.com") && (path.startsWith("/company/") || path.startsWith("/school/"));
+      const isArticleHost = ARTICLE_HOSTS.has(apex) && !isLinkedinCompany;
+      const looksLikeArticle = isArticleHost || ARTICLE_PATH_HINTS.some((p) => path.includes(p));
+
+      if (isLinkedinCompany) directCandidates.push(hit);
+      else if (looksLikeArticle) articleSources.push(hit);
+      else directCandidates.push(hit);
+    }
+
+    console.log("[find-orgs] direct:", directCandidates.length, "articles:", articleSources.length, "dropped:", dropped.length);
+
+    // ---- Stage 2: scrape up to 5 article sources ----
+    const toScrape = articleSources.slice(0, 5);
+    const scrapes = await Promise.all(toScrape.map(async (a) => {
+      try {
+        const r = await fetch("https://api.firecrawl.dev/v2/scrape", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${FIRECRAWL_API_KEY}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ url: a.url, formats: ["markdown"], onlyMainContent: true }),
+        });
+        const txt = await r.text();
+        let d: any = {}; try { d = JSON.parse(txt); } catch {}
+        const md = d?.markdown || d?.data?.markdown || "";
+        return { url: a.url, title: a.title, markdown: typeof md === "string" ? md.slice(0, 6000) : "" };
+      } catch (e: any) {
+        console.error("[find-orgs] scrape error", a.url, e?.message);
+        return { url: a.url, title: a.title, markdown: "" };
+      }
+    }));
+    const scrapedArticles = scrapes.filter((s) => s.markdown && s.markdown.length > 200);
+    console.log("[find-orgs] scraped articles:", scrapedArticles.length);
+
+    // ---- Stage 2 extraction (AI) ----
+    let extracted: ExtractedCandidate[] = [];
+    if (scrapedArticles.length > 0) {
+      const ai = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "google/gemini-2.5-flash",
+          messages: [
+            { role: "system", content: `You extract real ORGANISATIONS and their NAMED LEADERS from web article text.
+
+Return ONLY JSON: {"organisations":[{"name":string,"domain":string|null,"source_article_url":string,"mention_context":string,"leadership":[{"name":string,"role":string|null}]}]}
+
+HARD RULES:
+- Only include organisations that plausibly fit the supplied target_segment + qualifying_signals.
+- Skip orgs that clearly match a disqualifying_signal.
+- "name" must be a real company name copied verbatim from the article text. Strip legal suffixes (Pty Ltd, Inc., LLC) unless essential.
+- "domain" is your best-guess apex (e.g. "stripe.com") if the article cites it; otherwise null. Never invent.
+- "leadership" entries MUST be people explicitly named in the article in a leadership role (CEO, Founder, Co-founder, CTO, CFO, COO, MD, President, Chair, VP). NEVER fabricate names. If no leaders named, return [].
+- "mention_context" is a <=200 char quote from the article that shows the org being discussed.
+- Dedupe within a single article.
+- If an article contains no fitting organisations, omit it.` },
+            { role: "user", content: JSON.stringify({
+              target_segment: campaign.target_segment,
+              qualifying_signals: allSignals,
+              disqualifying_signals: campaign.disqualifying_signals,
+              articles: scrapedArticles,
+            }) },
+          ],
+          response_format: { type: "json_object" },
+        }),
+      });
+      if (ai.ok) {
+        const data = await ai.json();
+        const text = data?.choices?.[0]?.message?.content as string;
+        let parsed: any = {};
+        try { parsed = JSON.parse(text); } catch { /* ignore */ }
+        if (Array.isArray(parsed.organisations)) {
+          // Validate leadership names actually appear in the source article markdown
+          const articleByUrl = new Map(scrapedArticles.map((a) => [a.url, a.markdown.toLowerCase()]));
+          extracted = parsed.organisations
+            .filter((o: any) => o && typeof o.name === "string" && o.name.trim())
+            .map((o: any) => {
+              const src = articleByUrl.get(o.source_article_url) || "";
+              const leadership = Array.isArray(o.leadership)
+                ? o.leadership.filter((l: any) =>
+                    l && typeof l.name === "string" && l.name.trim() && src.includes(l.name.toLowerCase())
+                  ).map((l: any) => ({ name: l.name.trim(), role: l.role || null }))
+                : [];
+              return {
+                name: o.name.trim(),
+                domain: typeof o.domain === "string" && o.domain.trim() ? o.domain.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").split("/")[0] : null,
+                source_article_url: o.source_article_url,
+                mention_context: typeof o.mention_context === "string" ? o.mention_context.slice(0, 240) : "",
+                leadership,
+              } as ExtractedCandidate;
+            });
+        }
+      } else {
+        const t = await ai.text();
+        console.error("[find-orgs] extraction AI failed", ai.status, t.slice(0, 400));
+      }
+    }
+    console.log("[find-orgs] extracted from articles:", extracted.length);
+
+    // ---- Merge direct + extracted ----
+    type Merged = {
+      name: string; domain: string | null; source_url: string;
+      mention_context?: string; leadership: { name: string; role?: string | null }[];
+    };
+    const byKey = new Map<string, Merged>();
+    const keyOf = (name: string, domain: string | null) => (domain || name).toLowerCase();
+    for (const d of directCandidates) {
+      const k = keyOf(d.title || d.apex, d.apex);
+      if (!byKey.has(k)) byKey.set(k, { name: d.title || d.apex, domain: d.apex, source_url: d.url, leadership: [] });
+    }
+    for (const e of extracted) {
+      const k = keyOf(e.name, e.domain);
+      const existing = byKey.get(k);
+      if (existing) {
+        if (e.leadership && e.leadership.length) existing.leadership = e.leadership;
+        if (!existing.mention_context && e.mention_context) existing.mention_context = e.mention_context;
+        if (!existing.domain && e.domain) existing.domain = e.domain;
+      } else {
+        byKey.set(k, { name: e.name, domain: e.domain, source_url: e.source_article_url, mention_context: e.mention_context, leadership: e.leadership || [] });
+      }
+    }
+    const merged = Array.from(byKey.values());
+    console.log("[find-orgs] merged candidates:", merged.length);
+
+    if (merged.length === 0) {
       return json({
         candidates: [],
         debug: {
           query_variants: variants,
           raw_hit_count: rawHits.length,
-          filtered_hit_count: 0,
+          direct_hits: directCandidates.length,
+          articles_scraped: scrapedArticles.length,
+          extracted_from_articles: extracted.length,
           sample_dropped: dropped.slice(0, 5),
         },
       });
     }
 
-    const apexSet = new Set(filtered.map((h) => h.apex));
-
-    // Score with AI - strict org extraction
-    const ai = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    // ---- Stage 3: AI scoring against ICP ----
+    const ai2 = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         model: "google/gemini-2.5-flash",
         messages: [
-          { role: "system", content: `You identify real organisations from web search results and score them against an Ideal Customer Profile.
+          { role: "system", content: `You score organisations against an Ideal Customer Profile.
+Return ONLY JSON: {"candidates":[{"name":string,"domain":string,"suggested_tier":string,"matched_signals":string[],"rationale":string,"source_url":string,"leadership":[{"name":string,"role":string|null}]}],"note":string}
 
-Return ONLY JSON: {"candidates":[{"name":string,"domain":string,"suggested_tier":string,"matched_signals":string[],"rationale":string,"source_url":string}], "note": string}
-
-HARD RULES:
-- "name" must be a real company / organisation name (not a person, not a blog post title, not a generic phrase). Strip suffixes like "Pty Ltd", "Inc.", "LLC" unless they are essential to the name.
-- "domain" MUST be one of the apex domains in the supplied hits list. Do not invent domains.
-- If a hit is clearly NOT a company (a listicle, news article, social post, person's profile), use it as research about a company but do not turn the hit itself into a candidate unless you can identify the underlying company and its domain appears in another hit.
-- Merge multiple hits sharing the same apex into one candidate.
-- "matched_signals" must be a subset of qualifying_signals. "suggested_tier" must be one of the supplied tier labels.
-- Skip any org clearly matching a disqualifying_signal.
-- If none of the hits represent identifiable real organisations matching the ICP, return {"candidates": [], "note": "<one-sentence reason>"}.` },
+RULES:
+- Preserve names and domains from the input candidates verbatim. Do not invent new orgs.
+- Preserve the "leadership" array unchanged for each candidate you include.
+- "matched_signals" is a subset of qualifying_signals. "suggested_tier" must be one of the provided tier labels.
+- Skip orgs clearly matching a disqualifying_signal.
+- If none fit, return {"candidates": [], "note": "<reason>"}.` },
           { role: "user", content: JSON.stringify({
             target_segment: campaign.target_segment,
             qualifying_signals: allSignals,
             disqualifying_signals: campaign.disqualifying_signals,
             tiers: (campaign.tiers || []).map((t: any) => t.label),
-            allowed_apex_domains: Array.from(apexSet),
-            hits: filtered,
+            input_candidates: merged,
           }) },
         ],
         response_format: { type: "json_object" },
       }),
     });
-    if (!ai.ok) {
-      const t = await ai.text();
-      console.error("[find-orgs] AI failed", ai.status, t.slice(0, 400));
-      return json({ error: `AI scoring failed: ${ai.status}` }, 502);
+    if (!ai2.ok) {
+      const t = await ai2.text();
+      console.error("[find-orgs] scoring AI failed", ai2.status, t.slice(0, 400));
+      return json({ error: `AI scoring failed: ${ai2.status}` }, 502);
     }
-    const aiData = await ai.json();
+    const aiData = await ai2.json();
     const text = aiData?.choices?.[0]?.message?.content as string;
     let parsed: any = {};
     try { parsed = JSON.parse(text); } catch { /* fallback */ }
     const raw = Array.isArray(parsed.candidates) ? parsed.candidates : [];
 
-    // Server-side validation: name non-empty, domain in apexSet
-    const validated = raw.filter((c: any) => {
-      if (!c || typeof c.name !== "string" || !c.name.trim()) return false;
-      if (typeof c.domain !== "string" || !c.domain.trim()) return false;
-      const dApex = apexDomain(c.domain.toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").split("/")[0]);
-      return apexSet.has(dApex);
-    });
-    const droppedByValidator = raw.length - validated.length;
-    if (droppedByValidator > 0) console.log("[find-orgs] dropped by validator:", droppedByValidator);
+    const nameSet = new Set(merged.map((m) => m.name.toLowerCase()));
+    const validated = raw
+      .filter((c: any) => c && typeof c.name === "string" && c.name.trim() && nameSet.has(c.name.toLowerCase()))
+      .map((c: any) => ({
+        name: c.name.trim(),
+        domain: typeof c.domain === "string" ? c.domain.trim() : "",
+        suggested_tier: c.suggested_tier || "",
+        matched_signals: Array.isArray(c.matched_signals) ? c.matched_signals : [],
+        rationale: c.rationale || "",
+        source_url: c.source_url || "",
+        leadership: Array.isArray(c.leadership) ? c.leadership : [],
+      }));
 
     return json({
       candidates: validated,
@@ -200,12 +331,21 @@ HARD RULES:
         debug: {
           query_variants: variants,
           raw_hit_count: rawHits.length,
-          filtered_hit_count: filtered.length,
+          direct_hits: directCandidates.length,
+          articles_scraped: scrapedArticles.length,
+          extracted_from_articles: extracted.length,
+          merged_candidates: merged.length,
           ai_returned: raw.length,
           ai_note: parsed.note || null,
           sample_dropped: dropped.slice(0, 5),
         },
-      } : {}),
+      } : {
+        stats: {
+          articles_scraped: scrapedArticles.length,
+          extracted_from_articles: extracted.length,
+          direct_hits: directCandidates.length,
+        },
+      }),
     });
   } catch (e: any) {
     console.error(e);
