@@ -1,53 +1,45 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Navigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { toast } from 'sonner';
+import { Mail, CheckCircle } from 'lucide-react';
 
 export default function Auth() {
   const { user, loading } = useAuth();
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [sent, setSent] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
+
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const timer = setInterval(() => setCooldown(c => c - 1), 1000);
+    return () => clearInterval(timer);
+  }, [cooldown]);
 
   if (loading) return null;
   if (user) return <Navigate to="/projects" replace />;
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSubmitting(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) toast.error(error.message);
-    setSubmitting(false);
-  };
-
-  const handleSignup = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSubmitting(true);
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: { emailRedirectTo: 'https://signal2scale.com.au' },
-    });
-    if (error) toast.error(error.message);
-    else toast.success('Check your email for a confirmation link!');
-    setSubmitting(false);
-  };
-
-  const handleMagicLink = async () => {
+  const handleSendMagicLink = async (e?: React.FormEvent) => {
+    e?.preventDefault();
     if (!email) { toast.error('Enter your email'); return; }
     setSubmitting(true);
     const { error } = await supabase.auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: 'https://signal2scale.com.au' },
+      options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
     });
-    if (error) toast.error(error.message);
-    else toast.success('Magic link sent! Check your email.');
+    if (error) {
+      toast.error(error.message);
+    } else {
+      toast.success('Magic link sent — check your inbox!');
+      setSent(true);
+      setCooldown(60);
+    }
     setSubmitting(false);
   };
 
@@ -55,59 +47,65 @@ export default function Auth() {
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-foreground">Signal + Scale</h1>
+          <h1 className="text-3xl font-bold text-foreground">Signal 2 Scale</h1>
           <p className="text-muted-foreground mt-2" style={{ color: 'hsl(var(--orange))' }}>
             AI-Powered GTM Platform
           </p>
         </div>
         <Card>
-          <Tabs defaultValue="login">
-            <CardHeader>
-              <TabsList className="w-full">
-                <TabsTrigger value="login" className="flex-1">Login</TabsTrigger>
-                <TabsTrigger value="signup" className="flex-1">Sign Up</TabsTrigger>
-              </TabsList>
-            </CardHeader>
-            <CardContent>
-              <TabsContent value="login">
-                <form onSubmit={handleLogin} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="login-email">Email</Label>
-                    <Input id="login-email" type="email" value={email} onChange={e => setEmail(e.target.value)} required />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="login-password">Password</Label>
-                    <Input id="login-password" type="password" value={password} onChange={e => setPassword(e.target.value)} required />
-                  </div>
-                  <Button type="submit" className="w-full" disabled={submitting}>
-                    {submitting ? 'Signing in...' : 'Sign In'}
-                  </Button>
-                  <div className="relative my-4">
-                    <div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div>
-                    <div className="relative flex justify-center text-xs uppercase"><span className="bg-card px-2 text-muted-foreground">or</span></div>
-                  </div>
-                  <Button type="button" variant="outline" className="w-full" onClick={handleMagicLink} disabled={submitting}>
-                    Send Magic Link
-                  </Button>
-                </form>
-              </TabsContent>
-              <TabsContent value="signup">
-                <form onSubmit={handleSignup} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="signup-email">Email</Label>
-                    <Input id="signup-email" type="email" value={email} onChange={e => setEmail(e.target.value)} required />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="signup-password">Password</Label>
-                    <Input id="signup-password" type="password" value={password} onChange={e => setPassword(e.target.value)} required minLength={6} />
-                  </div>
-                  <Button type="submit" className="w-full" disabled={submitting}>
-                    {submitting ? 'Creating account...' : 'Create Account'}
-                  </Button>
-                </form>
-              </TabsContent>
-            </CardContent>
-          </Tabs>
+          <CardHeader>
+            <h2 className="text-lg font-semibold text-foreground">
+              {sent ? 'Check your email' : 'Sign in'}
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              {sent
+                ? `We sent a magic link to ${email}. Click it to sign in.`
+                : 'Enter your email to receive a magic link'}
+            </p>
+          </CardHeader>
+          <CardContent>
+            {!sent ? (
+              <form onSubmit={handleSendMagicLink} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="you@company.com"
+                    value={email}
+                    onChange={e => setEmail(e.target.value)}
+                    required
+                  />
+                </div>
+                <Button type="submit" className="w-full" disabled={submitting}>
+                  <Mail className="mr-2 h-4 w-4" />
+                  {submitting ? 'Sending...' : 'Send Magic Link'}
+                </Button>
+              </form>
+            ) : (
+              <div className="space-y-4 text-center">
+                <CheckCircle className="h-12 w-12 text-green-500 mx-auto" />
+                <p className="text-sm text-muted-foreground">
+                  Open the link in the email to sign in. You can close this tab or wait here — you'll be redirected automatically.
+                </p>
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => handleSendMagicLink()}
+                  disabled={submitting || cooldown > 0}
+                >
+                  {cooldown > 0 ? `Resend link (${cooldown}s)` : 'Resend magic link'}
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="w-full text-muted-foreground"
+                  onClick={() => { setSent(false); setEmail(''); }}
+                >
+                  Use a different email
+                </Button>
+              </div>
+            )}
+          </CardContent>
         </Card>
       </div>
     </div>

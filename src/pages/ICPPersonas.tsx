@@ -1,20 +1,21 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import PersonaSunburst from '@/components/icp-wizard/PersonaSunburst';
+import PersonaDetailModal from '@/components/PersonaDetailModal';
 import { useProject } from '@/contexts/ProjectContext';
 import { ICP, Persona, MatrixCategory, RoleInBuying } from '@/types/database';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Textarea } from '@/components/ui/textarea';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Label as RLabel } from 'recharts';
-import { Plus, Target, Users } from 'lucide-react';
-import { Navigate } from 'react-router-dom';
+import { Target, Users, Sparkles, ChevronDown, Pencil, Trash2, DownloadCloud } from 'lucide-react';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
+import NotionImportDialog from '@/components/notion/NotionImportDialog';
+
 
 const matrixColors: Record<MatrixCategory, string> = {
   now_account: 'bg-green-100 text-green-800',
@@ -47,25 +48,23 @@ const dotColors: Record<MatrixCategory, string> = {
 
 export default function ICPPersonas() {
   const { currentProject } = useProject();
+  const navigate = useNavigate();
   const [icps, setIcps] = useState<ICP[]>([]);
   const [personas, setPersonas] = useState<Persona[]>([]);
   const [expandedIcp, setExpandedIcp] = useState<string | null>(null);
-  const [expandedPersona, setExpandedPersona] = useState<string | null>(null);
+  const [selectedPersona, setSelectedPersona] = useState<Persona | null>(null);
   const [loading, setLoading] = useState(true);
+  const [deleteTarget, setDeleteTarget] = useState<Persona | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const notionStrategyPageId = (currentProject as any)?.notion_strategy_page_id;
 
-  // ICP form
-  const [icpForm, setIcpForm] = useState({ segment_name: '', fit_score: 5, access_score: 5, matrix_category: 'now_account' as MatrixCategory, firmographics: '', buyer_roles: '' });
-  const [icpOpen, setIcpOpen] = useState(false);
-
-  // Persona form
-  const [personaForm, setPersonaForm] = useState({ persona_name: '', icp_id: '', role_in_buying: 'champion' as RoleInBuying, pain_points: '', goals: '', how_we_help: '', ai_readiness_score: 3 });
-  const [personaOpen, setPersonaOpen] = useState(false);
 
   const fetchData = async () => {
     if (!currentProject) return;
     const [{ data: icpData }, { data: personaData }] = await Promise.all([
       supabase.from('icps').select('*').eq('project_id', currentProject.id),
-      supabase.from('personas').select('*').eq('project_id', currentProject.id),
+      supabase.from('personas').select('*').eq('project_id', currentProject.id).eq('is_current', true),
     ]);
     if (icpData) setIcps(icpData as unknown as ICP[]);
     if (personaData) setPersonas(personaData as unknown as Persona[]);
@@ -74,44 +73,21 @@ export default function ICPPersonas() {
 
   useEffect(() => { fetchData(); }, [currentProject]);
 
+  const handleDeletePersona = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    const { error } = await supabase.from('personas').update({ is_current: false }).eq('id', deleteTarget.id);
+    if (error) {
+      toast.error('Failed to delete persona');
+    } else {
+      setPersonas(prev => prev.filter(p => p.id !== deleteTarget.id));
+      toast.success(`"${deleteTarget.persona_name}" removed`);
+    }
+    setDeleting(false);
+    setDeleteTarget(null);
+  };
+
   if (!currentProject) return <Navigate to="/projects" replace />;
-
-  const handleAddIcp = async () => {
-    const { error } = await supabase.from('icps').insert({
-      project_id: currentProject.id,
-      segment_name: icpForm.segment_name,
-      fit_score: icpForm.fit_score,
-      access_score: icpForm.access_score,
-      matrix_category: icpForm.matrix_category,
-      firmographics: icpForm.firmographics ? JSON.parse(icpForm.firmographics) : {},
-      buyer_roles: icpForm.buyer_roles ? JSON.parse(icpForm.buyer_roles) : {},
-      psychographics: {},
-      anti_icp_signals: {},
-    });
-    if (error) { toast.error(error.message); return; }
-    toast.success('ICP segment added');
-    setIcpOpen(false);
-    fetchData();
-  };
-
-  const handleAddPersona = async () => {
-    const { error } = await supabase.from('personas').insert({
-      project_id: currentProject.id,
-      icp_id: personaForm.icp_id,
-      persona_name: personaForm.persona_name,
-      role_in_buying: personaForm.role_in_buying,
-      pain_points: personaForm.pain_points ? JSON.parse(personaForm.pain_points) : {},
-      goals: personaForm.goals ? JSON.parse(personaForm.goals) : {},
-      how_we_help: personaForm.how_we_help,
-      ai_readiness_score: personaForm.ai_readiness_score,
-      channel_preferences: {},
-      is_current: true,
-    });
-    if (error) { toast.error(error.message); return; }
-    toast.success('Persona added');
-    setPersonaOpen(false);
-    fetchData();
-  };
 
   const scatterData = icps.map(icp => ({
     x: icp.access_score,
@@ -133,6 +109,21 @@ export default function ICPPersonas() {
 
   if (loading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>;
 
+  if (!loading && icps.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[60vh] space-y-6">
+        <div className="text-center space-y-2">
+          <Sparkles className="h-12 w-12 mx-auto" style={{ color: 'hsl(var(--orange))' }} />
+          <h1 className="text-2xl font-bold text-foreground">No ICP segments yet</h1>
+          <p className="text-muted-foreground max-w-md">Use the AI-powered ICP Wizard to build your first Ideal Customer Profile through a guided conversation.</p>
+        </div>
+        <Button onClick={() => navigate('/project/icp-wizard')} size="lg">
+          <Sparkles className="h-4 w-4 mr-2" /> Start ICP Wizard
+        </Button>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-foreground">ICP & Personas</h1>
@@ -143,7 +134,6 @@ export default function ICPPersonas() {
         </TabsList>
 
         <TabsContent value="icps" className="space-y-6 mt-4">
-          {/* Prioritisation Matrix */}
           <Card>
             <CardHeader>
               <CardTitle className="text-lg">Prioritisation Matrix</CardTitle>
@@ -175,7 +165,6 @@ export default function ICPPersonas() {
                     <Scatter data={scatterData} shape={<CustomDot />} />
                   </ScatterChart>
                 </ResponsiveContainer>
-                {/* Quadrant labels */}
                 <div className="absolute top-6 left-12 text-[10px] text-muted-foreground/50 font-medium">Strategic Nurture</div>
                 <div className="absolute top-6 right-8 text-[10px] text-muted-foreground/50 font-medium">Now Accounts</div>
                 <div className="absolute bottom-12 left-12 text-[10px] text-muted-foreground/50 font-medium">No-Go Zone</div>
@@ -184,35 +173,20 @@ export default function ICPPersonas() {
             </CardContent>
           </Card>
 
-          {/* ICP Cards */}
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold" style={{ color: 'hsl(var(--orange))' }}>ICP Segments</h2>
-            <Sheet open={icpOpen} onOpenChange={setIcpOpen}>
-              <SheetTrigger asChild>
-                <Button size="sm"><Plus className="h-4 w-4 mr-1" /> Add ICP Segment</Button>
-              </SheetTrigger>
-              <SheetContent>
-                <SheetHeader><SheetTitle>Add ICP Segment</SheetTitle></SheetHeader>
-                <div className="space-y-4 mt-4">
-                  <div><Label>Segment Name</Label><Input value={icpForm.segment_name} onChange={e => setIcpForm(f => ({ ...f, segment_name: e.target.value }))} /></div>
-                  <div><Label>Fit Score (1-10)</Label><Input type="number" min={1} max={10} value={icpForm.fit_score} onChange={e => setIcpForm(f => ({ ...f, fit_score: +e.target.value }))} /></div>
-                  <div><Label>Access Score (1-10)</Label><Input type="number" min={1} max={10} value={icpForm.access_score} onChange={e => setIcpForm(f => ({ ...f, access_score: +e.target.value }))} /></div>
-                  <div>
-                    <Label>Matrix Category</Label>
-                    <Select value={icpForm.matrix_category} onValueChange={v => setIcpForm(f => ({ ...f, matrix_category: v as MatrixCategory }))}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {Object.entries(matrixLabels).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div><Label>Firmographics (JSON)</Label><Textarea value={icpForm.firmographics} onChange={e => setIcpForm(f => ({ ...f, firmographics: e.target.value }))} placeholder='{"industry": "Government", "size": "1000+"}' /></div>
-                  <div><Label>Buyer Roles (JSON)</Label><Textarea value={icpForm.buyer_roles} onChange={e => setIcpForm(f => ({ ...f, buyer_roles: e.target.value }))} placeholder='["CTO", "Procurement"]' /></div>
-                  <Button onClick={handleAddIcp} className="w-full">Save ICP Segment</Button>
-                </div>
-              </SheetContent>
-            </Sheet>
+            <div className="flex items-center gap-2">
+              {notionStrategyPageId && (
+                <Button size="sm" variant="outline" onClick={() => setImportOpen(true)}>
+                  <DownloadCloud className="h-4 w-4 mr-1" /> Import from Notion
+                </Button>
+              )}
+              <Button size="sm" onClick={() => navigate('/project/icp-wizard')}>
+                <Sparkles className="h-4 w-4 mr-1" /> Add ICP Segment
+              </Button>
+            </div>
           </div>
+
           <div className="grid gap-4 md:grid-cols-2">
             {icps.map(icp => (
               <Card key={icp.id} className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setExpandedIcp(expandedIcp === icp.id ? null : icp.id)}>
@@ -248,51 +222,45 @@ export default function ICPPersonas() {
         </TabsContent>
 
         <TabsContent value="personas" className="space-y-6 mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Buying Influence Map</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <PersonaSunburst icps={icps} personas={personas} />
+            </CardContent>
+          </Card>
+
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold" style={{ color: 'hsl(var(--orange))' }}>Persona Gallery</h2>
-            <Sheet open={personaOpen} onOpenChange={setPersonaOpen}>
-              <SheetTrigger asChild>
-                <Button size="sm"><Plus className="h-4 w-4 mr-1" /> Add Persona</Button>
-              </SheetTrigger>
-              <SheetContent>
-                <SheetHeader><SheetTitle>Add Persona</SheetTitle></SheetHeader>
-                <div className="space-y-4 mt-4">
-                  <div><Label>Persona Name</Label><Input value={personaForm.persona_name} onChange={e => setPersonaForm(f => ({ ...f, persona_name: e.target.value }))} /></div>
-                  <div>
-                    <Label>ICP Segment</Label>
-                    <Select value={personaForm.icp_id} onValueChange={v => setPersonaForm(f => ({ ...f, icp_id: v }))}>
-                      <SelectTrigger><SelectValue placeholder="Select ICP" /></SelectTrigger>
-                      <SelectContent>{icps.map(i => <SelectItem key={i.id} value={i.id}>{i.segment_name}</SelectItem>)}</SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label>Role in Buying</Label>
-                    <Select value={personaForm.role_in_buying} onValueChange={v => setPersonaForm(f => ({ ...f, role_in_buying: v as RoleInBuying }))}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {(['champion', 'economic_buyer', 'influencer', 'end_user', 'blocker'] as const).map(r => <SelectItem key={r} value={r}>{r.replace('_', ' ')}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div><Label>Pain Points (JSON)</Label><Textarea value={personaForm.pain_points} onChange={e => setPersonaForm(f => ({ ...f, pain_points: e.target.value }))} placeholder='["Legacy systems", "Budget constraints"]' /></div>
-                  <div><Label>Goals (JSON)</Label><Textarea value={personaForm.goals} onChange={e => setPersonaForm(f => ({ ...f, goals: e.target.value }))} placeholder='["Modernise infrastructure"]' /></div>
-                  <div><Label>How We Help</Label><Textarea value={personaForm.how_we_help} onChange={e => setPersonaForm(f => ({ ...f, how_we_help: e.target.value }))} /></div>
-                  <div><Label>AI Readiness Score (1-5)</Label><Input type="number" min={1} max={5} value={personaForm.ai_readiness_score} onChange={e => setPersonaForm(f => ({ ...f, ai_readiness_score: +e.target.value }))} /></div>
-                  <Button onClick={handleAddPersona} className="w-full">Save Persona</Button>
-                </div>
-              </SheetContent>
-            </Sheet>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="sm">
+                  <Sparkles className="h-4 w-4 mr-1" /> Add Persona <ChevronDown className="h-3 w-3 ml-1" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {icps.map(icp => (
+                  <DropdownMenuItem key={icp.id} onClick={() => navigate(`/project/persona-wizard?icp_id=${icp.id}`)}>
+                    <span className="mr-2">{icp.segment_name}</span>
+                    <Badge className={`${matrixColors[icp.matrix_category]} text-[9px] ml-auto`}>{matrixLabels[icp.matrix_category]}</Badge>
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {personas.map(p => {
               const icp = icps.find(i => i.id === p.icp_id);
               const painPoints = Array.isArray(p.pain_points) ? p.pain_points : Object.values(p.pain_points || {});
               return (
-                <Card key={p.id} className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setExpandedPersona(expandedPersona === p.id ? null : p.id)}>
+                <Card key={p.id} className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setSelectedPersona(p)}>
                   <CardHeader className="pb-2">
                     <div className="flex items-center justify-between">
                       <CardTitle className="text-base">{p.persona_name}</CardTitle>
-                      <Badge className={roleColors[p.role_in_buying]}>{p.role_in_buying.replace('_', ' ')}</Badge>
+                      <div className="flex items-center gap-1">
+                        <Badge className={roleColors[p.role_in_buying]}>{p.role_in_buying.replace('_', ' ')}</Badge>
+                      </div>
                     </div>
                     {icp && <p className="text-xs text-muted-foreground mt-1">{icp.segment_name}</p>}
                   </CardHeader>
@@ -310,13 +278,6 @@ export default function ICPPersonas() {
                         ))}
                       </div>
                     )}
-                    {expandedPersona === p.id && (
-                      <div className="mt-4 pt-4 border-t space-y-2 text-sm">
-                        {p.goals && <div><strong>Goals:</strong> {JSON.stringify(p.goals)}</div>}
-                        {p.how_we_help && <div><strong>How We Help:</strong> {p.how_we_help}</div>}
-                        {p.channel_preferences && Object.keys(p.channel_preferences).length > 0 && <div><strong>Channel Preferences:</strong> {JSON.stringify(p.channel_preferences)}</div>}
-                      </div>
-                    )}
                   </CardContent>
                 </Card>
               );
@@ -324,6 +285,48 @@ export default function ICPPersonas() {
           </div>
         </TabsContent>
       </Tabs>
+
+      <PersonaDetailModal
+        persona={selectedPersona}
+        icp={icps.find(i => i.id === selectedPersona?.icp_id)}
+        open={!!selectedPersona}
+        onOpenChange={(open) => !open && setSelectedPersona(null)}
+        onEdit={(p) => navigate(`/project/persona-wizard?icp_id=${p.icp_id}&edit_persona_id=${p.id}`)}
+        onDelete={(p) => setDeleteTarget(p)}
+        onRefreshed={(updated) => {
+          setSelectedPersona(updated);
+          setPersonas(prev => prev.map(p => p.id === updated.id ? updated : p));
+        }}
+      />
+
+      <Dialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Persona</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to remove <strong>{deleteTarget?.persona_name}</strong>? This will archive the persona — it won't appear in active views.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button variant="outline">Cancel</Button>
+            </DialogClose>
+            <Button variant="destructive" onClick={handleDeletePersona} disabled={deleting}>
+              {deleting ? 'Removing…' : 'Remove Persona'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {currentProject && (
+        <NotionImportDialog
+          projectId={currentProject.id}
+          open={importOpen}
+          onOpenChange={setImportOpen}
+          mode="icps"
+          onImported={fetchData}
+        />
+      )}
     </div>
   );
 }

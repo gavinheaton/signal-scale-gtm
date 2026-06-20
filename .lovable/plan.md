@@ -1,63 +1,62 @@
+# Why we're getting zero results
 
+There is **no time restriction** on the Firecrawl search. The pipeline isn't too narrow at the search step — it's too narrow at the *scoring* step, and Stage 2 scraping is silently failing.
 
-# Set Up Brevo as Email Provider for Auth & Transactional Emails
+From the last run's logs:
 
-## Overview
-Configure Brevo (formerly Sendinblue) as the email provider for all Supabase auth emails (magic links, signup confirmations, password reset) and future transactional emails, using a Supabase Edge Function as an auth email hook.
+```text
+variants: 3 search queries
+raw hits: ~24
+  → direct candidates: 8   (company sites / LinkedIn /company/ pages)
+  → article sources:  13   (listicles, news, blogs)
+  → dropped:           3   (social/video noise)
+scrape attempts: 5 → only 1 returned usable markdown
+extracted from articles: 0
+merged candidates: 7
+AI scoring kept: 0   ← this is where the zero comes from
+```
 
-## What you need ready
-- Your Brevo API key (v3 API key from Brevo dashboard → SMTP & API → API Keys)
-- A verified sender email in Brevo (e.g., `noreply@signal2scale.com.au`)
+So the funnel is finding plenty of raw material; the **Stage 3 ICP-scoring AI is rejecting every direct candidate** because the search snippet doesn't *prove* they meet vague signals like "bootstrapped or seed-funded". And Stage 2 only ever sees 1 article because 4 of 5 scrapes return empty/paywalled markdown that we silently drop.
 
-## Changes
+# Plan to fix
 
-### 1. Store Brevo API key as a secret
-- Add `BREVO_API_KEY` as a runtime secret using the secrets tool
+## 1. Surface the real diagnostics
+Currently when zero candidates come back the debug block hides *why* scrapes failed and *why* scoring rejected items. Add to the response:
 
-### 2. Create the auth email hook Edge Function
-**File: `supabase/functions/auth-email-hook/index.ts`**
+- Per-scrape outcome: `{url, http_status, markdown_length, kept: boolean}` for all 5 attempts.
+- The full AI `note` from Stage 3 (already captured, but only on empty path — also include on partial results).
+- For each merged candidate that scoring dropped: name + AI's stated reason (ask the model to emit `dropped:[{name, reason}]` alongside `candidates`).
 
-- Receives auth email events from Supabase (magic link, signup, recovery, etc.)
-- Renders branded HTML email content inline (Signal + Scale branding: navy #0f284c, purple #8833ff, orange #e33e23, Poppins font)
-- Calls Brevo's transactional email API (`https://api.brevo.com/v3/smtp/email`) with the rendered HTML
-- Handles all auth email types: `signup`, `magiclink`, `recovery`, `invite`, `email_change`, `reauthentication`
-- Includes CORS headers and input validation
-- Uses `verify_jwt = false` in config since it's called by Supabase internals
+## 2. Improve Stage 2 scrape yield
+- Bump scrape attempts from 5 → 8 article sources.
+- Add `waitFor: 1500` and retry once on empty markdown with `onlyMainContent: false`.
+- Log every non-2xx Firecrawl status with the response body (first 300 chars).
 
-### 3. Create a send-transactional-email Edge Function
-**File: `supabase/functions/send-transactional-email/index.ts`**
+## 3. Loosen Stage 3 scoring (the actual cause of zero)
+Currently the prompt says "Skip orgs clearly matching a disqualifying_signal" but in practice Gemini also skips orgs where signals are *unverified*. Change the prompt to:
 
-- Generic sender for app/transactional emails (future use: notifications, confirmations)
-- Accepts `templateName`, `recipientEmail`, `subject`, `htmlContent`, and optional `templateData`
-- Calls Brevo's API with the provided content
-- Validates JWT for authenticated requests from the frontend
+- **Default to include** any candidate whose name/domain plausibly matches the `target_segment`. Only exclude on a *clear* disqualifying-signal match.
+- Treat `qualifying_signals` as scoring hints, not gates. Return `matched_signals: []` if none are visible — do not drop the candidate.
+- Add a `confidence: "high"|"medium"|"low"` field so the UI can show uncertainty instead of us hiding the row.
 
-### 4. Configure Supabase Auth Hook (manual step)
-In **Supabase Dashboard → Authentication → Hooks**:
-- Enable the "Send Email" hook
-- Point it to the `auth-email-hook` Edge Function
-- This intercepts all auth emails and routes them through Brevo
+## 4. Confirm: no time filter exists, and won't be added
+Firecrawl `tbs` (time filter) is not set anywhere. Search results span all time. We will keep it that way.
 
-### 5. Deploy Edge Functions
-- Deploy `auth-email-hook` and `send-transactional-email`
+# Technical changes
 
-## Email templates included
-All templates will be branded with Signal + Scale styling:
-- **Signup confirmation** — "Confirm your email to get started"
-- **Magic link** — "Click to sign in securely"
-- **Password recovery** — "Reset your password"
-- **Email change** — "Confirm your new email address"
-- **Invite** — "You've been invited to Signal + Scale"
-- **Reauthentication** — OTP code for sensitive actions
+- `supabase/functions/discovery-find-orgs/index.ts`
+  - Replace scrape block with retry + status capture; collect `scrape_outcomes` array.
+  - Bump `toScrape` slice from 5 to 8.
+  - Rewrite Stage 3 system prompt per §3; add `confidence` to output schema and to `validated` mapping.
+  - Always include `scrape_outcomes`, `ai_note`, and `ai_dropped` in the response (not just on empty).
+- `src/components/discovery/OrganizationsTab.tsx`
+  - Diagnostics block: render per-scrape outcomes (url + status + kept) and the list of names the AI dropped with reasons.
+  - Candidate cards: show `confidence` badge next to the tier.
+- `src/types/discovery.ts`
+  - Add `confidence?: "high"|"medium"|"low"` to `DiscoveryOrganization`.
+- Migration: add `confidence text` column to `discovery_organizations` (nullable, no default).
 
-## Manual steps required
-1. Verify `noreply@signal2scale.com.au` (or your preferred sender) in Brevo dashboard
-2. In Supabase Dashboard → Auth → Hooks → enable "Send Email" hook pointing to the Edge Function
-3. Optionally configure Brevo domain authentication (DKIM/SPF) for better deliverability
-
-## Technical details
-- Brevo API endpoint: `POST https://api.brevo.com/v3/smtp/email`
-- Auth header: `api-key: {BREVO_API_KEY}`
-- Edge Functions use Deno runtime with CORS support
-- All emails sent as HTML with plain-text fallback
-
+# Out of scope
+- No change to Stage 1 query construction.
+- No new edge functions.
+- No time filter added or removed (none exists).

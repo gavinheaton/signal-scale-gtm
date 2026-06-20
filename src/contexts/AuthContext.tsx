@@ -1,7 +1,9 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, useRef, ReactNode } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
-import { OrgMembership, Organisation } from '@/types/database';
+import { OrgMembership, Organisation, OrgRole } from '@/types/database';
+
+const ROLE_HIERARCHY: OrgRole[] = ['client', 'analyst', 'manager', 'admin', 'owner', 'superadmin'];
 
 interface AuthState {
   session: Session | null;
@@ -9,11 +11,14 @@ interface AuthState {
   membership: OrgMembership | null;
   organisation: Organisation | null;
   loading: boolean;
+  isSuperAdmin: boolean;
+  hasMinRole: (minRole: OrgRole) => boolean;
   signOut: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthState>({
-  session: null, user: null, membership: null, organisation: null, loading: true, signOut: async () => {},
+  session: null, user: null, membership: null, organisation: null, loading: true,
+  isSuperAdmin: false, hasMinRole: () => false, signOut: async () => {},
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -24,46 +29,97 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [membership, setMembership] = useState<OrgMembership | null>(null);
   const [organisation, setOrganisation] = useState<Organisation | null>(null);
   const [loading, setLoading] = useState(true);
+  const bootstrapped = useRef(false);
 
-  const fetchOrgData = async (userId: string) => {
-    const { data: mem } = await supabase
-      .from('org_memberships')
-      .select('*')
-      .eq('user_id', userId)
-      .limit(1)
-      .single();
-    
-    if (mem) {
-      setMembership(mem as unknown as OrgMembership);
-      const { data: org } = await supabase
-        .from('organisations')
-        .select('*')
-        .eq('id', mem.org_id)
-        .single();
-      if (org) setOrganisation(org as unknown as Organisation);
-    }
+  const isSuperAdmin = membership?.role === 'superadmin';
+
+  const hasMinRole = (minRole: OrgRole): boolean => {
+    if (!membership) return false;
+    const userLevel = ROLE_HIERARCHY.indexOf(membership.role);
+    const requiredLevel = ROLE_HIERARCHY.indexOf(minRole);
+    return userLevel >= requiredLevel;
   };
 
-  useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        setTimeout(() => fetchOrgData(session.user.id), 0);
+  const fetchOrgData = async (userId: string) => {
+    try {
+      const { data: mem } = await supabase
+        .from('org_memberships')
+        .select('*')
+        .eq('user_id', userId)
+        .limit(1)
+        .single();
+
+      if (mem) {
+        setMembership(mem as unknown as OrgMembership);
+        const { data: org } = await supabase
+          .from('organisations')
+          .select('*')
+          .eq('id', mem.org_id)
+          .single();
+        if (org) setOrganisation(org as unknown as Organisation);
       } else {
         setMembership(null);
         setOrganisation(null);
       }
-    });
+    } catch {
+      setMembership(null);
+      setOrganisation(null);
+    }
+  };
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
+  useEffect(() => {
+    let mounted = true;
+
+    const bootstrap = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      console.log('[Auth] bootstrap session:', !!session);
+      if (!mounted) return;
+
       setSession(session);
       setUser(session?.user ?? null);
-      if (session?.user) fetchOrgData(session.user.id);
-      setLoading(false);
-    });
 
-    return () => subscription.unsubscribe();
+      if (session?.user) {
+        await fetchOrgData(session.user.id);
+      }
+
+      if (mounted) {
+        bootstrapped.current = true;
+        setLoading(false);
+      }
+    };
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        console.log('[Auth] onAuthStateChange:', event, !!session);
+        if (!mounted) return;
+
+        setSession(session);
+        setUser(session?.user ?? null);
+
+        if (session?.user) {
+          setLoading(true);
+          setTimeout(async () => {
+            if (!mounted) return;
+            await fetchOrgData(session.user.id);
+            if (mounted) {
+              bootstrapped.current = true;
+              setLoading(false);
+            }
+          }, 0);
+        } else {
+          setMembership(null);
+          setOrganisation(null);
+          if (mounted && bootstrapped.current) setLoading(false);
+        }
+      }
+    );
+
+    bootstrap();
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signOut = async () => {
@@ -71,7 +127,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ session, user, membership, organisation, loading, signOut }}>
+    <AuthContext.Provider value={{ session, user, membership, organisation, loading, isSuperAdmin, hasMinRole, signOut }}>
       {children}
     </AuthContext.Provider>
   );

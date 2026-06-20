@@ -1,4 +1,4 @@
-import { Home, Users, Megaphone, FileText, BarChart3, Settings, LogOut, FolderOpen } from 'lucide-react';
+import { Home, Users, Mic, Megaphone, FileText, BarChart3, Settings, LogOut, FolderOpen, Shield, HelpCircle, Gauge, MessagesSquare } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -20,17 +20,21 @@ import {
 const navItems = [
   { title: 'Home', url: '/project/home', icon: Home },
   { title: 'ICP & Personas', url: '/project/icp-personas', icon: Users },
+  { title: 'Discovery', url: '/project/discovery', icon: MessagesSquare },
+  { title: 'Brand Voice', url: '/project/brand-voice', icon: Mic },
+  { title: 'Brand Audit', url: '/project/brand-audit', icon: Gauge },
   { title: 'Campaigns', url: '/project/campaigns', icon: Megaphone },
   { title: 'Content Pipeline', url: '/project/content', icon: FileText },
   { title: 'Analytics', url: '/project/analytics', icon: BarChart3 },
   { title: 'Settings', url: '/project/settings', icon: Settings },
+  { title: 'Help', url: '/project/help', icon: HelpCircle },
 ];
 
 export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === 'collapsed';
   const location = useLocation();
-  const { signOut, organisation } = useAuth();
+  const { signOut, organisation, isSuperAdmin } = useAuth();
   const { currentProject } = useProject();
 
   return (
@@ -96,6 +100,20 @@ export function AppSidebar() {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
+              {isSuperAdmin && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild>
+                    <NavLink
+                      to="/admin"
+                      className="text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors"
+                      activeClassName="bg-sidebar-primary text-sidebar-primary-foreground"
+                    >
+                      <Shield className="h-4 w-4" />
+                      {!collapsed && <span>Admin</span>}
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

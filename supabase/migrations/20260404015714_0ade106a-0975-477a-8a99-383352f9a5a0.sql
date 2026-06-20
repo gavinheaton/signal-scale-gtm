@@ -1,0 +1,1 @@
+ALTER TYPE asset_type ADD VALUE 'press_release';

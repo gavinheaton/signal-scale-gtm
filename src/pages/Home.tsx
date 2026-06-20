@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useProject } from '@/contexts/ProjectContext';
-import { ICP, Campaign, CampaignAsset, CampaignMetric, MethodologyPhase, PhaseStatus } from '@/types/database';
+import { Campaign, CampaignAsset, PhaseStatus, MethodologyPhase } from '@/types/database';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Users, Target, Megaphone, TrendingUp } from 'lucide-react';
-import { Navigate } from 'react-router-dom';
+import { Button } from '@/components/ui/button';
+import { Users, Target, Megaphone, TrendingUp, RefreshCw, Loader2, ExternalLink } from 'lucide-react';
+import { Navigate, Link } from 'react-router-dom';
+import { toast } from 'sonner';
+
 
 const phases: { key: MethodologyPhase; label: string }[] = [
   { key: 'icp', label: 'ICP' },
@@ -29,8 +32,12 @@ export default function Home() {
   const [icpCount, setIcpCount] = useState(0);
   const [personaCount, setPersonaCount] = useState(0);
   const [activeCampaigns, setActiveCampaigns] = useState<Campaign[]>([]);
+  const [allCampaigns, setAllCampaigns] = useState<Campaign[]>([]);
   const [thisWeekAssets, setThisWeekAssets] = useState<CampaignAsset[]>([]);
   const [pipeline, setPipeline] = useState(0);
+  const [brandVoiceStatus, setBrandVoiceStatus] = useState<string | null>(null);
+  const [assetStatuses, setAssetStatuses] = useState<string[]>([]);
+  const [icpWizardComplete, setIcpWizardComplete] = useState(false);
 
   useEffect(() => {
     if (!currentProject) return;
@@ -38,8 +45,11 @@ export default function Home() {
 
     supabase.from('icps').select('id', { count: 'exact' }).eq('project_id', pid).then(({ count }) => setIcpCount(count || 0));
     supabase.from('personas').select('id', { count: 'exact' }).eq('project_id', pid).then(({ count }) => setPersonaCount(count || 0));
-    supabase.from('campaigns').select('*').eq('project_id', pid).eq('status', 'active').then(({ data }) => {
-      if (data) setActiveCampaigns(data as unknown as Campaign[]);
+    supabase.from('campaigns').select('*').eq('project_id', pid).then(({ data }) => {
+      if (data) {
+        setAllCampaigns(data as unknown as Campaign[]);
+        setActiveCampaigns((data as unknown as Campaign[]).filter(c => c.status === 'active'));
+      }
     });
 
     const now = new Date();
@@ -51,20 +61,49 @@ export default function Home() {
     supabase.from('campaign_metrics').select('pipeline_influenced').then(({ data }) => {
       if (data) setPipeline(data.reduce((sum: number, r: any) => sum + (r.pipeline_influenced || 0), 0));
     });
+
+    // Additional queries for methodology progress
+    supabase.from('brand_voices').select('status').eq('project_id', pid).limit(1).single()
+      .then(({ data }) => setBrandVoiceStatus(data?.status || null));
+
+    supabase.from('wizard_sessions').select('status')
+      .eq('project_id', pid).eq('session_type', 'icp').eq('status', 'complete')
+      .then(({ data }) => setIcpWizardComplete((data?.length || 0) > 0));
+
+    supabase.from('campaign_assets').select('status, campaign_id').then(({ data }) => {
+      if (data) setAssetStatuses(data.map((a: any) => a.status));
+    });
   }, [currentProject]);
 
   if (!currentProject) return <Navigate to="/projects" replace />;
 
-  const progress = currentProject.methodology_progress || {};
+  // Derive methodology progress from real data
+  const computedProgress: Record<string, PhaseStatus> = {
+    icp: icpCount === 0 ? 'not_started' : icpWizardComplete ? 'complete' : 'in_progress',
+    personas: personaCount === 0 ? 'not_started' : personaCount >= 3 ? 'complete' : 'in_progress',
+    customer_conversations: 'not_started',
+    competitor_mapping: 'not_started',
+    ecosystem_map: 'not_started',
+    value_proposition: !brandVoiceStatus ? 'not_started' : brandVoiceStatus === 'complete' ? 'complete' : 'in_progress',
+    campaign_strategy: allCampaigns.length === 0 ? 'not_started' :
+      allCampaigns.some(c => ['active', 'complete'].includes(c.status)) ? 'complete' : 'in_progress',
+    execution: assetStatuses.length === 0 ? 'not_started' :
+      assetStatuses.includes('published') ? 'complete' : 'in_progress',
+  };
+
   const captureCount = activeCampaigns.filter(c => c.track === 'demand_capture').length;
   const creationCount = activeCampaigns.filter(c => c.track === 'demand_creation').length;
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">{currentProject.name}</h1>
-        <p className="text-sm" style={{ color: 'hsl(var(--orange))' }}>GTM Overview</p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">{currentProject.name}</h1>
+          <p className="text-sm" style={{ color: 'hsl(var(--orange))' }}>GTM Overview</p>
+        </div>
+        <SyncToNotionButton />
       </div>
+
 
       {/* Methodology Progress */}
       <Card>
@@ -72,20 +111,25 @@ export default function Home() {
         <CardContent>
           <div className="flex items-center gap-2 overflow-x-auto pb-2">
             {phases.map((phase, i) => {
-              const status = (progress as any)[phase.key] || 'not_started';
+              const status = computedProgress[phase.key] || 'not_started';
+              const inner = (
+                <div className="flex flex-col items-center min-w-[90px]">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
+                    status === 'complete' ? 'bg-green-500 text-white' :
+                    status === 'in_progress' ? 'bg-amber-500 text-white' :
+                    'bg-muted text-muted-foreground'
+                  }`}>{i + 1}</div>
+                  <span className="text-[11px] mt-1 text-center font-medium">{phase.label}</span>
+                  <Badge className={`${phaseColors[status as PhaseStatus]} text-[9px] mt-1`}>
+                    {status.replace('_', ' ')}
+                  </Badge>
+                </div>
+              );
               return (
                 <div key={phase.key} className="flex items-center">
-                  <div className="flex flex-col items-center min-w-[90px]">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
-                      status === 'complete' ? 'bg-green-500 text-white' :
-                      status === 'in_progress' ? 'bg-amber-500 text-white' :
-                      'bg-muted text-muted-foreground'
-                    }`}>{i + 1}</div>
-                    <span className="text-[11px] mt-1 text-center font-medium">{phase.label}</span>
-                    <Badge className={`${phaseColors[status as PhaseStatus]} text-[9px] mt-1`}>
-                      {status.replace('_', ' ')}
-                    </Badge>
-                  </div>
+                  {phase.key === 'customer_conversations'
+                    ? <Link to="/project/discovery" className="hover:opacity-80 transition-opacity">{inner}</Link>
+                    : inner}
                   {i < phases.length - 1 && <div className="w-6 h-0.5 bg-border mt-[-20px]" />}
                 </div>
               );
@@ -166,5 +210,39 @@ export default function Home() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+function SyncToNotionButton() {
+  const { currentProject } = useProject();
+  const [syncing, setSyncing] = useState(false);
+  const pageId = (currentProject as any)?.notion_strategy_page_id;
+  if (!pageId) return null;
+
+  const handleSync = async () => {
+    if (!currentProject) return;
+    setSyncing(true);
+    const { data, error } = await supabase.functions.invoke('sync-strategy-to-notion', {
+      body: { project_id: currentProject.id },
+    });
+    setSyncing(false);
+    if (error || (data as any)?.error) {
+      toast.error((data as any)?.error || error?.message || 'Sync failed');
+      return;
+    }
+    toast.success('Strategy synced to Notion', {
+      action: {
+        label: 'Open',
+        onClick: () => window.open(`https://notion.so/${pageId.replace(/-/g, '')}`, '_blank'),
+      },
+    });
+  };
+
+  return (
+    <Button variant="outline" size="sm" onClick={handleSync} disabled={syncing}>
+      {syncing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+      Sync to Notion
+      <ExternalLink className="h-3 w-3 ml-1 opacity-60" />
+    </Button>
   );
 }
