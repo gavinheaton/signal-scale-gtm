@@ -10,7 +10,7 @@ const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY")!;
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-const PERSONA_SYSTEM_PROMPT = `You are an expert B2B buyer persona strategist following the Disruptors Handbook methodology. You help create detailed buyer personas that drive better product and marketing decisions.
+export const PERSONA_SYSTEM_PROMPT = `You are an expert B2B buyer persona strategist following the Disruptors Handbook methodology. You help create detailed buyer personas that drive better product and marketing decisions.
 
 Your job is to guide the user through building a comprehensive buyer persona through structured conversation. Each persona must cover these elements:
 
