@@ -10,7 +10,7 @@ const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY")!;
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-const FALLBACK_SYSTEM_PROMPT = `You are an expert brand strategist specialising in B2B brand voice development. Your job is to guide the user through building a comprehensive brand voice guide by having a structured conversation.
+export const FALLBACK_SYSTEM_PROMPT = `You are an expert brand strategist specialising in B2B brand voice development. Your job is to guide the user through building a comprehensive brand voice guide by having a structured conversation.
 
 You must fill in ALL sections of the brand voice:
 
