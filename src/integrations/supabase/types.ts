@@ -14,6 +14,79 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_prompt_template_versions: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          prompt_text: string
+          template_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          prompt_text: string
+          template_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          prompt_text?: string
+          template_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_prompt_template_versions_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "ai_prompt_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_prompt_templates: {
+        Row: {
+          created_at: string
+          current_version_id: string | null
+          description: string | null
+          id: string
+          key: string
+          label: string
+          sample_input_json: Json | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          current_version_id?: string | null
+          description?: string | null
+          id?: string
+          key: string
+          label: string
+          sample_input_json?: Json | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          current_version_id?: string | null
+          description?: string | null
+          id?: string
+          key?: string
+          label?: string
+          sample_input_json?: Json | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_prompt_templates_current_version_fkey"
+            columns: ["current_version_id"]
+            isOneToOne: false
+            referencedRelation: "ai_prompt_template_versions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       api_keys: {
         Row: {
           created_at: string | null
