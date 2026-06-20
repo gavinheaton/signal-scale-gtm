@@ -13,7 +13,14 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { toast } from "sonner";
-import { Sparkles, History, FlaskConical, ChevronDown } from "lucide-react";
+import { Sparkles, History, FlaskConical, ChevronDown, Download } from "lucide-react";
+
+const IMPORTABLE_KEYS = new Set([
+  "icp_wizard",
+  "persona_wizard",
+  "brand_voice_wizard",
+  "campaign_wizard",
+]);
 
 interface Template {
   id: string;
