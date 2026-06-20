@@ -333,9 +333,22 @@ export default function AIPromptsAdmin() {
                     )}
                   </TableCell>
                   <TableCell>
-                    <Button size="sm" variant="outline" onClick={() => openTemplate(t)}>
-                      Edit
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="outline" onClick={() => openTemplate(t)}>
+                        Edit
+                      </Button>
+                      {!t.current_version_id && IMPORTABLE_KEYS.has(t.key) && (
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          disabled={importing}
+                          onClick={() => handleImportFromSource(t)}
+                        >
+                          <Download className="h-3 w-3 mr-1" />
+                          Import current
+                        </Button>
+                      )}
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
