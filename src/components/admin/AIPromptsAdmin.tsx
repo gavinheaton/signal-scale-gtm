@@ -13,7 +13,14 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { toast } from "sonner";
-import { Sparkles, History, FlaskConical, ChevronDown } from "lucide-react";
+import { Sparkles, History, FlaskConical, ChevronDown, Download } from "lucide-react";
+
+const IMPORTABLE_KEYS = new Set([
+  "icp_wizard",
+  "persona_wizard",
+  "brand_voice_wizard",
+  "campaign_wizard",
+]);
 
 interface Template {
   id: string;
@@ -49,6 +56,8 @@ export default function AIPromptsAdmin() {
   const [testResult, setTestResult] = useState<
     { raw_output: string; looks_like_valid_json: boolean } | null
   >(null);
+
+  const [importing, setImporting] = useState(false);
 
   const fetchTemplates = async () => {
     setLoading(true);
@@ -248,6 +257,30 @@ export default function AIPromptsAdmin() {
     setTestResult(data as any);
   };
 
+  const handleImportFromSource = async (t: Template) => {
+    if (!IMPORTABLE_KEYS.has(t.key)) {
+      toast.error("No import source mapped for this template");
+      return;
+    }
+    if (!confirm(`Import the current prompt for "${t.label}" from its secret / built-in default and save it as a new active version?`)) return;
+    setImporting(true);
+    const { data, error } = await supabase.functions.invoke("import-prompt-from-source", {
+      body: { template_key: t.key },
+    });
+    setImporting(false);
+    if (error) {
+      toast.error("Import failed: " + error.message);
+      return;
+    }
+    const src = (data as any)?.source;
+    toast.success(`Imported from ${src === "secret" ? "secret" : "built-in default"} (${(data as any)?.char_count} chars)`);
+    await fetchTemplates();
+    if (selected?.id === t.id) {
+      // Reload editor with new active version
+      await openTemplate(t);
+    }
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -300,9 +333,22 @@ export default function AIPromptsAdmin() {
                     )}
                   </TableCell>
                   <TableCell>
-                    <Button size="sm" variant="outline" onClick={() => openTemplate(t)}>
-                      Edit
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="outline" onClick={() => openTemplate(t)}>
+                        Edit
+                      </Button>
+                      {!t.current_version_id && IMPORTABLE_KEYS.has(t.key) && (
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          disabled={importing}
+                          onClick={() => handleImportFromSource(t)}
+                        >
+                          <Download className="h-3 w-3 mr-1" />
+                          Import current
+                        </Button>
+                      )}
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
@@ -359,6 +405,16 @@ export default function AIPromptsAdmin() {
                 <Button onClick={handleSaveVersion} disabled={saving || !promptText.trim()}>
                   {saving ? "Saving…" : "Save as new version"}
                 </Button>
+                {IMPORTABLE_KEYS.has(selected.key) && (
+                  <Button
+                    variant="secondary"
+                    disabled={importing}
+                    onClick={() => handleImportFromSource(selected)}
+                  >
+                    <Download className="h-4 w-4 mr-1" />
+                    {importing ? "Importing…" : "Import from secret / default"}
+                  </Button>
+                )}
               </div>
 
               {testResult && (

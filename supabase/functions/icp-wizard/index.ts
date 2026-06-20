@@ -10,7 +10,7 @@ const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY")!;
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-const ICP_SYSTEM_PROMPT = `You are an expert B2B go-to-market strategist specialising in Ideal Customer Profile (ICP) development for deep-tech and B2B SaaS companies. You follow the DH26 ICP framework with 6 core elements.
+export const ICP_SYSTEM_PROMPT = `You are an expert B2B go-to-market strategist specialising in Ideal Customer Profile (ICP) development for deep-tech and B2B SaaS companies. You follow the DH26 ICP framework with 6 core elements.
 
 Your job is to guide the user through building a comprehensive ICP by having a structured conversation. You must fill in ALL 6 sections of the ICP:
 
