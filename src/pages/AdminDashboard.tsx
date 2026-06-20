@@ -15,6 +15,7 @@ import { toast } from 'sonner';
 import { Plus, Building2, Users, FolderOpen, Shield, Clock, Wand2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Organisation, OrgMembership, Project } from '@/types/database';
+import AIPromptsAdmin from '@/components/admin/AIPromptsAdmin';
 import type { OrgType, OrgRole } from '@/types/database';
 
 interface OrgWithCounts extends Organisation {
@@ -263,6 +264,9 @@ export default function AdminDashboard() {
           </Table>
         </CardContent>
       </Card>
+
+      {/* AI Prompts (superadmin only — page already gated) */}
+      <AIPromptsAdmin />
 
       {/* Abandoned wizard sessions */}
       <Card>

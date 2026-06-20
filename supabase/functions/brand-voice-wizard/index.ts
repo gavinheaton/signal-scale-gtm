@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { getActivePrompt } from "../_shared/promptTemplates.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -510,8 +511,12 @@ Deno.serve(async (req) => {
     }
 
     // Build system prompt
-    const systemPromptEnv = Deno.env.get("ANTHROPIC_BRAND_VOICE_SYSTEM_PROMPT");
-    let systemPrompt = systemPromptEnv || FALLBACK_SYSTEM_PROMPT;
+    let systemPrompt: string;
+    try {
+      systemPrompt = await getActivePrompt(supabase, "brand_voice_wizard", "ANTHROPIC_BRAND_VOICE_SYSTEM_PROMPT");
+    } catch {
+      systemPrompt = FALLBACK_SYSTEM_PROMPT;
+    }
 
     const hasBrandContext = brandContext.crawled_content && brandContext.crawled_content.length > 0;
     if (hasBrandContext) {
