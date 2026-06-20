@@ -1,7 +1,9 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
-import { ICP_SYSTEM_PROMPT } from "../icp-wizard/index.ts";
-import { PERSONA_SYSTEM_PROMPT } from "../persona-wizard/index.ts";
-import { FALLBACK_SYSTEM_PROMPT as BRAND_VOICE_FALLBACK } from "../brand-voice-wizard/index.ts";
+import {
+  ICP_SYSTEM_PROMPT,
+  PERSONA_SYSTEM_PROMPT,
+  BRAND_VOICE_FALLBACK_SYSTEM_PROMPT as BRAND_VOICE_FALLBACK,
+} from "../_shared/defaultPrompts.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
