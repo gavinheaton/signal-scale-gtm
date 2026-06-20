@@ -1,62 +1,36 @@
-# Why we're getting zero results
+## Problem
 
-There is **no time restriction** on the Firecrawl search. The pipeline isn't too narrow at the search step — it's too narrow at the *scoring* step, and Stage 2 scraping is silently failing.
+The new `import-prompt-from-source` edge function fails its CORS preflight because it isn't actually running. The likely cause: it imports prompt constants from sibling edge functions:
 
-From the last run's logs:
-
-```text
-variants: 3 search queries
-raw hits: ~24
-  → direct candidates: 8   (company sites / LinkedIn /company/ pages)
-  → article sources:  13   (listicles, news, blogs)
-  → dropped:           3   (social/video noise)
-scrape attempts: 5 → only 1 returned usable markdown
-extracted from articles: 0
-merged candidates: 7
-AI scoring kept: 0   ← this is where the zero comes from
+```ts
+import { ICP_SYSTEM_PROMPT } from "../icp-wizard/index.ts";
+import { PERSONA_SYSTEM_PROMPT } from "../persona-wizard/index.ts";
+import { FALLBACK_SYSTEM_PROMPT as BRAND_VOICE_FALLBACK } from "../brand-voice-wizard/index.ts";
 ```
 
-So the funnel is finding plenty of raw material; the **Stage 3 ICP-scoring AI is rejecting every direct candidate** because the search snippet doesn't *prove* they meet vague signals like "bootstrapped or seed-funded". And Stage 2 only ever sees 1 article because 4 of 5 scrapes return empty/paywalled markdown that we silently drop.
+Supabase deploys each function in isolation. Cross-function relative imports pull in those files' top-level `Deno.serve(...)` calls and their own deps, which breaks deployment — the function crashes on cold start and the preflight returns a non-200, surfacing as a CORS error in the browser.
 
-# Plan to fix
+## Fix
 
-## 1. Surface the real diagnostics
-Currently when zero candidates come back the debug block hides *why* scrapes failed and *why* scoring rejected items. Add to the response:
+Move the fallback prompt texts into a shared module that contains no `Deno.serve` and no side effects, then import from there.
 
-- Per-scrape outcome: `{url, http_status, markdown_length, kept: boolean}` for all 5 attempts.
-- The full AI `note` from Stage 3 (already captured, but only on empty path — also include on partial results).
-- For each merged candidate that scoring dropped: name + AI's stated reason (ask the model to emit `dropped:[{name, reason}]` alongside `candidates`).
+### Steps
 
-## 2. Improve Stage 2 scrape yield
-- Bump scrape attempts from 5 → 8 article sources.
-- Add `waitFor: 1500` and retry once on empty markdown with `onlyMainContent: false`.
-- Log every non-2xx Firecrawl status with the response body (first 300 chars).
+1. Create `supabase/functions/_shared/defaultPrompts.ts` exporting three string constants:
+   - `ICP_SYSTEM_PROMPT`
+   - `PERSONA_SYSTEM_PROMPT`
+   - `BRAND_VOICE_FALLBACK_SYSTEM_PROMPT`
+   
+   Copy the current text verbatim from the three wizard files.
 
-## 3. Loosen Stage 3 scoring (the actual cause of zero)
-Currently the prompt says "Skip orgs clearly matching a disqualifying_signal" but in practice Gemini also skips orgs where signals are *unverified*. Change the prompt to:
+2. Update the three wizard `index.ts` files to re-export / import from the shared module instead of declaring the constant locally. Keeps existing wizard behaviour identical.
 
-- **Default to include** any candidate whose name/domain plausibly matches the `target_segment`. Only exclude on a *clear* disqualifying-signal match.
-- Treat `qualifying_signals` as scoring hints, not gates. Return `matched_signals: []` if none are visible — do not drop the candidate.
-- Add a `confidence: "high"|"medium"|"low"` field so the UI can show uncertainty instead of us hiding the row.
+3. Update `supabase/functions/import-prompt-from-source/index.ts` to import only from `../_shared/defaultPrompts.ts` — no sibling-function imports.
 
-## 4. Confirm: no time filter exists, and won't be added
-Firecrawl `tbs` (time filter) is not set anywhere. Search results span all time. We will keep it that way.
+4. Redeploy `import-prompt-from-source` (and the three wizards) and verify the preflight returns 200, then test the "Import current" button from the Admin UI.
 
-# Technical changes
+## Why this works
 
-- `supabase/functions/discovery-find-orgs/index.ts`
-  - Replace scrape block with retry + status capture; collect `scrape_outcomes` array.
-  - Bump `toScrape` slice from 5 to 8.
-  - Rewrite Stage 3 system prompt per §3; add `confidence` to output schema and to `validated` mapping.
-  - Always include `scrape_outcomes`, `ai_note`, and `ai_dropped` in the response (not just on empty).
-- `src/components/discovery/OrganizationsTab.tsx`
-  - Diagnostics block: render per-scrape outcomes (url + status + kept) and the list of names the AI dropped with reasons.
-  - Candidate cards: show `confidence` badge next to the tier.
-- `src/types/discovery.ts`
-  - Add `confidence?: "high"|"medium"|"low"` to `DiscoveryOrganization`.
-- Migration: add `confidence text` column to `discovery_organizations` (nullable, no default).
+`_shared/` modules contain pure exports with no `Deno.serve`, so they're safe to import from any function. This matches the existing pattern used by `_shared/promptTemplates.ts`, `_shared/cors.ts`, etc.
 
-# Out of scope
-- No change to Stage 1 query construction.
-- No new edge functions.
-- No time filter added or removed (none exists).
+No database changes, no UI changes — purely an edge-function packaging fix.
