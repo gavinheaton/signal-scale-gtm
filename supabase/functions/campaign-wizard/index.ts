@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { getActivePrompt } from "../_shared/promptTemplates.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -8,7 +9,7 @@ const corsHeaders = {
 const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY")!;
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const CAMPAIGN_SYSTEM_PROMPT = Deno.env.get("ANTHROPIC_CAMPAIGN_SYSTEM_PROMPT") || "";
+// CAMPAIGN_SYSTEM_PROMPT is now loaded per-request via getActivePrompt (DB-backed).
 
 const INITIAL_MESSAGE = "Let's build your campaign strategy. I have your ICP segments and personas loaded — what type of campaign are you looking to create? (e.g. demand capture, demand creation, ABM, product launch)";
 
@@ -201,7 +202,13 @@ Deno.serve(async (req) => {
       systemPrompt += "## CURRENT DRAFT STATE\nThis is the campaign draft built so far. Continue building on it, don't restart.\n" + JSON.stringify(existingDraft) + "\n\n";
     }
     systemPrompt += "## DRAFT FORMAT INSTRUCTIONS\nAlways wrap structured output in a <draft> JSON tag. Include a \"sections_complete\" array listing keys for any sections you consider complete: target_audience, campaign_insight, objective, channel_mix, content_calendar, success_metrics. Mark a section complete once you have gathered enough information for it. Example: \"sections_complete\": [\"target_audience\", \"objective\"]\n\nInclude launch_date and end_date (YYYY-MM-DD) in the draft. Derive from the content calendar: launch_date = earliest publish_date minus 7 days prep, end_date = latest publish_date plus 7 days. If the user specifies dates explicitly, use those instead.\n\nEach content_calendar item should include: title, format, persona, week, sequence_order (integer starting at 1), offset_days (days from campaign start), publish_date (YYYY-MM-DD), production_due (YYYY-MM-DD, typically 7 days before publish_date), depends_on (sequence_order of a prerequisite item, or null), rationale (brief explanation of why this content at this point in the journey).\n\nIMPORTANT BREVITY RULES (to avoid response truncation):\n- Keep `rationale` fields under 150 characters.\n- If the calendar would exceed 20 items, group items into phases (e.g. \"Phase 1: Awareness — 5 LinkedIn posts week 1-2\") instead of listing every single item.\n- Keep all draft string values concise; favour short phrases over paragraphs.\n\n";
-    systemPrompt += CAMPAIGN_SYSTEM_PROMPT;
+    let campaignPrompt = "";
+    try {
+      campaignPrompt = await getActivePrompt(supabase, "campaign_wizard", "ANTHROPIC_CAMPAIGN_SYSTEM_PROMPT");
+    } catch {
+      campaignPrompt = "";
+    }
+    systemPrompt += campaignPrompt;
 
     // Sliding window: first 2 messages (context) + last 10 messages (recent conversation)
     const allCleanMessages = messages.map((m) => ({
