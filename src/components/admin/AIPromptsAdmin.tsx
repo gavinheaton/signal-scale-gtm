@@ -405,6 +405,16 @@ export default function AIPromptsAdmin() {
                 <Button onClick={handleSaveVersion} disabled={saving || !promptText.trim()}>
                   {saving ? "Saving…" : "Save as new version"}
                 </Button>
+                {IMPORTABLE_KEYS.has(selected.key) && (
+                  <Button
+                    variant="secondary"
+                    disabled={importing}
+                    onClick={() => handleImportFromSource(selected)}
+                  >
+                    <Download className="h-4 w-4 mr-1" />
+                    {importing ? "Importing…" : "Import from secret / default"}
+                  </Button>
+                )}
               </div>
 
               {testResult && (
