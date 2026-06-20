@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { getActivePrompt } from "../_shared/promptTemplates.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -274,7 +275,13 @@ Deno.serve(async (req) => {
         : m.content,
     }));
 
-    const systemPrompt = PERSONA_SYSTEM_PROMPT + icpContext + editPersonaContext + brandContextStr;
+    let basePersonaPrompt: string;
+    try {
+      basePersonaPrompt = await getActivePrompt(supabase, "persona_wizard", "ANTHROPIC_PERSONA_SYSTEM_PROMPT");
+    } catch {
+      basePersonaPrompt = PERSONA_SYSTEM_PROMPT;
+    }
+    const systemPrompt = basePersonaPrompt + icpContext + editPersonaContext + brandContextStr;
 
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",

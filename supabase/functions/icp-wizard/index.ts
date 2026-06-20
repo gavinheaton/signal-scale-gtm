@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { getActivePrompt } from "../_shared/promptTemplates.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -315,7 +316,12 @@ Deno.serve(async (req) => {
     }
 
     // Build system prompt with brand context if available
-    let systemPrompt = ICP_SYSTEM_PROMPT;
+    let systemPrompt: string;
+    try {
+      systemPrompt = await getActivePrompt(supabase, "icp_wizard", "ANTHROPIC_ICP_SYSTEM_PROMPT");
+    } catch {
+      systemPrompt = ICP_SYSTEM_PROMPT;
+    }
     if (hasBrandContext) {
       systemPrompt += `\n\nBRAND CONTEXT (from previous analysis of ${brandContext.website_url || "company website"}):\n${brandContext.crawled_content}\n\nUse this to inform your ICP questions. Do NOT ask for the website URL again — you already have the brand context.`;
     }
