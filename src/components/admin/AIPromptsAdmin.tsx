@@ -57,6 +57,8 @@ export default function AIPromptsAdmin() {
     { raw_output: string; looks_like_valid_json: boolean } | null
   >(null);
 
+  const [importing, setImporting] = useState(false);
+
   const fetchTemplates = async () => {
     setLoading(true);
     const { data, error } = await supabase
