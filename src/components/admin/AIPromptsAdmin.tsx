@@ -257,6 +257,30 @@ export default function AIPromptsAdmin() {
     setTestResult(data as any);
   };
 
+  const handleImportFromSource = async (t: Template) => {
+    if (!IMPORTABLE_KEYS.has(t.key)) {
+      toast.error("No import source mapped for this template");
+      return;
+    }
+    if (!confirm(`Import the current prompt for "${t.label}" from its secret / built-in default and save it as a new active version?`)) return;
+    setImporting(true);
+    const { data, error } = await supabase.functions.invoke("import-prompt-from-source", {
+      body: { template_key: t.key },
+    });
+    setImporting(false);
+    if (error) {
+      toast.error("Import failed: " + error.message);
+      return;
+    }
+    const src = (data as any)?.source;
+    toast.success(`Imported from ${src === "secret" ? "secret" : "built-in default"} (${(data as any)?.char_count} chars)`);
+    await fetchTemplates();
+    if (selected?.id === t.id) {
+      // Reload editor with new active version
+      await openTemplate(t);
+    }
+  };
+
   return (
     <Card>
       <CardHeader>
