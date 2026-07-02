@@ -135,8 +135,8 @@ export default function Home() {
               );
               return (
                 <div key={phase.key} className="flex items-center">
-                  {phase.key === 'customer_conversations'
-                    ? <Link to="/project/discovery" className="hover:opacity-80 transition-opacity">{inner}</Link>
+                  {phase.path
+                    ? <Link to={phase.path} className="hover:opacity-80 transition-opacity">{inner}</Link>
                     : inner}
                   {i < phases.length - 1 && <div className="w-6 h-0.5 bg-border mt-[-20px]" />}
                 </div>
