@@ -4,7 +4,7 @@ export type DiscoveryCampaignStatus = 'active' | 'paused' | 'archived';
 export type DiscoveryOrgSource = 'firecrawl' | 'manual';
 export type DiscoveryOrgStatus = 'researching' | 'targeted' | 'in_conversation' | 'validated' | 'disqualified';
 export type DiscoveryRoleStatus = 'identified' | 'enriched' | 'skipped';
-export type DiscoveryEnrichmentSource = 'apollo' | 'manual';
+export type DiscoveryEnrichmentSource = 'apollo' | 'manual' | 'firecrawl';
 export type DiscoveryOutreachStatus =
   | 'not_started'
   | 'connection_sent'
