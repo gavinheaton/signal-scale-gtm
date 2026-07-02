@@ -136,7 +136,7 @@ Task: Given a base statement, produce 3 tonal variations that preserve meaning b
     case "critique":
       return `${base}
 
-Task: Critique the given value proposition against the handbook criteria: audience specificity, problem clarity, measurable impact, differentiation, and language of the customer. Return JSON: {"score": 0-10, "strengths": string[], "gaps": string[], "rewrite_suggestion": string}.`;
+Task: Critique the given value proposition against these criteria: audience specificity, problem clarity, measurable impact, differentiation, and language of the customer. Return JSON: {"score": 0-10, "strengths": string[], "gaps": string[], "rewrite_suggestion": string}.`;
   }
 }
 
