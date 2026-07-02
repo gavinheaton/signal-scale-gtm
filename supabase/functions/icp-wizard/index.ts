@@ -201,11 +201,19 @@ Deno.serve(async (req) => {
     // Fetch existing ICPs so the AI can reuse them rather than re-asking (diff mode)
     let existingIcps: any[] = [];
     if (project_id) {
-      const { data: icps } = await supabase
+      const { data: icps, error: icpsError } = await supabase
         .from("icps")
         .select("id, segment_name, matrix_category, fit_score, access_score, firmographics, psychographics, buyer_roles, anti_icp_signals")
-        .eq("project_id", project_id)
-        .order("created_at", { ascending: true });
+        .eq("project_id", project_id);
+
+      if (icpsError) {
+        console.error("Failed to load existing ICPs for diff mode:", icpsError);
+        return new Response(
+          JSON.stringify({ error: "Failed to load existing ICPs", details: icpsError.message }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+
       existingIcps = icps || [];
     }
     const hasPriorIcps = existingIcps.length > 0;
