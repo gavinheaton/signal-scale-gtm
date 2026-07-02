@@ -175,6 +175,7 @@ Deno.serve(async (req) => {
         });
       }
 
+      const initialDraftOutput = { _meta: { mode: hasPriorIcps ? "diff" : "first" } } as Record<string, any>;
       const { data: session, error: insertError } = await supabase
         .from("wizard_sessions")
         .insert({
@@ -182,6 +183,7 @@ Deno.serve(async (req) => {
           session_type: "icp",
           messages,
           status: "in_progress",
+          draft_output: initialDraftOutput,
         })
         .select("id")
         .single();
@@ -206,10 +208,11 @@ Deno.serve(async (req) => {
         return new Response(
           JSON.stringify({
             reply: initialMessage,
-            updated_draft: {},
+            updated_draft: initialDraftOutput,
             session_id: sessionId,
             suggested_replies: initialSuggestedReplies,
             existing_icp_count: existingIcps.length,
+            mode: hasPriorIcps ? "diff" : "first",
           }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
@@ -391,6 +394,8 @@ Deno.serve(async (req) => {
         ]
       : [];
 
+    const sessionMode = (existingDraft?._meta?.mode as string) || (hasPriorIcps ? "diff" : "first");
+
     return new Response(
       JSON.stringify({
         reply: cleanReply,
@@ -399,6 +404,7 @@ Deno.serve(async (req) => {
         draft_warning: draftWarning,
         suggested_replies: suggestedReplies,
         existing_icp_count: existingIcps.length,
+        mode: sessionMode,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
