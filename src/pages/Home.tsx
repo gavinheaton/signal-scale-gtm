@@ -10,15 +10,15 @@ import { Navigate, Link } from 'react-router-dom';
 import { toast } from 'sonner';
 
 
-const phases: { key: MethodologyPhase; label: string }[] = [
-  { key: 'icp', label: 'ICP' },
-  { key: 'personas', label: 'Personas' },
-  { key: 'customer_conversations', label: 'Conversations' },
+const phases: { key: MethodologyPhase; label: string; path?: string }[] = [
+  { key: 'icp', label: 'ICP', path: '/project/icp-personas' },
+  { key: 'personas', label: 'Personas', path: '/project/icp-personas' },
+  { key: 'value_proposition', label: 'Value Prop', path: '/project/value-prop' },
+  { key: 'customer_conversations', label: 'Conversations', path: '/project/discovery' },
   { key: 'competitor_mapping', label: 'Competitors' },
-  { key: 'ecosystem_map', label: 'Ecosystem' },
-  { key: 'value_proposition', label: 'Value Prop' },
-  { key: 'campaign_strategy', label: 'Strategy' },
-  { key: 'execution', label: 'Execution' },
+  { key: 'ecosystem_map', label: 'Ecosystem', path: '/project/ecosystem' },
+  { key: 'campaign_strategy', label: 'Strategy', path: '/project/campaigns' },
+  { key: 'execution', label: 'Execution', path: '/project/content' },
 ];
 
 const phaseColors: Record<PhaseStatus, string> = {
