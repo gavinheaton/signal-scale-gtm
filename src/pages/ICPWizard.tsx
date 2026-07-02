@@ -238,6 +238,25 @@ export default function ICPWizard() {
           </h1>
           <p className="text-xs text-muted-foreground">AI-guided ICP builder</p>
         </div>
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button variant="outline" size="sm" disabled={loading}>
+              <RotateCcw className="h-4 w-4 mr-2" /> Start Over
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Start a fresh ICP?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will discard your current in-progress ICP draft and begin a new conversation. Already-saved ICPs are not affected.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={restartWizard}>Start Over</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
 
       <div className="flex-1 flex gap-4 min-h-0">
