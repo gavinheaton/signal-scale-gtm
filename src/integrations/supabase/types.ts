@@ -602,6 +602,145 @@ export type Database = {
           },
         ]
       }
+      canvas_entries: {
+        Row: {
+          ai_confidence: number | null
+          box: string
+          canvas_id: string
+          content: string
+          created_at: string
+          id: string
+          is_stale: boolean
+          position: number
+          source: Database["public"]["Enums"]["canvas_entry_source"]
+          source_ref: Json | null
+          status: Database["public"]["Enums"]["canvas_entry_status"]
+          updated_at: string
+        }
+        Insert: {
+          ai_confidence?: number | null
+          box: string
+          canvas_id: string
+          content?: string
+          created_at?: string
+          id?: string
+          is_stale?: boolean
+          position?: number
+          source?: Database["public"]["Enums"]["canvas_entry_source"]
+          source_ref?: Json | null
+          status?: Database["public"]["Enums"]["canvas_entry_status"]
+          updated_at?: string
+        }
+        Update: {
+          ai_confidence?: number | null
+          box?: string
+          canvas_id?: string
+          content?: string
+          created_at?: string
+          id?: string
+          is_stale?: boolean
+          position?: number
+          source?: Database["public"]["Enums"]["canvas_entry_source"]
+          source_ref?: Json | null
+          status?: Database["public"]["Enums"]["canvas_entry_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "canvas_entries_canvas_id_fkey"
+            columns: ["canvas_id"]
+            isOneToOne: false
+            referencedRelation: "canvases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      canvas_validations: {
+        Row: {
+          conversation_id: string | null
+          created_at: string
+          entry_id: string
+          id: string
+          note: string | null
+          outcome: Database["public"]["Enums"]["canvas_validation_outcome"]
+        }
+        Insert: {
+          conversation_id?: string | null
+          created_at?: string
+          entry_id: string
+          id?: string
+          note?: string | null
+          outcome?: Database["public"]["Enums"]["canvas_validation_outcome"]
+        }
+        Update: {
+          conversation_id?: string | null
+          created_at?: string
+          entry_id?: string
+          id?: string
+          note?: string | null
+          outcome?: Database["public"]["Enums"]["canvas_validation_outcome"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "canvas_validations_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "discovery_conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "canvas_validations_entry_id_fkey"
+            columns: ["entry_id"]
+            isOneToOne: false
+            referencedRelation: "canvas_entries"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      canvases: {
+        Row: {
+          created_at: string
+          critique: Json | null
+          critique_generated_at: string | null
+          id: string
+          narrative_generated_at: string | null
+          narrative_md: string | null
+          project_id: string
+          updated_at: string
+          variant: Database["public"]["Enums"]["canvas_variant"]
+        }
+        Insert: {
+          created_at?: string
+          critique?: Json | null
+          critique_generated_at?: string | null
+          id?: string
+          narrative_generated_at?: string | null
+          narrative_md?: string | null
+          project_id: string
+          updated_at?: string
+          variant?: Database["public"]["Enums"]["canvas_variant"]
+        }
+        Update: {
+          created_at?: string
+          critique?: Json | null
+          critique_generated_at?: string | null
+          id?: string
+          narrative_generated_at?: string | null
+          narrative_md?: string | null
+          project_id?: string
+          updated_at?: string
+          variant?: Database["public"]["Enums"]["canvas_variant"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "canvases_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: true
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       discovery_campaigns: {
         Row: {
           created_at: string
@@ -1889,6 +2028,10 @@ export type Database = {
       brand_audit_status: "queued" | "running" | "completed" | "failed"
       campaign_status: "brief" | "planning" | "active" | "complete"
       campaign_track: "demand_capture" | "demand_creation"
+      canvas_entry_source: "user" | "auto" | "ai_suggestion"
+      canvas_entry_status: "assumption" | "hypothesis" | "validated"
+      canvas_validation_outcome: "supports" | "contradicts" | "inconclusive"
+      canvas_variant: "standard" | "shared_value"
       discovery_campaign_status: "active" | "paused" | "archived"
       discovery_enrichment_source: "apollo" | "manual" | "firecrawl"
       discovery_insight_kind: "observation" | "interpretation"
@@ -2109,6 +2252,10 @@ export const Constants = {
       brand_audit_status: ["queued", "running", "completed", "failed"],
       campaign_status: ["brief", "planning", "active", "complete"],
       campaign_track: ["demand_capture", "demand_creation"],
+      canvas_entry_source: ["user", "auto", "ai_suggestion"],
+      canvas_entry_status: ["assumption", "hypothesis", "validated"],
+      canvas_validation_outcome: ["supports", "contradicts", "inconclusive"],
+      canvas_variant: ["standard", "shared_value"],
       discovery_campaign_status: ["active", "paused", "archived"],
       discovery_enrichment_source: ["apollo", "manual", "firecrawl"],
       discovery_insight_kind: ["observation", "interpretation"],
