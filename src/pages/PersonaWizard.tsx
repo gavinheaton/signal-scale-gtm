@@ -366,6 +366,21 @@ export default function PersonaWizard() {
             <div ref={messagesEndRef} />
           </div>
 
+          {suggestedReplies.length > 0 && !loading && (
+            <div className="border-t px-3 pt-3 flex flex-wrap gap-2">
+              {suggestedReplies.map((chip) => (
+                <Button
+                  key={chip}
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={() => { setInput(chip); setSuggestedReplies([]); }}
+                >
+                  {chip}
+                </Button>
+              ))}
+            </div>
+          )}
           <div className="border-t p-3 flex gap-2">
             <Textarea
               value={input}
@@ -380,6 +395,7 @@ export default function PersonaWizard() {
               <Send className="h-4 w-4" />
             </Button>
           </div>
+
         </div>
 
         {/* Right: Preview */}
