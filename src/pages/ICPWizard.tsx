@@ -70,10 +70,13 @@ export default function ICPWizard() {
     setLoading(true);
     try {
       // Check current ICP count first — drives diff-mode logic
-      const { count: icpCount } = await supabase
+      const { count: icpCount, error: icpCountError } = await supabase
         .from('icps')
         .select('id', { count: 'exact', head: true })
         .eq('project_id', currentProject!.id);
+
+      if (icpCountError) throw icpCountError;
+
       const priorIcps = icpCount || 0;
       setExistingIcpCount(priorIcps);
 
@@ -99,6 +102,11 @@ export default function ICPWizard() {
             .from('wizard_sessions')
             .update({ status: 'cancelled' })
             .eq('id', session.id);
+
+          setMessages([]);
+          setDraft({});
+          setPrevDraft({});
+          setSessionId(null);
 
           const res = await supabase.functions.invoke('icp-wizard', {
             body: { project_id: currentProject!.id },
