@@ -154,7 +154,7 @@ export default function ContactsTab({ campaign, personas }: { campaign: Discover
                         const role = c.org_role_id ? rolesById.get(c.org_role_id) : null;
                         const pLabel = personaLabel(c.persona_id);
                         return (
-                          <div key={c.id} className="text-sm">
+                          <div key={`contact-${c.id}`} className="text-sm">
                             <div className="flex items-center gap-2 p-2">
                               <button className="p-0.5 hover:bg-muted rounded" onClick={() => toggleExpand(c.id)} aria-label="Expand">
                                 {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
