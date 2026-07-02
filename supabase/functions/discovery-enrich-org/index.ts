@@ -1,7 +1,10 @@
 // Enrich a discovery organisation with an AI-generated profile.
 // Uses Firecrawl (search + scrape) for grounding, then Lovable AI Gateway
 // (Gemini) to produce structured company/leadership info scored against the
-// campaign's ICP + qualifying signals.
+// campaign's ICP + qualifying signals. Also validates the company website,
+// discovers a company LinkedIn URL, discovers per-leader LinkedIn URLs, and
+// auto-creates Contacts (+ matching org_roles) so Apollo enrichment can fill
+// email later.
 import { corsHeaders } from "../_shared/cors.ts";
 import { requireUser, serviceClient, assertCampaignAccess } from "../_shared/auth.ts";
 
@@ -18,11 +21,12 @@ async function firecrawlScrape(url: string) {
       body: JSON.stringify({ url, formats: ["markdown"], onlyMainContent: true }),
     });
     const j = await res.json();
-    if (!res.ok) return { url, error: j?.error || `HTTP ${res.status}`, markdown: "" };
+    if (!res.ok) return { url, error: j?.error || `HTTP ${res.status}`, markdown: "", title: "" };
     const md: string = j?.data?.markdown || j?.markdown || "";
-    return { url, markdown: md.slice(0, 8000) };
+    const title: string = j?.data?.metadata?.title || j?.metadata?.title || "";
+    return { url, markdown: md.slice(0, 8000), title };
   } catch (e) {
-    return { url, error: String(e), markdown: "" };
+    return { url, error: String(e), markdown: "", title: "" };
   }
 }
 
@@ -40,6 +44,22 @@ async function firecrawlSearch(query: string, limit = 5) {
       url: r.url, title: r.title || "", description: r.description || "",
     }));
   } catch { return []; }
+}
+
+// Loose fuzzy match: does haystack contain the meaningful tokens of needle?
+function looseMatch(needle: string, haystack: string) {
+  if (!needle || !haystack) return false;
+  const n = needle.toLowerCase();
+  const h = haystack.toLowerCase();
+  if (h.includes(n)) return true;
+  const tokens = n.split(/[^a-z0-9]+/).filter((t) => t.length > 2);
+  if (tokens.length === 0) return false;
+  const hits = tokens.filter((t) => h.includes(t)).length;
+  return hits / tokens.length >= 0.6;
+}
+
+function normDomain(url: string): string {
+  return url.replace(/^https?:\/\//i, "").replace(/^www\./i, "").replace(/\/.*$/, "").toLowerCase();
 }
 
 Deno.serve(async (req) => {
@@ -60,7 +80,6 @@ Deno.serve(async (req) => {
     if (!campaign) throw new Error("Campaign not found");
 
     await assertCampaignAccess(service as any, user.id, campaign.id).catch(async () => {
-      // discovery_campaigns aren't in `campaigns` — resolve via project
       const { data: proj } = await service
         .from("projects").select("org_id").eq("id", campaign.project_id).maybeSingle();
       if (!proj) throw new Error("Project not found");
@@ -68,22 +87,67 @@ Deno.serve(async (req) => {
       if (!ok) throw new Error("Forbidden");
     });
 
-    // 1. Gather source pages
+    // 1a. Validate or discover company website
+    let workingDomain: string | null = org.domain || null;
+    let websiteVerified = false;
+    const validationNotes: string[] = [];
+
+    if (workingDomain) {
+      const base = normDomain(workingDomain);
+      const homepage = await firecrawlScrape(`https://${base}`);
+      if (homepage.markdown && homepage.markdown.length > 100) {
+        const bodyText = `${homepage.title}\n${homepage.markdown.slice(0, 1200)}`;
+        if (looseMatch(org.name, bodyText)) {
+          websiteVerified = true;
+          workingDomain = base;
+        } else {
+          validationNotes.push(`Website ${base} did not clearly reference "${org.name}" — verify manually.`);
+        }
+      } else {
+        validationNotes.push(`Website ${base} did not respond or was empty.`);
+      }
+    }
+
+    if (!websiteVerified) {
+      const hits = await firecrawlSearch(`"${org.name}" official site`, 5);
+      const candidate = hits.find((h) => {
+        const d = normDomain(h.url);
+        return d && !/linkedin\.com|facebook\.com|twitter\.com|x\.com|crunchbase\.com|wikipedia\.org|youtube\.com/.test(d);
+      });
+      if (candidate) {
+        const cd = normDomain(candidate.url);
+        const page = await firecrawlScrape(`https://${cd}`);
+        const bodyText = `${page.title}\n${page.markdown.slice(0, 1200)}`;
+        if (looseMatch(org.name, bodyText)) {
+          workingDomain = cd;
+          websiteVerified = true;
+          validationNotes.push(`Discovered website: ${cd}`);
+        }
+      }
+    }
+
+    // 1b. Discover company LinkedIn URL
+    let companyLinkedIn: string | null = null;
+    {
+      const hits = await firecrawlSearch(`"${org.name}" site:linkedin.com/company`, 3);
+      const li = hits.find((h) => /linkedin\.com\/company\//i.test(h.url));
+      if (li) companyLinkedIn = li.url.split("?")[0];
+    }
+
+    // 2. Gather source pages (using the working domain if we now have one)
     const sources: { url: string; markdown: string; error?: string }[] = [];
     const seen = new Set<string>();
     const push = (u: string) => { if (u && !seen.has(u)) { seen.add(u); return true; } return false; };
 
-    if (org.domain) {
-      const base = org.domain.replace(/^https?:\/\//, "").replace(/\/$/, "");
+    if (workingDomain) {
       for (const path of ["", "/about", "/about-us", "/company", "/team", "/leadership"]) {
-        const u = `https://${base}${path}`;
+        const u = `https://${workingDomain}${path}`;
         if (push(u)) sources.push(await firecrawlScrape(u));
       }
     }
 
-    // 2. Web search for extra grounding (news, leadership mentions)
     const searchHits = await firecrawlSearch(
-      `"${org.name}" ${org.domain ? `site:${org.domain} OR ` : ""}company leadership`,
+      `"${org.name}" ${workingDomain ? `site:${workingDomain} OR ` : ""}company leadership`,
       4,
     );
     for (const h of searchHits.slice(0, 4)) {
@@ -101,7 +165,7 @@ Deno.serve(async (req) => {
 
     const prompt = `You are enriching a company profile for B2B discovery.
 
-TARGET COMPANY: ${org.name}${org.domain ? ` (${org.domain})` : ""}
+TARGET COMPANY: ${org.name}${workingDomain ? ` (${workingDomain})` : ""}
 
 CAMPAIGN CONTEXT
 Segment: ${campaign.target_segment || "n/a"}
@@ -153,11 +217,25 @@ Only output the JSON. No prose.`;
       if (m) { try { parsed = JSON.parse(m[0]); } catch { /* ignore */ } }
     }
 
+    // 3b. Discover per-leader LinkedIn URLs (best-effort, capped)
+    const rawLeaders: { name: string; role?: string | null; source_url?: string | null }[] =
+      Array.isArray(parsed.leadership) ? parsed.leadership : [];
+    const leadersWithLinkedIn: { name: string; role?: string | null; source_url?: string | null; linkedin_url?: string | null }[] = [];
+    for (const l of rawLeaders.slice(0, 8)) {
+      if (!l?.name) continue;
+      let linkedin: string | null = null;
+      try {
+        const hits = await firecrawlSearch(`"${l.name}" "${org.name}" site:linkedin.com/in`, 2);
+        const hit = hits.find((h) => /linkedin\.com\/in\//i.test(h.url));
+        if (hit) linkedin = hit.url.split("?")[0];
+      } catch { /* ignore */ }
+      leadersWithLinkedIn.push({ ...l, linkedin_url: linkedin });
+    }
+
     // 4. Merge into org row
     const existingLeaders = Array.isArray(org.leadership) ? org.leadership : [];
-    const newLeaders = Array.isArray(parsed.leadership) ? parsed.leadership : [];
     const byName = new Map<string, any>();
-    for (const l of [...existingLeaders, ...newLeaders]) {
+    for (const l of [...existingLeaders, ...leadersWithLinkedIn]) {
       if (!l?.name) continue;
       const k = l.name.toLowerCase().trim();
       byName.set(k, { ...(byName.get(k) || {}), ...l });
@@ -169,7 +247,10 @@ Only output the JSON. No prose.`;
       ...(Array.isArray(parsed.matched_signals) ? parsed.matched_signals : []),
     ]));
 
-    const fitLine = parsed.fit_rationale ? `[AI ${new Date().toISOString().slice(0, 10)}] ${parsed.fit_rationale}` : null;
+    const noteLines: string[] = [];
+    if (parsed.fit_rationale) noteLines.push(`[AI ${new Date().toISOString().slice(0, 10)}] ${parsed.fit_rationale}`);
+    for (const n of validationNotes) noteLines.push(`[URL check] ${n}`);
+    const fitLine = noteLines.length ? noteLines.join("\n") : null;
     const mergedNotes = fitLine
       ? (org.fit_notes ? `${fitLine}\n\n${org.fit_notes}` : fitLine)
       : org.fit_notes;
@@ -179,18 +260,69 @@ Only output the JSON. No prose.`;
       signals_matched: mergedSignals,
       fit_notes: mergedNotes,
       confidence: parsed.confidence || org.confidence || null,
-      enrichment: parsed,
+      enrichment: { ...parsed, leadership: mergedLeaders, website_verified: websiteVerified, linkedin_url: companyLinkedIn },
       enriched_at: new Date().toISOString(),
+      website_verified: websiteVerified,
     };
+    if (workingDomain && workingDomain !== org.domain) update.domain = workingDomain;
+    if (companyLinkedIn) update.linkedin_url = companyLinkedIn;
 
     const { error: upErr } = await service
       .from("discovery_organizations").update(update).eq("id", org.id);
     if (upErr) throw upErr;
 
+    // 5. Auto-create Contacts + org_roles from leaders (dedup by name within org)
+    let contactsCreated = 0;
+    if (mergedLeaders.length) {
+      const { data: existingContacts } = await service
+        .from("discovery_contacts").select("id, name, linkedin_url").eq("organization_id", org.id);
+      const existingByName = new Map<string, any>();
+      for (const c of (existingContacts || [])) existingByName.set((c.name || "").toLowerCase().trim(), c);
+
+      for (const l of mergedLeaders) {
+        if (!l?.name) continue;
+        const key = l.name.toLowerCase().trim();
+        const existing = existingByName.get(key);
+        const roleTitle = l.role || "Leadership";
+
+        if (existing) {
+          // Backfill LinkedIn if we found one and they don't have it
+          if (!existing.linkedin_url && l.linkedin_url) {
+            await service.from("discovery_contacts")
+              .update({ linkedin_url: l.linkedin_url }).eq("id", existing.id);
+          }
+          continue;
+        }
+
+        // Create matching org_role
+        const { data: roleRow } = await service.from("discovery_org_roles").insert({
+          organization_id: org.id,
+          role_title: roleTitle,
+          source_url: l.source_url || null,
+          status: "identified",
+        }).select("id").maybeSingle();
+
+        await service.from("discovery_contacts").insert({
+          organization_id: org.id,
+          org_role_id: roleRow?.id || null,
+          persona_id: null,
+          name: l.name,
+          title: l.role || null,
+          linkedin_url: l.linkedin_url || null,
+          enrichment_source: "firecrawl",
+          notes: l.source_url ? `Found via ${l.source_url}` : null,
+        });
+        contactsCreated++;
+      }
+    }
+
     return new Response(JSON.stringify({
       success: true,
-      enrichment: parsed,
+      enrichment: { ...parsed, leadership: mergedLeaders, website_verified: websiteVerified, linkedin_url: companyLinkedIn },
       sources_scraped: kept.length,
+      website_verified: websiteVerified,
+      linkedin_url: companyLinkedIn,
+      contacts_created: contactsCreated,
     }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (e: any) {
     if (e instanceof Response) return e;

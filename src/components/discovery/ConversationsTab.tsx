@@ -43,6 +43,12 @@ export default function ConversationsTab({ campaign, personas }: { campaign: Dis
   const createConversation = async (contact_id: string) => {
     const { data, error } = await (supabase as any).from('discovery_conversations').insert({ contact_id, date: new Date().toISOString().slice(0, 10) }).select().maybeSingle();
     if (error) return;
+    // Auto-advance the parent org's status
+    const contact = contacts.find((c) => c.id === contact_id);
+    if (contact?.organization_id) {
+      const { maybeAdvanceOrgStatus } = await import('@/lib/discoveryStatus');
+      await maybeAdvanceOrgStatus(contact.organization_id, 'in_conversation');
+    }
     setPickContact(false);
     setOpenConv(data.id);
     refresh();

@@ -922,6 +922,7 @@ export type Database = {
           fit_notes: string | null
           id: string
           leadership: Json
+          linkedin_url: string | null
           name: string
           segment: string | null
           signals_matched: string[]
@@ -930,6 +931,7 @@ export type Database = {
           status: Database["public"]["Enums"]["discovery_org_status"]
           tier: string | null
           updated_at: string
+          website_verified: boolean
         }
         Insert: {
           campaign_id: string
@@ -941,6 +943,7 @@ export type Database = {
           fit_notes?: string | null
           id?: string
           leadership?: Json
+          linkedin_url?: string | null
           name: string
           segment?: string | null
           signals_matched?: string[]
@@ -949,6 +952,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["discovery_org_status"]
           tier?: string | null
           updated_at?: string
+          website_verified?: boolean
         }
         Update: {
           campaign_id?: string
@@ -960,6 +964,7 @@ export type Database = {
           fit_notes?: string | null
           id?: string
           leadership?: Json
+          linkedin_url?: string | null
           name?: string
           segment?: string | null
           signals_matched?: string[]
@@ -968,6 +973,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["discovery_org_status"]
           tier?: string | null
           updated_at?: string
+          website_verified?: boolean
         }
         Relationships: [
           {
@@ -1884,7 +1890,7 @@ export type Database = {
       campaign_status: "brief" | "planning" | "active" | "complete"
       campaign_track: "demand_capture" | "demand_creation"
       discovery_campaign_status: "active" | "paused" | "archived"
-      discovery_enrichment_source: "apollo" | "manual"
+      discovery_enrichment_source: "apollo" | "manual" | "firecrawl"
       discovery_insight_kind: "observation" | "interpretation"
       discovery_org_source: "firecrawl" | "manual"
       discovery_org_status:
@@ -2104,7 +2110,7 @@ export const Constants = {
       campaign_status: ["brief", "planning", "active", "complete"],
       campaign_track: ["demand_capture", "demand_creation"],
       discovery_campaign_status: ["active", "paused", "archived"],
-      discovery_enrichment_source: ["apollo", "manual"],
+      discovery_enrichment_source: ["apollo", "manual", "firecrawl"],
       discovery_insight_kind: ["observation", "interpretation"],
       discovery_org_source: ["firecrawl", "manual"],
       discovery_org_status: [

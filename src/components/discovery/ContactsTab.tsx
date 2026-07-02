@@ -6,11 +6,13 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Plus, Sparkles, Loader2, Users, ExternalLink, Linkedin, Mail } from 'lucide-react';
+import {
+  Plus, Sparkles, Loader2, ExternalLink, Linkedin, Mail, ChevronDown, ChevronRight,
+  Pencil, Building2, Users,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import {
   DiscoveryCampaign,
@@ -18,8 +20,10 @@ import {
   DiscoveryOrganization,
   DiscoveryOrgRole,
   DiscoveryOutreachStatus,
+  DiscoveryEnrichmentSource,
 } from '@/types/discovery';
 import { Persona } from '@/types/database';
+import { maybeAdvanceOrgStatus } from '@/lib/discoveryStatus';
 
 type OrgWithChildren = DiscoveryOrganization & {
   discovery_contacts: DiscoveryContact[];
@@ -30,13 +34,19 @@ const outreachOptions: DiscoveryOutreachStatus[] = [
   'not_started', 'connection_sent', 'connected', 'dm_sent', 'email_sent', 'responded', 'closed_no_response',
 ];
 
-interface ApolloCandidate {
-  name: string;
-  title: string;
-  email: string | null;
-  linkedin_url: string | null;
-  seniority: string | null;
-  apollo_person_id: string;
+function SourceBadge({ source }: { source: DiscoveryEnrichmentSource }) {
+  const map: Record<DiscoveryEnrichmentSource, { label: string; icon: any; variant: any }> = {
+    firecrawl: { label: 'AI', icon: Sparkles, variant: 'secondary' },
+    apollo: { label: 'Apollo', icon: Building2, variant: 'default' },
+    manual: { label: 'Manual', icon: Pencil, variant: 'outline' },
+  };
+  const m = map[source] || map.manual;
+  const Icon = m.icon;
+  return (
+    <Badge variant={m.variant} className="text-[10px] gap-1" title={`Source: ${source}`}>
+      <Icon className="h-2.5 w-2.5" /> {m.label}
+    </Badge>
+  );
 }
 
 export default function ContactsTab({ campaign, personas }: { campaign: DiscoveryCampaign; personas: Persona[] }) {
@@ -44,6 +54,7 @@ export default function ContactsTab({ campaign, personas }: { campaign: Discover
   const [loading, setLoading] = useState(true);
   const [addingFor, setAddingFor] = useState<DiscoveryOrganization | null>(null);
   const [enrichingRole, setEnrichingRole] = useState<{ org: DiscoveryOrganization; role: DiscoveryOrgRole } | null>(null);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   const refresh = async () => {
     setLoading(true);
@@ -58,7 +69,12 @@ export default function ContactsTab({ campaign, personas }: { campaign: Discover
 
   useEffect(() => { refresh(); }, [campaign.id]);
 
-  const personaLabel = (id: string | null) => personas.find((p) => p.id === id)?.persona_name || '—';
+  const personaLabel = (id: string | null) => personas.find((p) => p.id === id)?.persona_name || null;
+  const toggleExpand = (id: string) => {
+    const next = new Set(expanded);
+    next.has(id) ? next.delete(id) : next.add(id);
+    setExpanded(next);
+  };
 
   return (
     <div className="space-y-3">
@@ -70,24 +86,34 @@ export default function ContactsTab({ campaign, personas }: { campaign: Discover
         <div className="space-y-4">
           {orgs.map((org) => {
             const unenriched = org.discovery_org_roles.filter((r) => r.status === 'identified');
+            const rolesById = new Map(org.discovery_org_roles.map((r) => [r.id, r]));
             return (
               <Card key={org.id}>
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between mb-3">
                     <div>
-                      <h3 className="font-semibold">{org.name}</h3>
-                      <p className="text-xs text-muted-foreground">{org.discovery_contacts.length} contacts · {org.discovery_org_roles.length} roles identified</p>
+                      <h3 className="font-semibold flex items-center gap-2">
+                        {org.name}
+                        {org.linkedin_url && (
+                          <a href={org.linkedin_url} target="_blank" rel="noreferrer" className="text-primary" title="Company LinkedIn">
+                            <Linkedin className="h-4 w-4" />
+                          </a>
+                        )}
+                      </h3>
+                      <p className="text-xs text-muted-foreground">
+                        {org.discovery_contacts.length} contacts · {org.discovery_org_roles.length} roles identified
+                      </p>
                     </div>
                     <Button size="sm" variant="outline" onClick={() => setAddingFor(org)}><Plus className="h-4 w-4 mr-1" /> Add manually</Button>
                   </div>
 
                   {unenriched.length > 0 && (
                     <div className="mb-3 p-2 rounded bg-amber-50 border border-amber-200">
-                      <p className="text-xs font-medium text-amber-900 mb-2">{unenriched.length} role{unenriched.length === 1 ? '' : 's'} ready to enrich with Apollo</p>
+                      <p className="text-xs font-medium text-amber-900 mb-2">{unenriched.length} role{unenriched.length === 1 ? '' : 's'} ready to enrich with Apollo (finds email + verified LinkedIn)</p>
                       <div className="space-y-1">
                         {unenriched.map((r) => (
                           <div key={r.id} className="flex items-center justify-between text-xs">
-                            <span>{r.role_title} <Badge variant="outline" className="ml-1 text-[10px]">{personaLabel(r.persona_id)}</Badge></span>
+                            <span>{r.role_title} {personaLabel(r.persona_id) && <Badge variant="outline" className="ml-1 text-[10px]">{personaLabel(r.persona_id)}</Badge>}</span>
                             <Button size="sm" variant="ghost" onClick={() => setEnrichingRole({ org, role: r })}>
                               <Sparkles className="h-3 w-3 mr-1" /> Enrich
                             </Button>
@@ -98,38 +124,78 @@ export default function ContactsTab({ campaign, personas }: { campaign: Discover
                   )}
 
                   {org.discovery_contacts.length > 0 && (
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Name</TableHead>
-                          <TableHead>Title</TableHead>
-                          <TableHead>Persona</TableHead>
-                          <TableHead>Email</TableHead>
-                          <TableHead>LinkedIn</TableHead>
-                          <TableHead>Outreach</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {org.discovery_contacts.map((c) => (
-                          <TableRow key={c.id}>
-                            <TableCell className="font-medium">{c.name}</TableCell>
-                            <TableCell className="text-xs">{c.title}</TableCell>
-                            <TableCell><Badge variant="outline" className="text-xs">{personaLabel(c.persona_id)}</Badge></TableCell>
-                            <TableCell className="text-xs">{c.email ? <a href={`mailto:${c.email}`} className="inline-flex items-center gap-1 text-primary hover:underline"><Mail className="h-3 w-3" />{c.email}</a> : '—'}</TableCell>
-                            <TableCell>{c.linkedin_url ? <a href={c.linkedin_url} target="_blank" rel="noreferrer" className="text-primary"><Linkedin className="h-4 w-4" /></a> : '—'}</TableCell>
-                            <TableCell>
-                              <Select value={c.outreach_status} onValueChange={async (v) => {
-                                await (supabase as any).from('discovery_contacts').update({ outreach_status: v }).eq('id', c.id);
-                                refresh();
-                              }}>
-                                <SelectTrigger className="h-7 text-xs w-40"><SelectValue /></SelectTrigger>
-                                <SelectContent>{outreachOptions.map((s) => <SelectItem key={s} value={s}>{s.replace(/_/g, ' ')}</SelectItem>)}</SelectContent>
-                              </Select>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
+                    <div className="border rounded divide-y">
+                      {org.discovery_contacts.map((c) => {
+                        const isOpen = expanded.has(c.id);
+                        const role = c.org_role_id ? rolesById.get(c.org_role_id) : null;
+                        const pLabel = personaLabel(c.persona_id);
+                        return (
+                          <div key={c.id} className="text-sm">
+                            <div className="flex items-center gap-2 p-2">
+                              <button className="p-0.5 hover:bg-muted rounded" onClick={() => toggleExpand(c.id)} aria-label="Expand">
+                                {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                              </button>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="font-medium truncate">{c.name}</span>
+                                  <SourceBadge source={c.enrichment_source} />
+                                  {pLabel && <Badge variant="outline" className="text-[10px]">{pLabel}</Badge>}
+                                </div>
+                                {c.title && <div className="text-xs text-muted-foreground truncate">{c.title}</div>}
+                              </div>
+                              <div className="flex items-center gap-2 shrink-0">
+                                {c.email && <a href={`mailto:${c.email}`} title={c.email} className="text-primary"><Mail className="h-4 w-4" /></a>}
+                                {c.linkedin_url && <a href={c.linkedin_url} target="_blank" rel="noreferrer" title="LinkedIn" className="text-primary"><Linkedin className="h-4 w-4" /></a>}
+                                <Select value={c.outreach_status} onValueChange={async (v) => {
+                                  await (supabase as any).from('discovery_contacts').update({ outreach_status: v }).eq('id', c.id);
+                                  refresh();
+                                }}>
+                                  <SelectTrigger className="h-7 text-xs w-40"><SelectValue /></SelectTrigger>
+                                  <SelectContent>{outreachOptions.map((s) => <SelectItem key={s} value={s}>{s.replace(/_/g, ' ')}</SelectItem>)}</SelectContent>
+                                </Select>
+                              </div>
+                            </div>
+
+                            {isOpen && (
+                              <div className="px-3 pb-3 pt-1 grid grid-cols-1 md:grid-cols-3 gap-3 bg-muted/30 text-xs">
+                                <div className="space-y-1">
+                                  <div className="font-medium text-muted-foreground uppercase tracking-wide text-[10px]">Contact details</div>
+                                  {c.email ? (
+                                    <div className="inline-flex items-center gap-1"><Mail className="h-3 w-3" /> {c.email}</div>
+                                  ) : <div className="text-muted-foreground">Email: —</div>}
+                                  {c.linkedin_url ? (
+                                    <div><a href={c.linkedin_url} target="_blank" rel="noreferrer" className="text-primary inline-flex items-center gap-1"><Linkedin className="h-3 w-3" /> LinkedIn profile</a></div>
+                                  ) : <div className="text-muted-foreground">LinkedIn: —</div>}
+                                  <PersonaAssign
+                                    contactId={c.id}
+                                    personaId={c.persona_id}
+                                    personas={personas}
+                                    onSaved={refresh}
+                                  />
+                                </div>
+                                <div className="space-y-1">
+                                  <div className="font-medium text-muted-foreground uppercase tracking-wide text-[10px]">Role & source</div>
+                                  {role && <div>Role: <span className="font-medium">{role.role_title}</span></div>}
+                                  {role?.source_url && (
+                                    <div className="truncate">
+                                      <a href={role.source_url} target="_blank" rel="noreferrer" className="text-primary inline-flex items-center gap-1 truncate">
+                                        <ExternalLink className="h-3 w-3" /> Found via
+                                      </a>
+                                    </div>
+                                  )}
+                                  <div className="text-muted-foreground">Enrichment: {c.enrichment_source}</div>
+                                  {c.apollo_person_id && <div className="text-muted-foreground truncate">Apollo id: {c.apollo_person_id.slice(0, 12)}…</div>}
+                                </div>
+                                <div className="space-y-1">
+                                  <div className="font-medium text-muted-foreground uppercase tracking-wide text-[10px]">Notes</div>
+                                  <div className="whitespace-pre-wrap">{c.notes || <span className="text-muted-foreground">No notes.</span>}</div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
                   )}
                 </CardContent>
               </Card>
@@ -140,6 +206,23 @@ export default function ContactsTab({ campaign, personas }: { campaign: Discover
 
       {addingFor && <AddContactSheet org={addingFor} personas={personas} onClose={() => { setAddingFor(null); refresh(); }} />}
       {enrichingRole && <EnrichApolloSheet org={enrichingRole.org} role={enrichingRole.role} onClose={() => { setEnrichingRole(null); refresh(); }} />}
+    </div>
+  );
+}
+
+function PersonaAssign({
+  contactId, personaId, personas, onSaved,
+}: { contactId: string; personaId: string | null; personas: Persona[]; onSaved: () => void }) {
+  return (
+    <div className="flex items-center gap-1">
+      <span className="text-muted-foreground">Persona:</span>
+      <Select value={personaId || ''} onValueChange={async (v) => {
+        await (supabase as any).from('discovery_contacts').update({ persona_id: v || null }).eq('id', contactId);
+        onSaved();
+      }}>
+        <SelectTrigger className="h-6 text-[11px] w-40"><SelectValue placeholder="Assign" /></SelectTrigger>
+        <SelectContent>{personas.map((p) => <SelectItem key={p.id} value={p.id}>{p.persona_name}</SelectItem>)}</SelectContent>
+      </Select>
     </div>
   );
 }
@@ -165,6 +248,7 @@ function AddContactSheet({ org, personas, onClose }: { org: DiscoveryOrganizatio
     });
     setSaving(false);
     if (error) { toast.error(error.message); return; }
+    await maybeAdvanceOrgStatus(org.id, 'targeted');
     onClose();
   };
 
@@ -190,6 +274,15 @@ function AddContactSheet({ org, personas, onClose }: { org: DiscoveryOrganizatio
       </SheetContent>
     </Sheet>
   );
+}
+
+interface ApolloCandidate {
+  name: string;
+  title: string;
+  email: string | null;
+  linkedin_url: string | null;
+  seniority: string | null;
+  apollo_person_id: string;
 }
 
 function EnrichApolloSheet({ org, role, onClose }: { org: DiscoveryOrganization; role: DiscoveryOrgRole; onClose: () => void }) {
@@ -223,6 +316,7 @@ function EnrichApolloSheet({ org, role, onClose }: { org: DiscoveryOrganization;
     const { error: insErr } = await (supabase as any).from('discovery_contacts').insert(rows);
     if (insErr) { setSaving(false); toast.error(insErr.message); return; }
     await (supabase as any).from('discovery_org_roles').update({ status: 'enriched' }).eq('id', role.id);
+    await maybeAdvanceOrgStatus(org.id, 'targeted');
     setSaving(false);
     toast.success(`Added ${rows.length} contact${rows.length === 1 ? '' : 's'}`);
     onClose();
