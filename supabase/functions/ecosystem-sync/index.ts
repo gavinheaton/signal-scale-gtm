@@ -223,7 +223,40 @@ Deno.serve(async (req) => {
       if (arr.length) leaderNodesByOrg.set(o.id, arr);
     }
 
-    // Mark disappeared synced nodes as hidden+stale
+    // 6. Theme nodes — ring 2 (shared with companies, offset by companies.length)
+    const themeNodeId = new Map<string, string>();
+    for (let i = 0; i < themes.length; i++) {
+      const t = themes[i];
+      const id = await upsertNode({
+        kind: "theme", ref_table: "discovery_themes", ref_id: t.id,
+        label: t.label || "Theme",
+        subtitle: t.status || undefined,
+        ring: 2, idx: orgs.length + i, total: Math.max(orgs.length + themes.length, 1),
+        meta: { campaign_id: t.campaign_id, description: t.description, status: t.status },
+      });
+      themeNodeId.set(t.id, id);
+    }
+
+    // 7. Insight nodes — ring 4 (alongside people)
+    const insightNodeId = new Map<string, string>();
+    const convoContact = new Map<string, string>();
+    for (const cv of conversations) if (cv.contact_id) convoContact.set(cv.id, cv.contact_id);
+    const totalRing4 = totalPeople + insights.length;
+    for (let i = 0; i < insights.length; i++) {
+      const ins = insights[i];
+      const text = String(ins.text || "");
+      const label = text.length > 80 ? text.slice(0, 77) + "…" : text || "Insight";
+      const id = await upsertNode({
+        kind: "insight", ref_table: "discovery_insights", ref_id: ins.id,
+        label,
+        subtitle: ins.is_quote ? "Quote" : (ins.kind || undefined),
+        ring: 4, idx: totalPeople + i, total: Math.max(totalRing4, 1),
+        meta: { is_quote: ins.is_quote, kind: ins.kind, conversation_id: ins.conversation_id,
+                campaign_id: ins.campaign_id, theme_id: ins.theme_id, text },
+      });
+      insightNodeId.set(ins.id, id);
+    }
+
     for (const [key, id] of existingKey) {
       if (!touched.has(key)) {
         await svc.from("ecosystem_nodes").update({ hidden: true, stale: true }).eq("id", id);
