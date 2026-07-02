@@ -44,7 +44,7 @@ export default function Ecosystem() {
       const { data, error } = await supabase.functions.invoke('ecosystem-sync', { body: { map_id: map.id } });
       if (error) throw error;
       const counts = (data as any)?.counts;
-      toast.success(`Synced • ${counts?.segments || 0} segments · ${counts?.companies || 0} companies · ${counts?.roles || 0} roles · ${counts?.people || 0} people`);
+      toast.success(`Synced • ${counts?.segments || 0} segments · ${counts?.companies || 0} companies · ${counts?.roles || 0} roles · ${counts?.people || 0} people · ${counts?.themes || 0} themes · ${counts?.insights || 0} insights`);
       setRefreshKey((k) => k + 1);
     } catch (e: any) {
       toast.error(`Sync failed: ${e.message || e}`);
