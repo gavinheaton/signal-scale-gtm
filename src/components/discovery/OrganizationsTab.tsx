@@ -138,7 +138,14 @@ export default function OrganizationsTab({ campaign, personas }: { campaign: Dis
             <TableBody>
               {orgs.map((o) => (
                 <TableRow key={o.id}>
-                  <TableCell className="font-medium">{o.name}</TableCell>
+                  <TableCell className="font-medium">
+                    <button className="text-left hover:underline" onClick={() => setViewing(o)}>{o.name}</button>
+                    {o.enriched_at && (
+                      <div className="text-[10px] text-muted-foreground mt-0.5 inline-flex items-center gap-1 ml-2">
+                        <Sparkles className="h-2.5 w-2.5" /> enriched
+                      </div>
+                    )}
+                  </TableCell>
                   <TableCell className="text-xs">
                     {o.domain ? <a href={`https://${o.domain}`} target="_blank" rel="noreferrer" className="text-primary hover:underline inline-flex items-center gap-1">{o.domain}<ExternalLink className="h-3 w-3" /></a> : '—'}
                   </TableCell>
@@ -167,12 +174,19 @@ export default function OrganizationsTab({ campaign, personas }: { campaign: Dis
                   <TableCell>{roleCounts[o.id]?.contacts || 0}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1">
-                      <Button size="sm" variant="outline" onClick={() => setRolesFor(o)}><Users className="h-3 w-3 mr-1" /> Find roles</Button>
+                      <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => enrichOne(o)} disabled={enrichingId === o.id} title="Enrich with AI web search" aria-label={`Enrich ${o.name}`}>
+                        {enrichingId === o.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                      </Button>
+                      <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setEditing(o)} title="Edit" aria-label={`Edit ${o.name}`}>
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => setRolesFor(o)}><Users className="h-3 w-3 mr-1" /> Roles</Button>
                       <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => setDeleting(o)} aria-label={`Delete ${o.name}`}>
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
                   </TableCell>
+
                 </TableRow>
               ))}
             </TableBody>
