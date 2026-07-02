@@ -9,39 +9,39 @@ const FIRECRAWL_API_KEY = Deno.env.get("FIRECRAWL_API_KEY")!;
 
 interface Body { campaign_id: string }
 
-// Hosts that should never be treated as candidate ORGS themselves.
-// Includes social/video noise + directories, aggregators, review sites,
-// job boards, news wires, and generic listing platforms. Directory pages
-// can still feed stage-2 extraction as article sources.
-const HARD_BLOCK_HOSTS = new Set([
-  // social / video
+// Pure social/video/junk — skip entirely (neither candidate nor article source).
+const SKIP_HOSTS = new Set([
   "instagram.com", "facebook.com", "tiktok.com", "youtube.com", "youtu.be",
   "twitter.com", "x.com", "pinterest.com", "vimeo.com", "spotify.com", "soundcloud.com",
-  // directories / data aggregators
+]);
+const SKIP_PATHS = ["/reel/", "/reels/", "/shorts/", "/watch", "/status/"];
+
+// Directories / aggregators / review sites / job boards / news wires.
+// These are NEVER candidate orgs themselves, but their pages CAN be scraped
+// in stage 2 to extract the real companies they list.
+const DIRECTORY_HOSTS = new Set([
   "crunchbase.com", "owler.com", "pitchbook.com", "similarweb.com",
   "zoominfo.com", "apollo.io", "rocketreach.co", "wikipedia.org",
-  // review / marketplace directories
   "g2.com", "capterra.com", "getapp.com", "softwareadvice.com", "trustpilot.com",
   "clutch.co", "producthunt.com", "angel.co", "wellfound.com", "builtin.com",
-  // job boards
-  "indeed.com", "seek.com.au", "glassdoor.com", "ziprecruiter.com", "linkedin.com/jobs",
-  // news wires
+  "indeed.com", "seek.com.au", "glassdoor.com", "ziprecruiter.com",
   "businesswire.com", "prnewswire.com", "globenewswire.com",
 ]);
-const HARD_BLOCK_PATHS = ["/reel/", "/reels/", "/shorts/", "/watch", "/status/"];
 
-// Hosts that are usually article/listicle sources — keep, scrape in stage 2.
+// Editorial hosts — treat as article sources for stage-2 extraction.
 const ARTICLE_HOSTS = new Set([
   "medium.com", "substack.com", "linkedin.com", "reddit.com", "quora.com",
   "forbes.com", "techcrunch.com", "businessinsider.com", "afr.com", "smh.com.au",
   "theaustralian.com.au", "startupdaily.net", "fintechmagazine.com", "fintechnews.com.au",
-  "crunchbase.com", "owler.com", "pitchbook.com", "g2.com", "capterra.com",
-  "builtin.com", "wikipedia.org", "businesswire.com", "prnewswire.com",
 ]);
 const ARTICLE_PATH_HINTS = [
   "/best-", "/top-", "/top_", "/list", "/companies/", "/startup", "/founders",
   "/leaders", "/post/", "/posts/", "/article/", "/blog/", "/news/", "/202",
 ];
+
+// Only trust deep paths on unknown hosts as direct candidates when the path
+// looks like a company root — otherwise route to stage-2 scraping.
+const ROOT_PATH_HINTS = ["/", "/about", "/about-us", "/company", "/home"];
 
 const COMPOUND_TLDS = new Set([
   "co.uk", "com.au", "co.nz", "co.za", "com.br", "co.in", "co.jp", "com.sg", "com.hk",
