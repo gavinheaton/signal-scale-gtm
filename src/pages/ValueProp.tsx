@@ -353,7 +353,7 @@ export default function ValueProp() {
                   <CardHeader className="flex flex-row items-center justify-between">
                     <div>
                       <CardTitle className="text-base">Problems worth solving</CardTitle>
-                      <p className="text-xs text-muted-foreground mt-1">Score each against the 4 DH18 criteria: owner, tried &amp; failed, saves/makes money, broader impact.</p>
+                      <p className="text-xs text-muted-foreground mt-1">Score each against 4 criteria: owner, tried &amp; failed, saves/makes money, broader impact.</p>
                     </div>
                     <div className="flex gap-2">
                       <Button size="sm" variant="outline" onClick={addManualProblem}><Plus className="h-4 w-4 mr-1" />Add</Button>
