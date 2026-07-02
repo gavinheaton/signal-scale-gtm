@@ -58,6 +58,7 @@ export default function ICPPersonas() {
   const [deleteTarget, setDeleteTarget] = useState<Persona | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [moveDialog, setMoveDialog] = useState<{ mode: 'move' | 'duplicate'; persona: Persona } | null>(null);
   const notionStrategyPageId = (currentProject as any)?.notion_strategy_page_id;
 
 
