@@ -167,21 +167,36 @@ Deno.serve(async (req) => {
     let sessionId = session_id;
     let messages: Array<{ role: string; content: string; timestamp: string }> = [];
     let existingDraft: Record<string, any> = {};
+    let syntheticInitialPrompt: string | null = null;
 
     // Load brand context from the project
     let brandContext: Record<string, any> = {};
+    let projectInfo: Record<string, any> = {};
     if (project_id) {
       const { data: project } = await supabase
         .from("projects")
-        .select("brand_context")
+        .select("name, website_url, brand_context")
         .eq("id", project_id)
         .single();
+      projectInfo = project || {};
       if (project?.brand_context && Object.keys(project.brand_context).length > 0) {
         brandContext = project.brand_context as Record<string, any>;
       }
     }
 
     const hasBrandContext = brandContext.crawled_content && brandContext.crawled_content.length > 0;
+
+    let brandVoiceContext: Record<string, any> | null = null;
+    if (project_id) {
+      const { data: brandVoices } = await supabase
+        .from("brand_voices")
+        .select("brand_identity, tone_description, personality_adjectives, target_audiences")
+        .eq("project_id", project_id)
+        .eq("status", "complete")
+        .order("created_at", { ascending: false })
+        .limit(1);
+      brandVoiceContext = brandVoices?.[0] || null;
+    }
 
     // Fetch existing ICPs so the AI can reuse them rather than re-asking (diff mode)
     let existingIcps: any[] = [];
@@ -200,12 +215,15 @@ Deno.serve(async (req) => {
       : hasBrandContext ? INITIAL_MESSAGE_WITH_CONTEXT : INITIAL_MESSAGE_NO_CONTEXT;
 
     if (!sessionId) {
-      const initialMsg = {
-        role: "assistant",
-        content: initialMessage,
-        timestamp: new Date().toISOString(),
-      };
-      messages = [initialMsg];
+      messages = [];
+
+      if (!hasPriorIcps || message) {
+        messages.push({
+          role: "assistant",
+          content: initialMessage,
+          timestamp: new Date().toISOString(),
+        });
+      }
 
       if (message) {
         messages.push({
@@ -213,9 +231,11 @@ Deno.serve(async (req) => {
           content: message,
           timestamp: new Date().toISOString(),
         });
+      } else if (hasPriorIcps) {
+        syntheticInitialPrompt = "Start a new ICP in diff mode. Use the existing ICPs and known company facts as base company context. Open by briefly acknowledging what we already know, then ask one question: is this new ICP a variation of an existing segment or a genuinely different segment? Do not ask for website, company, product, positioning, or other basics already known.";
       }
 
-      const initialDraftOutput = { _meta: { mode: hasPriorIcps ? "diff" : "first" } } as Record<string, any>;
+      const initialDraftOutput = { _meta: { mode: hasPriorIcps ? "diff" : "first", context_version: ICP_CONTEXT_VERSION } } as Record<string, any>;
       const { data: session, error: insertError } = await supabase
         .from("wizard_sessions")
         .insert({
@@ -237,7 +257,7 @@ Deno.serve(async (req) => {
 
       sessionId = session.id;
 
-      if (!message) {
+      if (!message && !hasPriorIcps) {
         const initialSuggestedReplies = hasPriorIcps
           ? [
               ...existingIcps.slice(0, 3).map((i: any) => `Variation of ${i.segment_name}`),
