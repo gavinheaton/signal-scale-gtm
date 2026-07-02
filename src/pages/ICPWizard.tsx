@@ -214,6 +214,13 @@ export default function ICPWizard() {
           .update({ status: 'complete' })
           .eq('id', sessionId);
       }
+      // Cancel any other stray in-progress ICP sessions so next visit starts clean
+      await supabase
+        .from('wizard_sessions')
+        .update({ status: 'cancelled' })
+        .eq('project_id', currentProject.id)
+        .eq('session_type', 'icp')
+        .eq('status', 'in_progress');
 
       toast.success('ICP saved to platform!');
       setSavedIcpId(insertedData.id);
