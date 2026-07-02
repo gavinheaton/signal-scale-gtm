@@ -68,6 +68,14 @@ export default function ICPWizard() {
   const initSession = async () => {
     setLoading(true);
     try {
+      // Check current ICP count first — drives diff-mode logic
+      const { count: icpCount } = await supabase
+        .from('icps')
+        .select('id', { count: 'exact', head: true })
+        .eq('project_id', currentProject!.id);
+      const priorIcps = icpCount || 0;
+      setExistingIcpCount(priorIcps);
+
       const { data: existingSessions } = await supabase
         .from('wizard_sessions')
         .select('*')
@@ -79,6 +87,11 @@ export default function ICPWizard() {
 
       if (existingSessions && existingSessions.length > 0) {
         const session = existingSessions[0];
+        const draftOut = (session.draft_output as any) || {};
+        const sessionMode = draftOut?._meta?.mode as string | undefined;
+        // If the project now has ICPs but the session predates diff mode, flag as stale
+        const isStale = priorIcps > 0 && sessionMode !== 'diff';
+
         setSessionId(session.id);
         const sessionMessages = session.messages as Array<{ role: string; content: string }>;
         setMessages(
@@ -90,7 +103,16 @@ export default function ICPWizard() {
         if (session.draft_output && Object.keys(session.draft_output as object).length > 0) {
           setDraft(session.draft_output as DraftOutput);
         }
-        toast.info('Resumed your previous session');
+        setStaleResume(isStale);
+        if (isStale) {
+          toast.info('You have saved ICPs — start fresh to use diff mode, or continue this draft.');
+        } else {
+          // Re-surface diff chips if this is an ongoing diff session
+          if (sessionMode === 'diff') {
+            setSuggestedReplies(await buildDiffChips(currentProject!.id));
+          }
+          toast.info('Resumed your previous session');
+        }
         return;
       }
 
@@ -103,11 +125,27 @@ export default function ICPWizard() {
       setMessages([{ role: 'assistant', content: data.reply }]);
       if (data.updated_draft) setDraft(data.updated_draft);
       setSuggestedReplies(Array.isArray(data.suggested_replies) ? data.suggested_replies : []);
+      if (typeof data.existing_icp_count === 'number') setExistingIcpCount(data.existing_icp_count);
+      setStaleResume(false);
     } catch (err: any) {
       toast.error('Failed to start wizard: ' + (err.message || 'Unknown error'));
     } finally {
       setLoading(false);
     }
+  };
+
+  const buildDiffChips = async (projectId: string): Promise<string[]> => {
+    const { data: icps } = await supabase
+      .from('icps')
+      .select('segment_name')
+      .eq('project_id', projectId)
+      .order('created_at', { ascending: true })
+      .limit(3);
+    return [
+      ...(icps || []).map((i: any) => `Variation of ${i.segment_name}`),
+      'Different segment',
+      'Ask me everything',
+    ];
   };
 
   const sendMessage = async () => {
