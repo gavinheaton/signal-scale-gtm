@@ -6,7 +6,18 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
-import { ArrowLeft, Send, Sparkles, Loader2 } from 'lucide-react';
+import { ArrowLeft, Send, Sparkles, Loader2, RotateCcw } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import ReactMarkdown from 'react-markdown';
 import { ICPPreviewPanel } from '@/components/icp-wizard/ICPPreviewPanel';
 import { ICP_SECTIONS, getSectionStatus, type DraftOutput, type ChatMessage } from '@/components/icp-wizard/types';
@@ -177,18 +188,32 @@ export default function ICPWizard() {
 
   const handlePostSaveAction = (action: 'another_icp' | 'personas') => {
     if (action === 'another_icp') {
-      // Reset state and start fresh session
-      setMessages([]);
-      setDraft({});
-      setPrevDraft({});
-      setSessionId(null);
-      setSavedIcpId(null);
-      initSession();
+      restartWizard();
     } else {
-      // Navigate to persona wizard with the saved ICP context
       navigate(`/project/persona-wizard?icp_id=${savedIcpId}`);
     }
   };
+
+  const restartWizard = async () => {
+    if (sessionId) {
+      try {
+        await supabase
+          .from('wizard_sessions')
+          .update({ status: 'cancelled' })
+          .eq('id', sessionId);
+      } catch {}
+    }
+    setMessages([]);
+    setDraft({});
+    setPrevDraft({});
+    setSessionId(null);
+    setSavedIcpId(null);
+    setSuggestedReplies([]);
+    setInput('');
+    initSession();
+    toast.success('Started a fresh ICP');
+  };
+
 
   if (!currentProject) {
     navigate('/projects');
@@ -213,6 +238,25 @@ export default function ICPWizard() {
           </h1>
           <p className="text-xs text-muted-foreground">AI-guided ICP builder</p>
         </div>
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button variant="outline" size="sm" disabled={loading}>
+              <RotateCcw className="h-4 w-4 mr-2" /> Start Over
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Start a fresh ICP?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will discard your current in-progress ICP draft and begin a new conversation. Already-saved ICPs are not affected.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={restartWizard}>Start Over</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
 
       <div className="flex-1 flex gap-4 min-h-0">
