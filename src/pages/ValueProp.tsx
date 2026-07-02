@@ -258,7 +258,7 @@ export default function ValueProp() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Value Proposition</h1>
-          <p className="text-sm" style={{ color: 'hsl(var(--orange))' }}>Design pitches that resonate with each ICP — DH18 framework</p>
+          <p className="text-sm" style={{ color: 'hsl(var(--orange))' }}>Design pitches that resonate with each ICP</p>
         </div>
         <Button onClick={createNew}><Plus className="h-4 w-4 mr-2" />New Value Prop</Button>
       </div>
