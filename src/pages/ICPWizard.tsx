@@ -188,6 +188,33 @@ export default function ICPWizard() {
 
   const handlePostSaveAction = (action: 'another_icp' | 'personas') => {
     if (action === 'another_icp') {
+      restartWizard();
+    } else {
+      navigate(`/project/persona-wizard?icp_id=${savedIcpId}`);
+    }
+  };
+
+  const restartWizard = async () => {
+    if (sessionId) {
+      try {
+        await supabase
+          .from('wizard_sessions')
+          .update({ status: 'abandoned' })
+          .eq('id', sessionId);
+      } catch {}
+    }
+    setMessages([]);
+    setDraft({});
+    setPrevDraft({});
+    setSessionId(null);
+    setSavedIcpId(null);
+    setSuggestedReplies([]);
+    setInput('');
+    initSession();
+    toast.success('Started a fresh ICP');
+  };
+
+  const _legacyPostSave = (action: 'another_icp' | 'personas') => {
       // Reset state and start fresh session
       setMessages([]);
       setDraft({});
