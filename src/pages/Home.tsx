@@ -89,12 +89,6 @@ export default function Home() {
   const computedProgress: Record<string, PhaseStatus> = {
     icp: icpCount === 0 ? 'not_started' : icpWizardComplete ? 'complete' : 'in_progress',
     personas: personaCount === 0 ? 'not_started' : personaCount >= 3 ? 'complete' : 'in_progress',
-    customer_conversations: 'not_started',
-    competitor_mapping: 'not_started',
-    ecosystem_map: 'not_started',
-  const computedProgress: Record<string, PhaseStatus> = {
-    icp: icpCount === 0 ? 'not_started' : icpWizardComplete ? 'complete' : 'in_progress',
-    personas: personaCount === 0 ? 'not_started' : personaCount >= 3 ? 'complete' : 'in_progress',
     value_proposition: valuePropCount === 0 ? 'not_started' : activeValuePropCount >= 1 ? 'complete' : 'in_progress',
     customer_conversations: 'not_started',
     competitor_mapping: 'not_started',
