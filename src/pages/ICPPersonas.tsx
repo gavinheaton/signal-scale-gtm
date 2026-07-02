@@ -322,11 +322,23 @@ export default function ICPPersonas() {
         onOpenChange={(open) => !open && setSelectedPersona(null)}
         onEdit={(p) => navigate(`/project/persona-wizard?icp_id=${p.icp_id}&edit_persona_id=${p.id}`)}
         onDelete={(p) => setDeleteTarget(p)}
+        onMove={(p) => setMoveDialog({ mode: 'move', persona: p })}
+        onDuplicate={(p) => setMoveDialog({ mode: 'duplicate', persona: p })}
         onRefreshed={(updated) => {
           setSelectedPersona(updated);
           setPersonas(prev => prev.map(p => p.id === updated.id ? updated : p));
         }}
       />
+
+      <MovePersonaDialog
+        open={!!moveDialog}
+        onOpenChange={(o) => !o && setMoveDialog(null)}
+        mode={moveDialog?.mode ?? 'move'}
+        persona={moveDialog?.persona ?? null}
+        icps={icps}
+        onDone={fetchData}
+      />
+
 
       <Dialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <DialogContent>
