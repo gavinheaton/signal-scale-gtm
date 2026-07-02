@@ -211,9 +211,24 @@ export default function PersonaDetailModal({ persona, icp, open, onOpenChange, o
                 <Button variant="ghost" size="sm" onClick={() => { onOpenChange(false); onEdit(persona); }}>
                   <Pencil className="h-3.5 w-3.5 mr-1" /> Edit
                 </Button>
-                <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => { onOpenChange(false); onDelete(persona); }}>
-                  <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete
-                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="sm">
+                      <MoreHorizontal className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => { onOpenChange(false); onMove?.(persona); }}>
+                      <ArrowRightLeft className="h-3.5 w-3.5 mr-2" /> Move to ICP…
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => { onOpenChange(false); onDuplicate?.(persona); }}>
+                      <Copy className="h-3.5 w-3.5 mr-2" /> Duplicate to ICP…
+                    </DropdownMenuItem>
+                    <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => { onOpenChange(false); onDelete(persona); }}>
+                      <Trash2 className="h-3.5 w-3.5 mr-2" /> Delete
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             </div>
           </DialogHeader>
