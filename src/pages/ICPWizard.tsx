@@ -101,6 +101,7 @@ export default function ICPWizard() {
     if (!input.trim() || loading || !sessionId) return;
     const userMsg = input.trim();
     setInput('');
+    setSuggestedReplies([]);
     setMessages(prev => [...prev, { role: 'user', content: userMsg }]);
     setLoading(true);
 
