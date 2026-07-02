@@ -27,6 +27,7 @@ import Analytics from "@/pages/Analytics";
 import SettingsPage from "@/pages/Settings";
 import IntegrationHelp from "@/pages/IntegrationHelp";
 import AdminDashboard from "@/pages/AdminDashboard";
+import Ecosystem from "@/pages/Ecosystem";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
