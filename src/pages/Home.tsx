@@ -38,6 +38,8 @@ export default function Home() {
   const [brandVoiceStatus, setBrandVoiceStatus] = useState<string | null>(null);
   const [assetStatuses, setAssetStatuses] = useState<string[]>([]);
   const [icpWizardComplete, setIcpWizardComplete] = useState(false);
+  const [valuePropCount, setValuePropCount] = useState(0);
+  const [activeValuePropCount, setActiveValuePropCount] = useState(0);
 
   useEffect(() => {
     if (!currentProject) return;
@@ -73,6 +75,12 @@ export default function Home() {
     supabase.from('campaign_assets').select('status, campaign_id').then(({ data }) => {
       if (data) setAssetStatuses(data.map((a: any) => a.status));
     });
+
+    (supabase.from('value_propositions' as any).select('id, status').eq('project_id', pid) as any)
+      .then(({ data }: { data: any[] | null }) => {
+        setValuePropCount(data?.length || 0);
+        setActiveValuePropCount((data || []).filter((v: any) => v.status === 'active').length);
+      });
   }, [currentProject]);
 
   if (!currentProject) return <Navigate to="/projects" replace />;
@@ -84,7 +92,13 @@ export default function Home() {
     customer_conversations: 'not_started',
     competitor_mapping: 'not_started',
     ecosystem_map: 'not_started',
-    value_proposition: !brandVoiceStatus ? 'not_started' : brandVoiceStatus === 'complete' ? 'complete' : 'in_progress',
+  const computedProgress: Record<string, PhaseStatus> = {
+    icp: icpCount === 0 ? 'not_started' : icpWizardComplete ? 'complete' : 'in_progress',
+    personas: personaCount === 0 ? 'not_started' : personaCount >= 3 ? 'complete' : 'in_progress',
+    value_proposition: valuePropCount === 0 ? 'not_started' : activeValuePropCount >= 1 ? 'complete' : 'in_progress',
+    customer_conversations: 'not_started',
+    competitor_mapping: 'not_started',
+    ecosystem_map: 'not_started',
     campaign_strategy: allCampaigns.length === 0 ? 'not_started' :
       allCampaigns.some(c => ['active', 'complete'].includes(c.status)) ? 'complete' : 'in_progress',
     execution: assetStatuses.length === 0 ? 'not_started' :
