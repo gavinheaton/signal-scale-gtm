@@ -9,10 +9,24 @@ const FIRECRAWL_API_KEY = Deno.env.get("FIRECRAWL_API_KEY")!;
 
 interface Body { campaign_id: string }
 
-// Pure social/video noise — drop entirely.
+// Hosts that should never be treated as candidate ORGS themselves.
+// Includes social/video noise + directories, aggregators, review sites,
+// job boards, news wires, and generic listing platforms. Directory pages
+// can still feed stage-2 extraction as article sources.
 const HARD_BLOCK_HOSTS = new Set([
+  // social / video
   "instagram.com", "facebook.com", "tiktok.com", "youtube.com", "youtu.be",
   "twitter.com", "x.com", "pinterest.com", "vimeo.com", "spotify.com", "soundcloud.com",
+  // directories / data aggregators
+  "crunchbase.com", "owler.com", "pitchbook.com", "similarweb.com",
+  "zoominfo.com", "apollo.io", "rocketreach.co", "wikipedia.org",
+  // review / marketplace directories
+  "g2.com", "capterra.com", "getapp.com", "softwareadvice.com", "trustpilot.com",
+  "clutch.co", "producthunt.com", "angel.co", "wellfound.com", "builtin.com",
+  // job boards
+  "indeed.com", "seek.com.au", "glassdoor.com", "ziprecruiter.com", "linkedin.com/jobs",
+  // news wires
+  "businesswire.com", "prnewswire.com", "globenewswire.com",
 ]);
 const HARD_BLOCK_PATHS = ["/reel/", "/reels/", "/shorts/", "/watch", "/status/"];
 
