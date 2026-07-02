@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Pencil, Trash2, Target, Zap, Building2, ShoppingCart, Radio, FileCheck, Handshake, Brain, RefreshCw, Loader2 } from 'lucide-react';
+import { Pencil, Trash2, Target, Zap, Building2, ShoppingCart, Radio, FileCheck, Handshake, Brain, RefreshCw, Loader2, ArrowRightLeft, Copy, MoreHorizontal } from 'lucide-react';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import type { Persona, ICP, RoleInBuying } from '@/types/database';
@@ -22,6 +23,8 @@ interface PersonaDetailModalProps {
   onOpenChange: (open: boolean) => void;
   onEdit: (persona: Persona) => void;
   onDelete: (persona: Persona) => void;
+  onMove?: (persona: Persona) => void;
+  onDuplicate?: (persona: Persona) => void;
   onRefreshed?: (updatedPersona: Persona) => void;
 }
 
@@ -91,7 +94,7 @@ function hasEmptySections(persona: Persona): boolean {
   return fields.filter(f => !f || (typeof f === 'object' && Object.keys(f).length === 0)).length >= 2;
 }
 
-export default function PersonaDetailModal({ persona, icp, open, onOpenChange, onEdit, onDelete, onRefreshed }: PersonaDetailModalProps) {
+export default function PersonaDetailModal({ persona, icp, open, onOpenChange, onEdit, onDelete, onMove, onDuplicate, onRefreshed }: PersonaDetailModalProps) {
   const [refreshing, setRefreshing] = useState(false);
 
   if (!persona) return null;
@@ -208,9 +211,24 @@ export default function PersonaDetailModal({ persona, icp, open, onOpenChange, o
                 <Button variant="ghost" size="sm" onClick={() => { onOpenChange(false); onEdit(persona); }}>
                   <Pencil className="h-3.5 w-3.5 mr-1" /> Edit
                 </Button>
-                <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => { onOpenChange(false); onDelete(persona); }}>
-                  <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete
-                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="sm">
+                      <MoreHorizontal className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => { onOpenChange(false); onMove?.(persona); }}>
+                      <ArrowRightLeft className="h-3.5 w-3.5 mr-2" /> Move to ICP…
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => { onOpenChange(false); onDuplicate?.(persona); }}>
+                      <Copy className="h-3.5 w-3.5 mr-2" /> Duplicate to ICP…
+                    </DropdownMenuItem>
+                    <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => { onOpenChange(false); onDelete(persona); }}>
+                      <Trash2 className="h-3.5 w-3.5 mr-2" /> Delete
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             </div>
           </DialogHeader>

@@ -1,35 +1,43 @@
-## What’s going wrong
+## Goal
+Let users **move** a persona to a different ICP, or **duplicate** it into another ICP (so the same buying role can be reused across segments without rebuilding from scratch).
 
-The wizard is still starting in `mode:first` for the project you’re testing, even though that project has a saved ICP. I found the likely cause: the edge function and frontend both count existing ICPs using `created_at`, but the live `icps` table does not have a `created_at` column.
+## Why it makes sense
+Personas today are hard-bound to a single `icp_id`. In reality, the same role (e.g. "Head of Marketing") often shows up across multiple ICP segments with mostly overlapping goals/pains and only small deltas. Rebuilding via the wizard each time is wasteful.
 
-That means the “read prior ICPs” query can fail or behave as if there are no prior ICPs, so the wizard falls back to the first-ICP flow and asks basic company questions again.
+## UX
 
-## Fix plan
+**Entry points** — from both places a persona is actioned today:
+1. `PersonaDetailModal` footer: add **Move to ICP…** and **Duplicate to ICP…** buttons next to Edit/Delete.
+2. `ICPPersonas.tsx` persona card: add a small overflow menu (`⋯`) with the same two actions (so users don't have to open the modal).
 
-1. **Make prior ICP lookup work against the real schema**
-   - Remove `.order('created_at')` from ICP queries because `icps.created_at` does not exist.
-   - Order by a stable existing field such as `segment_name` or just fetch without ordering.
-   - Apply this in both:
-     - `supabase/functions/icp-wizard/index.ts`
-     - `src/pages/ICPWizard.tsx` chip builder.
+**Dialog** (single shared component `MovePersonaDialog.tsx`):
+- Title switches between "Move persona" / "Duplicate persona".
+- Shows current ICP as read-only chip.
+- Target ICP dropdown listing all other ICPs in the project (name + matrix category badge). Current ICP disabled.
+- For duplicate: optional "New persona name" input, pre-filled as `"{original name} ({target ICP name})"`.
+- Confirm button, loading state, toast on success, refresh gallery.
 
-2. **Make existing-ICP detection more robust**
-   - In `icp-wizard`, explicitly handle ICP query errors instead of silently treating them as zero ICPs.
-   - If the prior-ICP fetch fails, return a clear diagnostic error instead of starting the wrong wizard mode.
+## Behaviour
 
-3. **Fix stale session resume logic**
-   - On the frontend, avoid resuming an in-progress `mode:first` session when the project now has saved ICPs.
-   - Automatically cancel that stale session and start a new diff-mode session, instead of showing a banner that still lets the old flow persist.
+**Move**
+- Update the persona row: `icp_id = <target>`. Nothing else changes. `is_current` stays true.
 
-4. **Ensure the first assistant message uses company context**
-   - For projects with prior ICPs, always invoke the AI-generated opening.
-   - Include project fields, brand voice, brand context, and saved ICPs in the `<known_company_facts>` block.
-   - Return quick-reply chips immediately: `Variation of X`, `Different segment`, `Ask me everything`.
+**Duplicate**
+- Insert a new `personas` row copying every field from the source (persona_name, role_in_buying, goals, pain_points, channel_preferences, how_we_help, organisational_context, buying_behaviour, ai_readiness_score), overriding `icp_id` to the target, `persona_name` to the user-supplied name, `is_current = true`, new `id`. Do NOT copy `wizard_session_id` or any Notion linkage fields.
 
-5. **Validate the actual project state**
-   - Confirm the project with ICP `Scaling Community Services Organisations — Australia` now creates a new ICP session with `mode:diff` and `context_version:company_context_v2`.
-   - Confirm the opening no longer asks for website/company basics.
+Both actions are pure data ops — no edge function needed, done client-side via the Supabase client under existing RLS (persona rows are already writable by org members).
 
-## Technical notes
+## Guardrails
+- Disable both actions when the project has only one ICP (nowhere to move/duplicate to) — show a tooltip explaining why.
+- Prevent choosing the same ICP as source.
+- Wrap in try/catch with toast errors.
 
-No database migration is required for this fix. The bug is caused by code assuming timestamp columns exist on `icps` when they do not.
+## Files touched
+- **New:** `src/components/MovePersonaDialog.tsx` — shared move/duplicate dialog.
+- **Edit:** `src/components/PersonaDetailModal.tsx` — add Move/Duplicate buttons + wire dialog.
+- **Edit:** `src/pages/ICPPersonas.tsx` — add overflow menu on persona cards + wire dialog; refresh `personas` state after success.
+
+## Out of scope
+- Bulk move/duplicate across many personas at once.
+- Sunburst re-layout animation (it will just re-render from updated data).
+- Editing the duplicated persona inline in the dialog (user can open it after and edit if needed).

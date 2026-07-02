@@ -10,7 +10,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Label as RLabel } from 'recharts';
-import { Target, Users, Sparkles, ChevronDown, Pencil, Trash2, DownloadCloud } from 'lucide-react';
+import { Target, Users, Sparkles, ChevronDown, Pencil, Trash2, DownloadCloud, MoreHorizontal, ArrowRightLeft, Copy } from 'lucide-react';
+import MovePersonaDialog from '@/components/MovePersonaDialog';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
@@ -57,6 +58,7 @@ export default function ICPPersonas() {
   const [deleteTarget, setDeleteTarget] = useState<Persona | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [moveDialog, setMoveDialog] = useState<{ mode: 'move' | 'duplicate'; persona: Persona } | null>(null);
   const notionStrategyPageId = (currentProject as any)?.notion_strategy_page_id;
 
 
@@ -258,8 +260,35 @@ export default function ICPPersonas() {
                   <CardHeader className="pb-2">
                     <div className="flex items-center justify-between">
                       <CardTitle className="text-base">{p.persona_name}</CardTitle>
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
                         <Badge className={roleColors[p.role_in_buying]}>{p.role_in_buying.replace('_', ' ')}</Badge>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-6 w-6">
+                              <MoreHorizontal className="h-3.5 w-3.5" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              disabled={icps.length < 2}
+                              onClick={() => setMoveDialog({ mode: 'move', persona: p })}
+                            >
+                              <ArrowRightLeft className="h-3.5 w-3.5 mr-2" /> Move to ICP…
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              disabled={icps.length < 2}
+                              onClick={() => setMoveDialog({ mode: 'duplicate', persona: p })}
+                            >
+                              <Copy className="h-3.5 w-3.5 mr-2" /> Duplicate to ICP…
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              className="text-destructive focus:text-destructive"
+                              onClick={() => setDeleteTarget(p)}
+                            >
+                              <Trash2 className="h-3.5 w-3.5 mr-2" /> Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
                     </div>
                     {icp && <p className="text-xs text-muted-foreground mt-1">{icp.segment_name}</p>}
@@ -293,11 +322,23 @@ export default function ICPPersonas() {
         onOpenChange={(open) => !open && setSelectedPersona(null)}
         onEdit={(p) => navigate(`/project/persona-wizard?icp_id=${p.icp_id}&edit_persona_id=${p.id}`)}
         onDelete={(p) => setDeleteTarget(p)}
+        onMove={(p) => setMoveDialog({ mode: 'move', persona: p })}
+        onDuplicate={(p) => setMoveDialog({ mode: 'duplicate', persona: p })}
         onRefreshed={(updated) => {
           setSelectedPersona(updated);
           setPersonas(prev => prev.map(p => p.id === updated.id ? updated : p));
         }}
       />
+
+      <MovePersonaDialog
+        open={!!moveDialog}
+        onOpenChange={(o) => !o && setMoveDialog(null)}
+        mode={moveDialog?.mode ?? 'move'}
+        persona={moveDialog?.persona ?? null}
+        icps={icps}
+        onDone={fetchData}
+      />
+
 
       <Dialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <DialogContent>
