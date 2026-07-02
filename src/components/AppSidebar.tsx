@@ -1,4 +1,4 @@
-import { Home, Users, Mic, Megaphone, FileText, BarChart3, Settings, LogOut, FolderOpen, Shield, HelpCircle, Gauge, MessagesSquare, Network, Sparkles } from 'lucide-react';
+import { Home, Users, Mic, Megaphone, FileText, BarChart3, Settings, LogOut, FolderOpen, Shield, HelpCircle, Gauge, MessagesSquare, Network, Sparkles, LayoutGrid } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -23,6 +23,7 @@ const navItems = [
   { title: 'Value Prop', url: '/project/value-prop', icon: Sparkles },
   { title: 'Discovery', url: '/project/discovery', icon: MessagesSquare },
   { title: 'Ecosystem', url: '/project/ecosystem', icon: Network },
+  { title: 'Canvas', url: '/project/canvas', icon: LayoutGrid },
   { title: 'Brand Voice', url: '/project/brand-voice', icon: Mic },
   { title: 'Brand Audit', url: '/project/brand-audit', icon: Gauge },
   { title: 'Campaigns', url: '/project/campaigns', icon: Megaphone },

@@ -17,6 +17,7 @@ const phases: { key: MethodologyPhase; label: string; path?: string }[] = [
   { key: 'customer_conversations', label: 'Conversations', path: '/project/discovery' },
   { key: 'competitor_mapping', label: 'Competitors' },
   { key: 'ecosystem_map', label: 'Ecosystem', path: '/project/ecosystem' },
+  { key: 'canvas' as any, label: 'Canvas', path: '/project/canvas' },
   { key: 'campaign_strategy', label: 'Strategy', path: '/project/campaigns' },
   { key: 'execution', label: 'Execution', path: '/project/content' },
 ];
