@@ -71,6 +71,8 @@ export default function ValueProp() {
   const [aiBusy, setAiBusy] = useState<string | null>(null);
   const [problems, setProblems] = useState<Problem[]>([]);
   const [variations, setVariations] = useState<{ label: string; statement: string; angle: string }[]>([]);
+  const [editingProblemId, setEditingProblemId] = useState<string | null>(null);
+  const [editingText, setEditingText] = useState('');
 
   const selected = useMemo(() => items.find((i) => i.id === selectedId) || null, [items, selectedId]);
 
