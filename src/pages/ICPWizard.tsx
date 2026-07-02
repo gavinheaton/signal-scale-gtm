@@ -320,6 +320,18 @@ export default function ICPWizard() {
             </div>
           )}
 
+          {staleResume && (
+            <div className="px-4 py-3 border-b bg-orange-50 dark:bg-orange-950/20 flex items-center justify-between gap-3">
+              <div className="text-xs text-foreground">
+                You have <strong>{existingIcpCount}</strong> saved ICP{existingIcpCount === 1 ? '' : 's'}. This draft was started before diff mode — start fresh to reuse what's already known.
+              </div>
+              <div className="flex gap-2 shrink-0">
+                <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setStaleResume(false)}>Continue draft</Button>
+                <Button size="sm" className="h-7 text-xs" onClick={restartWizard}>Start fresh</Button>
+              </div>
+            </div>
+          )}
+
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
             {messages.map((msg, i) => (
               <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
