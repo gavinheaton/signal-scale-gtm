@@ -94,7 +94,7 @@ function hasEmptySections(persona: Persona): boolean {
   return fields.filter(f => !f || (typeof f === 'object' && Object.keys(f).length === 0)).length >= 2;
 }
 
-export default function PersonaDetailModal({ persona, icp, open, onOpenChange, onEdit, onDelete, onRefreshed }: PersonaDetailModalProps) {
+export default function PersonaDetailModal({ persona, icp, open, onOpenChange, onEdit, onDelete, onMove, onDuplicate, onRefreshed }: PersonaDetailModalProps) {
   const [refreshing, setRefreshing] = useState(false);
 
   if (!persona) return null;
