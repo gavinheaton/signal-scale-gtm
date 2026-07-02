@@ -120,7 +120,7 @@ export default function ContactsTab({ campaign, personas }: { campaign: Discover
                   </div>
 
 
-                  {org.discovery_contacts.length > 0 && (
+                  {combined.length > 0 && (
                     <div className="border rounded divide-y">
                       {org.discovery_contacts.map((c) => {
                         const isOpen = expanded.has(c.id);
