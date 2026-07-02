@@ -10,6 +10,7 @@ export interface DraftOutput {
   access_score?: number | null;
   matrix_category?: string | null;
   sections_complete?: string[];
+  inherited_sections?: Record<string, string>;
   is_complete?: boolean;
 }
 
