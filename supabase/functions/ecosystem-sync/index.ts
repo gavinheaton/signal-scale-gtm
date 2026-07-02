@@ -37,15 +37,16 @@ Deno.serve(async (req) => {
     const dcamps = (dcampRes.data || []) as any[];
     const dcampIds = dcamps.map((c) => c.id);
 
-    // Orgs / roles / contacts across all discovery campaigns in this project
+    // Orgs / roles / contacts / themes / insights across all discovery campaigns in this project
     let orgs: any[] = [], roles: any[] = [], contacts: any[] = [];
+    let themes: any[] = [], insights: any[] = [], conversations: any[] = [];
     if (dcampIds.length) {
-      const [oR, rR, cR] = await Promise.all([
+      const [oR, tR] = await Promise.all([
         svc.from("discovery_organizations").select("id, name, domain, segment, tier, campaign_id, leadership").in("campaign_id", dcampIds),
-        svc.from("discovery_org_roles").select("id, organization_id, persona_id, role_title").in("organization_id", []),
-        svc.from("discovery_contacts").select("id, name, title, email, linkedin_url, organization_id, persona_id, outreach_status").in("organization_id", []),
+        svc.from("discovery_themes").select("id, campaign_id, label, description, status").in("campaign_id", dcampIds),
       ]);
       orgs = (oR.data || []) as any[];
+      themes = (tR.data || []) as any[];
       const orgIds = orgs.map((o) => o.id);
       if (orgIds.length) {
         const [rR2, cR2] = await Promise.all([
@@ -55,6 +56,13 @@ Deno.serve(async (req) => {
         roles = (rR2.data || []) as any[];
         contacts = (cR2.data || []) as any[];
       }
+      const contactIds = contacts.map((c) => c.id);
+      if (contactIds.length) {
+        const cvR = await svc.from("discovery_conversations").select("id, contact_id").in("contact_id", contactIds);
+        conversations = (cvR.data || []) as any[];
+      }
+      const iR = await svc.from("discovery_insights").select("id, conversation_id, campaign_id, text, kind, is_quote, theme_id").in("campaign_id", dcampIds);
+      insights = (iR.data || []) as any[];
     }
 
     // Load existing synced nodes
@@ -215,7 +223,40 @@ Deno.serve(async (req) => {
       if (arr.length) leaderNodesByOrg.set(o.id, arr);
     }
 
-    // Mark disappeared synced nodes as hidden+stale
+    // 6. Theme nodes — ring 2 (shared with companies, offset by companies.length)
+    const themeNodeId = new Map<string, string>();
+    for (let i = 0; i < themes.length; i++) {
+      const t = themes[i];
+      const id = await upsertNode({
+        kind: "theme", ref_table: "discovery_themes", ref_id: t.id,
+        label: t.label || "Theme",
+        subtitle: t.status || undefined,
+        ring: 2, idx: orgs.length + i, total: Math.max(orgs.length + themes.length, 1),
+        meta: { campaign_id: t.campaign_id, description: t.description, status: t.status },
+      });
+      themeNodeId.set(t.id, id);
+    }
+
+    // 7. Insight nodes — ring 4 (alongside people)
+    const insightNodeId = new Map<string, string>();
+    const convoContact = new Map<string, string>();
+    for (const cv of conversations) if (cv.contact_id) convoContact.set(cv.id, cv.contact_id);
+    const totalRing4 = totalPeople + insights.length;
+    for (let i = 0; i < insights.length; i++) {
+      const ins = insights[i];
+      const text = String(ins.text || "");
+      const label = text.length > 80 ? text.slice(0, 77) + "…" : text || "Insight";
+      const id = await upsertNode({
+        kind: "insight", ref_table: "discovery_insights", ref_id: ins.id,
+        label,
+        subtitle: ins.is_quote ? "Quote" : (ins.kind || undefined),
+        ring: 4, idx: totalPeople + i, total: Math.max(totalRing4, 1),
+        meta: { is_quote: ins.is_quote, kind: ins.kind, conversation_id: ins.conversation_id,
+                campaign_id: ins.campaign_id, theme_id: ins.theme_id, text },
+      });
+      insightNodeId.set(ins.id, id);
+    }
+
     for (const [key, id] of existingKey) {
       if (!touched.has(key)) {
         await svc.from("ecosystem_nodes").update({ hidden: true, stale: true }).eq("id", id);
@@ -278,6 +319,30 @@ Deno.serve(async (req) => {
       if (!org) continue;
       for (const L of leaders) await edge(L.id, org, "belongs_to");
     }
+    // Theme -belongs_to→ Segment(s) via its campaign's icp_ids
+    for (const t of themes) {
+      const from = themeNodeId.get(t.id);
+      if (!from) continue;
+      const icpIds = campIcp.get(t.campaign_id) || [];
+      for (const iid of icpIds) {
+        const seg = icpNodeId.get(iid);
+        if (seg) await edge(from, seg, "belongs_to");
+      }
+    }
+    // Insight -evidences→ Contact (via conversation.contact_id) and -evidences→ Theme
+    for (const ins of insights) {
+      const from = insightNodeId.get(ins.id);
+      if (!from) continue;
+      const contactId = ins.conversation_id ? convoContact.get(ins.conversation_id) : null;
+      if (contactId) {
+        const ct = contactNodeId.get(contactId);
+        if (ct) await edge(from, ct, "evidences");
+      }
+      if (ins.theme_id) {
+        const th = themeNodeId.get(ins.theme_id);
+        if (th) await edge(from, th, "evidences");
+      }
+    }
 
     // Refresh viewport touched-at
     await svc.from("ecosystem_maps").update({ updated_at: new Date().toISOString() }).eq("id", map_id);
@@ -288,6 +353,7 @@ Deno.serve(async (req) => {
         segments: icps.length, companies: orgs.length,
         roles: personas.length + roles.length,
         people: contacts.length + Array.from(leaderNodesByOrg.values()).reduce((s, a) => s + a.length, 0),
+        themes: themes.length, insights: insights.length,
       },
     }), { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 });
   } catch (e) {

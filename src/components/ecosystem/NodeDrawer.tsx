@@ -20,6 +20,8 @@ const REF_LINKS: Record<string, (id: string) => string> = {
   personas: () => `/project/icp-personas`,
   discovery_organizations: () => `/project/discovery`,
   discovery_contacts: () => `/project/discovery`,
+  discovery_themes: () => `/project/discovery`,
+  discovery_insights: () => `/project/discovery`,
 };
 
 export function NodeDrawer({ node, onClose, onChanged }: Props) {
