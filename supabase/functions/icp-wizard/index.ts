@@ -142,7 +142,22 @@ Deno.serve(async (req) => {
     }
 
     const hasBrandContext = brandContext.crawled_content && brandContext.crawled_content.length > 0;
-    const initialMessage = hasBrandContext ? INITIAL_MESSAGE_WITH_CONTEXT : INITIAL_MESSAGE_NO_CONTEXT;
+
+    // Fetch existing ICPs so the AI can reuse them rather than re-asking (diff mode)
+    let existingIcps: any[] = [];
+    if (project_id) {
+      const { data: icps } = await supabase
+        .from("icps")
+        .select("id, segment_name, matrix_category, fit_score, access_score, firmographics, psychographics, buyer_roles, anti_icp_signals")
+        .eq("project_id", project_id)
+        .order("created_at", { ascending: true });
+      existingIcps = icps || [];
+    }
+    const hasPriorIcps = existingIcps.length > 0;
+
+    const initialMessage = hasPriorIcps
+      ? `I can see you've already defined ${existingIcps.length} ICP${existingIcps.length > 1 ? 's' : ''} for this project (${existingIcps.map((i: any) => i.segment_name).join(', ')}). Is this new segment a variation of one of those, or a different segment entirely?`
+      : hasBrandContext ? INITIAL_MESSAGE_WITH_CONTEXT : INITIAL_MESSAGE_NO_CONTEXT;
 
     if (!sessionId) {
       const initialMsg = {
@@ -181,11 +196,20 @@ Deno.serve(async (req) => {
       sessionId = session.id;
 
       if (!message) {
+        const initialSuggestedReplies = hasPriorIcps
+          ? [
+              ...existingIcps.slice(0, 3).map((i: any) => `Variation of ${i.segment_name}`),
+              "Different segment",
+              "Ask me everything",
+            ]
+          : [];
         return new Response(
           JSON.stringify({
             reply: initialMessage,
             updated_draft: {},
             session_id: sessionId,
+            suggested_replies: initialSuggestedReplies,
+            existing_icp_count: existingIcps.length,
           }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
@@ -278,6 +302,9 @@ Deno.serve(async (req) => {
     if (hasBrandContext) {
       systemPrompt += `\n\nBRAND CONTEXT (from previous analysis of ${brandContext.website_url || "company website"}):\n${brandContext.crawled_content}\n\nUse this to inform your ICP questions. Do NOT ask for the website URL again — you already have the brand context.`;
     }
+    if (hasPriorIcps) {
+      systemPrompt += `\n\n<existing_icps>\nThis project already has the following ICPs. Reuse their firmographics/psychographics/buyer_roles/anti-ICP signals rather than re-asking. Ask only about deltas for the new segment.\n${JSON.stringify(existingIcps, null, 2)}\n</existing_icps>`;
+    }
 
     // Build Anthropic messages — strip draft tags from prior assistant messages to save tokens
     const anthropicMessages = messages.map((m) => ({
@@ -356,12 +383,22 @@ Deno.serve(async (req) => {
       })
       .eq("id", sessionId);
 
+    const suggestedReplies = hasPriorIcps
+      ? [
+          ...existingIcps.slice(0, 3).map((i: any) => `Variation of ${i.segment_name}`),
+          "Different segment",
+          "Ask me everything",
+        ]
+      : [];
+
     return new Response(
       JSON.stringify({
         reply: cleanReply,
         updated_draft: updatedDraft,
         session_id: sessionId,
         draft_warning: draftWarning,
+        suggested_replies: suggestedReplies,
+        existing_icp_count: existingIcps.length,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
