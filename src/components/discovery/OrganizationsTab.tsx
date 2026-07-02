@@ -617,3 +617,223 @@ function FindRolesSheet({ org, personas, onClose }: { org: DiscoveryOrganization
     </Sheet>
   );
 }
+
+function EditOrgSheet({ org, campaign, onClose }: { org: DiscoveryOrganization; campaign: DiscoveryCampaign; onClose: () => void }) {
+  const [name, setName] = useState(org.name);
+  const [domain, setDomain] = useState(org.domain || '');
+  const [segment, setSegment] = useState(org.segment || '');
+  const [tier, setTier] = useState(org.tier || '');
+  const [status, setStatus] = useState<DiscoveryOrgStatus>(org.status);
+  const [confidence, setConfidence] = useState<string>(org.confidence || '');
+  const [signals, setSignals] = useState<string[]>(org.signals_matched || []);
+  const [sourceUrl, setSourceUrl] = useState(org.source_url || '');
+  const [fitNotes, setFitNotes] = useState(org.fit_notes || '');
+  const [leaders, setLeaders] = useState<{ name: string; role?: string | null }[]>(
+    Array.isArray(org.leadership) ? org.leadership.map((l) => ({ name: l.name, role: l.role || '' })) : []
+  );
+  const [saving, setSaving] = useState(false);
+  const allSignals = Array.from(new Set([...(campaign.qualifying_signals || []), ...(campaign.disqualifying_signals || []), ...(org.signals_matched || [])]));
+
+  const save = async () => {
+    if (!name.trim()) { toast.error('Name is required'); return; }
+    setSaving(true);
+    const { error } = await (supabase as any).from('discovery_organizations').update({
+      name: name.trim(),
+      domain: domain.trim() || null,
+      segment: segment.trim() || null,
+      tier: tier || null,
+      status,
+      confidence: confidence || null,
+      signals_matched: signals,
+      source_url: sourceUrl.trim() || null,
+      fit_notes: fitNotes.trim() || null,
+      leadership: leaders.filter((l) => l.name.trim()).map((l) => ({ name: l.name.trim(), role: l.role?.trim() || null })),
+    }).eq('id', org.id);
+    setSaving(false);
+    if (error) { toast.error(error.message); return; }
+    toast.success('Saved');
+    onClose();
+  };
+
+  return (
+    <Sheet open onOpenChange={onClose}>
+      <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
+        <SheetHeader><SheetTitle>Edit organisation</SheetTitle></SheetHeader>
+        <div className="space-y-3 mt-4">
+          <div><Label>Name *</Label><Input value={name} onChange={(e) => setName(e.target.value)} /></div>
+          <div className="grid grid-cols-2 gap-2">
+            <div><Label>Domain</Label><Input value={domain} onChange={(e) => setDomain(e.target.value)} placeholder="example.com" /></div>
+            <div><Label>Segment</Label><Input value={segment} onChange={(e) => setSegment(e.target.value)} /></div>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            <div>
+              <Label>Tier</Label>
+              <Select value={tier} onValueChange={setTier}>
+                <SelectTrigger><SelectValue placeholder="Tier" /></SelectTrigger>
+                <SelectContent>{campaign.tiers.map((t) => <SelectItem key={t.label} value={t.label}>{t.label}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Status</Label>
+              <Select value={status} onValueChange={(v) => setStatus(v as DiscoveryOrgStatus)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{statusOptions.map((s) => <SelectItem key={s} value={s}>{s.replace(/_/g, ' ')}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Confidence</Label>
+              <Select value={confidence || 'none'} onValueChange={(v) => setConfidence(v === 'none' ? '' : v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">—</SelectItem>
+                  <SelectItem value="high">high</SelectItem>
+                  <SelectItem value="medium">medium</SelectItem>
+                  <SelectItem value="low">low</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div><Label>Source URL</Label><Input value={sourceUrl} onChange={(e) => setSourceUrl(e.target.value)} /></div>
+          {allSignals.length > 0 && (
+            <div>
+              <Label>Matched signals</Label>
+              <div className="space-y-1 mt-1 max-h-40 overflow-auto border rounded p-2">
+                {allSignals.map((s) => (
+                  <label key={s} className="flex items-center gap-2 text-xs">
+                    <Checkbox checked={signals.includes(s)} onCheckedChange={(v) => setSignals(v ? [...signals, s] : signals.filter((x) => x !== s))} />
+                    {s}
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+          <div>
+            <div className="flex items-center justify-between">
+              <Label>Leadership</Label>
+              <Button type="button" size="sm" variant="ghost" onClick={() => setLeaders([...leaders, { name: '', role: '' }])}>
+                <Plus className="h-3 w-3 mr-1" /> Add
+              </Button>
+            </div>
+            <div className="space-y-1 mt-1">
+              {leaders.map((l, i) => (
+                <div key={i} className="flex gap-1">
+                  <Input placeholder="Name" value={l.name} onChange={(e) => {
+                    const next = [...leaders]; next[i] = { ...next[i], name: e.target.value }; setLeaders(next);
+                  }} />
+                  <Input placeholder="Role" value={l.role || ''} onChange={(e) => {
+                    const next = [...leaders]; next[i] = { ...next[i], role: e.target.value }; setLeaders(next);
+                  }} />
+                  <Button type="button" size="icon" variant="ghost" className="h-9 w-9 text-destructive"
+                    onClick={() => setLeaders(leaders.filter((_, j) => j !== i))}>
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div><Label>Fit notes</Label><Textarea rows={4} value={fitNotes} onChange={(e) => setFitNotes(e.target.value)} /></div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={onClose}>Cancel</Button>
+            <Button onClick={save} disabled={saving}>{saving && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}Save</Button>
+          </div>
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+function OrgDetailSheet({ org, onClose, onEdit, onEnrich, enriching }: {
+  org: DiscoveryOrganization; onClose: () => void; onEdit: () => void; onEnrich: () => void; enriching: boolean;
+}) {
+  const e: DiscoveryEnrichment | null | undefined = org.enrichment;
+  return (
+    <Sheet open onOpenChange={onClose}>
+      <SheetContent className="w-full sm:max-w-xl overflow-y-auto">
+        <SheetHeader>
+          <SheetTitle className="flex items-center gap-2">
+            {org.name}
+            {org.domain && <a href={`https://${org.domain}`} target="_blank" rel="noreferrer" className="text-xs text-primary inline-flex items-center gap-1">{org.domain}<ExternalLink className="h-3 w-3" /></a>}
+          </SheetTitle>
+        </SheetHeader>
+        <div className="space-y-4 mt-4 text-sm">
+          <div className="flex flex-wrap gap-2">
+            {org.tier && <Badge variant="outline">{org.tier}</Badge>}
+            <Badge variant="secondary">{org.status.replace(/_/g, ' ')}</Badge>
+            {org.confidence && <Badge>{org.confidence} confidence</Badge>}
+            {org.enriched_at && <Badge variant="outline" className="text-[10px]"><Sparkles className="h-2.5 w-2.5 mr-1" />enriched {new Date(org.enriched_at).toLocaleDateString()}</Badge>}
+          </div>
+
+          {e?.description && <p>{e.description}</p>}
+
+          {(e?.industry || e?.hq_location || e?.employee_range || e?.founded_year) && (
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              {e.industry && <div><span className="text-muted-foreground">Industry:</span> {e.industry}</div>}
+              {e.hq_location && <div><span className="text-muted-foreground">HQ:</span> {e.hq_location}</div>}
+              {e.employee_range && <div><span className="text-muted-foreground">Employees:</span> {e.employee_range}</div>}
+              {e.founded_year && <div><span className="text-muted-foreground">Founded:</span> {e.founded_year}</div>}
+            </div>
+          )}
+
+          {Array.isArray(e?.products) && e!.products!.length > 0 && (
+            <div><div className="text-xs text-muted-foreground mb-1">Products</div>
+              <div className="flex flex-wrap gap-1">{e!.products!.map((p) => <Badge key={p} variant="outline" className="text-[10px]">{p}</Badge>)}</div>
+            </div>
+          )}
+
+          {Array.isArray(e?.tech_focus) && e!.tech_focus!.length > 0 && (
+            <div><div className="text-xs text-muted-foreground mb-1">Tech focus</div>
+              <div className="flex flex-wrap gap-1">{e!.tech_focus!.map((t) => <Badge key={t} variant="secondary" className="text-[10px]">{t}</Badge>)}</div>
+            </div>
+          )}
+
+          {org.signals_matched?.length > 0 && (
+            <div><div className="text-xs text-muted-foreground mb-1">Matched signals</div>
+              <div className="flex flex-wrap gap-1">{org.signals_matched.map((s) => <Badge key={s} variant="secondary" className="text-[10px]">{s}</Badge>)}</div>
+            </div>
+          )}
+
+          {Array.isArray(org.leadership) && org.leadership.length > 0 && (
+            <div>
+              <div className="text-xs text-muted-foreground mb-1">Leadership</div>
+              <ul className="space-y-1">
+                {org.leadership.map((l, i) => (
+                  <li key={i} className="text-sm">
+                    <strong>{l.name}</strong>{l.role ? <span className="text-muted-foreground"> — {l.role}</span> : null}
+                    {(l as any).source_url && <a href={(l as any).source_url} target="_blank" rel="noreferrer" className="text-primary text-xs ml-2 inline-flex items-center gap-1">source<ExternalLink className="h-3 w-3" /></a>}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {e?.fit_rationale && (
+            <div><div className="text-xs text-muted-foreground mb-1">Fit rationale</div><p className="text-sm">{e.fit_rationale}</p></div>
+          )}
+
+          {org.fit_notes && (
+            <div><div className="text-xs text-muted-foreground mb-1">Notes</div><p className="whitespace-pre-wrap text-sm">{org.fit_notes}</p></div>
+          )}
+
+          {Array.isArray(e?.sources) && e!.sources!.length > 0 && (
+            <div>
+              <div className="text-xs text-muted-foreground mb-1">Sources</div>
+              <ul className="space-y-0.5">
+                {e!.sources!.map((s, i) => (
+                  <li key={i}><a href={s} target="_blank" rel="noreferrer" className="text-primary text-xs inline-flex items-center gap-1 break-all">{s}<ExternalLink className="h-3 w-3 shrink-0" /></a></li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          <div className="flex justify-end gap-2 pt-4 border-t">
+            <Button variant="outline" onClick={onEnrich} disabled={enriching}>
+              {enriching ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Sparkles className="h-4 w-4 mr-1" />}
+              {org.enriched_at ? 'Re-enrich' : 'Enrich'}
+            </Button>
+            <Button onClick={onEdit}><Pencil className="h-4 w-4 mr-1" /> Edit</Button>
+          </div>
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
+}
