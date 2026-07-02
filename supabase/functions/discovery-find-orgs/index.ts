@@ -338,7 +338,8 @@ RULES — default to INCLUDE, not exclude:
 - Preserve names, domains, source_url and leadership from input candidates verbatim. Do not invent organisations.
 - INCLUDE any candidate whose name or domain plausibly fits the target_segment, even if no qualifying_signals are visible in the input. Set "matched_signals": [] in that case.
 - Treat qualifying_signals as scoring HINTS, not gates. Lack of evidence is not a reason to drop.
-- Only put a candidate in "dropped" when it CLEARLY matches a disqualifying_signal, is obviously the wrong industry/geography for the target_segment, or is not a real organisation (e.g. a job board, an article aggregator).
+- DROP any candidate that is a vendor/provider of the category the target_segment BUYS (e.g. if target_segment is "companies that need X", drop "X software vendors", "X agencies", "X consultancies", "X platforms", "X marketplaces", directories, review sites, job boards, industry associations, media outlets, event organisers). Candidates must be prospective CUSTOMERS.
+- Only put a candidate in "dropped" when it CLEARLY matches a disqualifying_signal, is a provider/directory rather than a buyer, is obviously the wrong industry/geography, or is not a real organisation.
 - "confidence": "high" if the name/domain plus signals strongly match the segment; "medium" if it fits the segment but signals are unverified; "low" if it's a plausible guess only.
 - "suggested_tier" must be one of the provided tier labels (pick the closest fit; if unsure, pick the first tier).
 - For every dropped candidate, give a one-sentence reason.
