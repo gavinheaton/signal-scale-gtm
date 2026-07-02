@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,7 +10,13 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sh
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Plus, Sparkles, Loader2, Building2, ExternalLink, Users, Trash2, X, Pencil, Eye } from 'lucide-react';
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  Plus, Sparkles, Loader2, Building2, ExternalLink, Users, Trash2, X, Pencil,
+  ChevronDown, ChevronRight, MoreHorizontal, Linkedin, CheckCircle2, AlertCircle,
+} from 'lucide-react';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -57,6 +63,8 @@ export default function OrganizationsTab({ campaign, personas }: { campaign: Dis
   const [enrichingId, setEnrichingId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<DiscoveryOrganization | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [statusFilter, setStatusFilter] = useState<DiscoveryOrgStatus | 'all'>('all');
 
   const enrichOne = async (org: DiscoveryOrganization) => {
     setEnrichingId(org.id);
@@ -67,7 +75,13 @@ export default function OrganizationsTab({ campaign, personas }: { campaign: Dis
       if (error || (data as any)?.error) {
         throw new Error((data as any)?.error || error?.message || 'Enrichment failed');
       }
-      toast.success(`Enriched ${org.name}`);
+      const created = (data as any)?.contacts_created || 0;
+      const verified = (data as any)?.website_verified;
+      toast.success(
+        `Enriched ${org.name}` +
+        (created > 0 ? ` · ${created} contact${created === 1 ? '' : 's'} added` : '') +
+        (verified === false ? ' · website not verified' : ''),
+      );
       await refresh();
     } catch (e: any) {
       toast.error(e?.message || 'Enrichment failed');
@@ -95,6 +109,24 @@ export default function OrganizationsTab({ campaign, personas }: { campaign: Dis
 
   useEffect(() => { refresh(); }, [campaign.id]);
 
+  const toggleExpand = (id: string) => {
+    const next = new Set(expanded);
+    next.has(id) ? next.delete(id) : next.add(id);
+    setExpanded(next);
+  };
+
+  const statusCounts = useMemo(() => {
+    const c: Record<string, number> = { all: orgs.length };
+    for (const s of statusOptions) c[s] = 0;
+    for (const o of orgs) c[o.status] = (c[o.status] || 0) + 1;
+    return c;
+  }, [orgs]);
+
+  const filteredOrgs = useMemo(
+    () => (statusFilter === 'all' ? orgs : orgs.filter((o) => o.status === statusFilter)),
+    [orgs, statusFilter],
+  );
+
   return (
     <div className="space-y-3">
       <div className="flex justify-between items-center">
@@ -108,6 +140,23 @@ export default function OrganizationsTab({ campaign, personas }: { campaign: Dis
         </div>
       </div>
 
+      {orgs.length > 0 && (
+        <div className="flex gap-1 flex-wrap">
+          {(['all', ...statusOptions] as const).map((s) => (
+            <Button
+              key={s}
+              size="sm"
+              variant={statusFilter === s ? 'default' : 'outline'}
+              className="h-7 text-xs"
+              onClick={() => setStatusFilter(s)}
+            >
+              {s === 'all' ? 'All' : s.replace(/_/g, ' ')}
+              <Badge variant="secondary" className="ml-1.5 text-[10px] px-1.5 py-0">{statusCounts[s] || 0}</Badge>
+            </Button>
+          ))}
+        </div>
+      )}
+
       {searchOpen && (
         <SearchPanel campaign={campaign} onAdded={refresh} onClose={() => setSearchOpen(false)} />
       )}
@@ -119,76 +168,172 @@ export default function OrganizationsTab({ campaign, personas }: { campaign: Dis
           <Building2 className="h-10 w-10 mx-auto mb-3 opacity-50" />
           No organisations yet. Use <strong>Find organisations</strong> to discover candidates via Firecrawl, or add them manually.
         </CardContent></Card>
+      ) : filteredOrgs.length === 0 ? (
+        <Card><CardContent className="py-8 text-center text-sm text-muted-foreground">
+          No organisations with status "{statusFilter.replace(/_/g, ' ')}".
+        </CardContent></Card>
       ) : (
         <Card><CardContent className="p-0">
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-8"></TableHead>
                 <TableHead>Name</TableHead>
                 <TableHead>Domain</TableHead>
-                <TableHead>Tier</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Signals</TableHead>
-                <TableHead>Leaders</TableHead>
-                <TableHead>Roles</TableHead>
-                <TableHead>Contacts</TableHead>
-                <TableHead></TableHead>
+                <TableHead className="w-24">Tier</TableHead>
+                <TableHead className="w-40">Status</TableHead>
+                <TableHead className="w-24 text-right">Contacts</TableHead>
+                <TableHead className="w-10"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {orgs.map((o) => (
-                <TableRow key={o.id}>
-                  <TableCell className="font-medium">
-                    <button className="text-left hover:underline" onClick={() => setViewing(o)}>{o.name}</button>
-                    {o.enriched_at && (
-                      <div className="text-[10px] text-muted-foreground mt-0.5 inline-flex items-center gap-1 ml-2">
-                        <Sparkles className="h-2.5 w-2.5" /> enriched
-                      </div>
+              {filteredOrgs.map((o) => {
+                const isOpen = expanded.has(o.id);
+                const e = o.enrichment as DiscoveryEnrichment | null | undefined;
+                return (
+                  <>
+                    <TableRow key={o.id} className="cursor-pointer" onClick={() => toggleExpand(o.id)}>
+                      <TableCell className="align-top">
+                        <button className="p-0.5 hover:bg-muted rounded" aria-label="Expand">
+                          {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                        </button>
+                      </TableCell>
+                      <TableCell className="font-medium">
+                        <div className="flex items-center gap-2">
+                          <button className="text-left hover:underline" onClick={(ev) => { ev.stopPropagation(); setViewing(o); }}>
+                            {o.name}
+                          </button>
+                          {o.enriched_at && (
+                            <span title="Enriched" className="text-primary"><Sparkles className="h-3 w-3" /></span>
+                          )}
+                          {o.linkedin_url && (
+                            <a href={o.linkedin_url} target="_blank" rel="noreferrer" onClick={(ev) => ev.stopPropagation()} className="text-primary" title="Company LinkedIn">
+                              <Linkedin className="h-3.5 w-3.5" />
+                            </a>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-xs">
+                        {o.domain ? (
+                          <span className="inline-flex items-center gap-1">
+                            <a href={`https://${o.domain}`} target="_blank" rel="noreferrer" onClick={(ev) => ev.stopPropagation()} className="text-primary hover:underline inline-flex items-center gap-1">
+                              {o.domain}<ExternalLink className="h-3 w-3" />
+                            </a>
+                            {o.enriched_at && (
+                              o.website_verified
+                                ? <CheckCircle2 className="h-3 w-3 text-green-600" aria-label="Website verified" />
+                                : <AlertCircle className="h-3 w-3 text-amber-600" aria-label="Website not verified" />
+                            )}
+                          </span>
+                        ) : '—'}
+                      </TableCell>
+                      <TableCell><Badge variant="outline">{o.tier || '—'}</Badge></TableCell>
+                      <TableCell onClick={(ev) => ev.stopPropagation()}>
+                        <Select value={o.status} onValueChange={async (v) => {
+                          await (supabase as any).from('discovery_organizations').update({ status: v }).eq('id', o.id);
+                          refresh();
+                        }}>
+                          <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+                          <SelectContent>{statusOptions.map((s) => <SelectItem key={s} value={s}>{s.replace(/_/g, ' ')}</SelectItem>)}</SelectContent>
+                        </Select>
+                      </TableCell>
+                      <TableCell className="text-right text-xs">
+                        {roleCounts[o.id]?.contacts || 0}
+                        <span className="text-muted-foreground"> / {roleCounts[o.id]?.roles || 0} roles</span>
+                      </TableCell>
+                      <TableCell className="text-right" onClick={(ev) => ev.stopPropagation()}>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button size="icon" variant="ghost" className="h-8 w-8" aria-label={`Actions for ${o.name}`}>
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => enrichOne(o)} disabled={enrichingId === o.id}>
+                              {enrichingId === o.id ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Sparkles className="h-4 w-4 mr-2" />}
+                              {o.enriched_at ? 'Re-enrich' : 'Enrich'}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setRolesFor(o)}>
+                              <Users className="h-4 w-4 mr-2" /> Find roles
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setEditing(o)}>
+                              <Pencil className="h-4 w-4 mr-2" /> Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => setDeleting(o)}>
+                              <Trash2 className="h-4 w-4 mr-2" /> Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                    {isOpen && (
+                      <TableRow key={o.id + '-exp'} className="bg-muted/30 hover:bg-muted/30">
+                        <TableCell></TableCell>
+                        <TableCell colSpan={6} className="py-3">
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                            <div className="space-y-1.5">
+                              <div className="font-medium uppercase tracking-wide text-muted-foreground text-[10px]">Leaders</div>
+                              {Array.isArray(o.leadership) && o.leadership.length > 0 ? (
+                                <ul className="space-y-1">
+                                  {o.leadership.slice(0, 6).map((l, i) => (
+                                    <li key={i} className="flex items-center gap-1.5">
+                                      <span className="truncate">
+                                        <strong>{l.name}</strong>
+                                        {l.role && <span className="text-muted-foreground"> · {l.role}</span>}
+                                      </span>
+                                      {l.linkedin_url && (
+                                        <a href={l.linkedin_url} target="_blank" rel="noreferrer" className="text-primary shrink-0" title="LinkedIn">
+                                          <Linkedin className="h-3 w-3" />
+                                        </a>
+                                      )}
+                                    </li>
+                                  ))}
+                                  {o.leadership.length > 6 && <li className="text-muted-foreground">+{o.leadership.length - 6} more</li>}
+                                </ul>
+                              ) : <div className="text-muted-foreground">No leaders yet. Enrich to discover.</div>}
+                            </div>
+                            <div className="space-y-1.5">
+                              <div className="font-medium uppercase tracking-wide text-muted-foreground text-[10px]">Matched signals</div>
+                              {o.signals_matched?.length ? (
+                                <div className="flex flex-wrap gap-1">
+                                  {o.signals_matched.map((s) => <Badge key={s} variant="secondary" className="text-[10px]">{s}</Badge>)}
+                                </div>
+                              ) : <div className="text-muted-foreground">—</div>}
+                              {o.fit_notes && (
+                                <>
+                                  <div className="font-medium uppercase tracking-wide text-muted-foreground text-[10px] mt-2">Fit notes</div>
+                                  <p className="whitespace-pre-wrap line-clamp-4">{o.fit_notes}</p>
+                                </>
+                              )}
+                            </div>
+                            <div className="space-y-1.5">
+                              <div className="font-medium uppercase tracking-wide text-muted-foreground text-[10px]">Enrichment</div>
+                              {o.enriched_at ? (
+                                <>
+                                  <div>Confidence: <strong>{o.confidence || '—'}</strong></div>
+                                  <div>Website: {o.website_verified
+                                    ? <span className="text-green-700 inline-flex items-center gap-1"><CheckCircle2 className="h-3 w-3" /> verified</span>
+                                    : <span className="text-amber-700 inline-flex items-center gap-1"><AlertCircle className="h-3 w-3" /> unverified</span>}</div>
+                                  {o.linkedin_url && (
+                                    <div><a href={o.linkedin_url} target="_blank" rel="noreferrer" className="text-primary inline-flex items-center gap-1"><Linkedin className="h-3 w-3" /> Company LinkedIn</a></div>
+                                  )}
+                                  {e?.industry && <div>Industry: {e.industry}</div>}
+                                  {e?.hq_location && <div>HQ: {e.hq_location}</div>}
+                                  {e?.employee_range && <div>Employees: {e.employee_range}</div>}
+                                  <div className="text-muted-foreground">Last enriched {new Date(o.enriched_at).toLocaleDateString()}</div>
+                                </>
+                              ) : (
+                                <div className="text-muted-foreground">Not enriched yet. Use the actions menu to run enrichment.</div>
+                              )}
+                            </div>
+                          </div>
+                        </TableCell>
+                      </TableRow>
                     )}
-                  </TableCell>
-                  <TableCell className="text-xs">
-                    {o.domain ? <a href={`https://${o.domain}`} target="_blank" rel="noreferrer" className="text-primary hover:underline inline-flex items-center gap-1">{o.domain}<ExternalLink className="h-3 w-3" /></a> : '—'}
-                  </TableCell>
-                  <TableCell><Badge variant="outline">{o.tier || '—'}</Badge></TableCell>
-                  <TableCell>
-                    <Select value={o.status} onValueChange={async (v) => {
-                      await (supabase as any).from('discovery_organizations').update({ status: v }).eq('id', o.id);
-                      refresh();
-                    }}>
-                      <SelectTrigger className="h-7 text-xs w-36"><SelectValue /></SelectTrigger>
-                      <SelectContent>{statusOptions.map((s) => <SelectItem key={s} value={s}>{s.replace(/_/g, ' ')}</SelectItem>)}</SelectContent>
-                    </Select>
-                  </TableCell>
-                  <TableCell className="text-xs">{o.signals_matched.slice(0, 2).join(', ')}{o.signals_matched.length > 2 ? ` +${o.signals_matched.length - 2}` : ''}</TableCell>
-                  <TableCell className="text-xs">
-                    {Array.isArray(o.leadership) && o.leadership.length > 0 ? (
-                      <div className="flex flex-col gap-0.5" title={o.leadership.map((l) => `${l.name}${l.role ? ` · ${l.role}` : ''}`).join('\n')}>
-                        {o.leadership.slice(0, 2).map((l, i) => (
-                          <span key={i}>{l.name}{l.role ? <span className="text-muted-foreground"> · {l.role}</span> : null}</span>
-                        ))}
-                        {o.leadership.length > 2 && <span className="text-muted-foreground">+{o.leadership.length - 2} more</span>}
-                      </div>
-                    ) : '—'}
-                  </TableCell>
-                  <TableCell>{roleCounts[o.id]?.roles || 0}</TableCell>
-                  <TableCell>{roleCounts[o.id]?.contacts || 0}</TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-1">
-                      <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => enrichOne(o)} disabled={enrichingId === o.id} title="Enrich with AI web search" aria-label={`Enrich ${o.name}`}>
-                        {enrichingId === o.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-                      </Button>
-                      <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setEditing(o)} title="Edit" aria-label={`Edit ${o.name}`}>
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button size="sm" variant="outline" onClick={() => setRolesFor(o)}><Users className="h-3 w-3 mr-1" /> Roles</Button>
-                      <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => setDeleting(o)} aria-label={`Delete ${o.name}`}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
-
-                </TableRow>
-              ))}
+                  </>
+                );
+              })}
             </TableBody>
           </Table>
         </CardContent></Card>
@@ -245,6 +390,8 @@ export default function OrganizationsTab({ campaign, personas }: { campaign: Dis
     </div>
   );
 }
+
+
 
 function SearchPanel({ campaign, onAdded, onClose }: { campaign: DiscoveryCampaign; onAdded: () => void | Promise<void>; onClose: () => void }) {
   const [running, setRunning] = useState(false);
