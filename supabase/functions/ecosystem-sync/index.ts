@@ -37,15 +37,16 @@ Deno.serve(async (req) => {
     const dcamps = (dcampRes.data || []) as any[];
     const dcampIds = dcamps.map((c) => c.id);
 
-    // Orgs / roles / contacts across all discovery campaigns in this project
+    // Orgs / roles / contacts / themes / insights across all discovery campaigns in this project
     let orgs: any[] = [], roles: any[] = [], contacts: any[] = [];
+    let themes: any[] = [], insights: any[] = [], conversations: any[] = [];
     if (dcampIds.length) {
-      const [oR, rR, cR] = await Promise.all([
+      const [oR, tR] = await Promise.all([
         svc.from("discovery_organizations").select("id, name, domain, segment, tier, campaign_id, leadership").in("campaign_id", dcampIds),
-        svc.from("discovery_org_roles").select("id, organization_id, persona_id, role_title").in("organization_id", []),
-        svc.from("discovery_contacts").select("id, name, title, email, linkedin_url, organization_id, persona_id, outreach_status").in("organization_id", []),
+        svc.from("discovery_themes").select("id, campaign_id, label, description, status").in("campaign_id", dcampIds),
       ]);
       orgs = (oR.data || []) as any[];
+      themes = (tR.data || []) as any[];
       const orgIds = orgs.map((o) => o.id);
       if (orgIds.length) {
         const [rR2, cR2] = await Promise.all([
@@ -55,6 +56,13 @@ Deno.serve(async (req) => {
         roles = (rR2.data || []) as any[];
         contacts = (cR2.data || []) as any[];
       }
+      const contactIds = contacts.map((c) => c.id);
+      if (contactIds.length) {
+        const cvR = await svc.from("discovery_conversations").select("id, contact_id").in("contact_id", contactIds);
+        conversations = (cvR.data || []) as any[];
+      }
+      const iR = await svc.from("discovery_insights").select("id, conversation_id, campaign_id, text, kind, is_quote, theme_id").in("campaign_id", dcampIds);
+      insights = (iR.data || []) as any[];
     }
 
     // Load existing synced nodes
