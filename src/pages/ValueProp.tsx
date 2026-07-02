@@ -395,8 +395,37 @@ export default function ValueProp() {
                       {problems.map((p) => (
                         <div key={p.id} className="border rounded-md p-3 space-y-2">
                           <div className="flex items-start justify-between gap-2">
-                            <p className="text-sm">{p.problem}</p>
-                            <Badge variant={p.worth_solving_score >= 3 ? 'default' : 'secondary'} className="shrink-0">{p.worth_solving_score}/4</Badge>
+                            {editingProblemId === p.id ? (
+                              <div className="flex-1 space-y-2">
+                                <Textarea
+                                  rows={2}
+                                  value={editingText}
+                                  onChange={(e) => setEditingText(e.target.value)}
+                                  autoFocus
+                                  className="text-sm"
+                                />
+                                <div className="flex gap-2 justify-end">
+                                  <Button size="sm" variant="ghost" onClick={cancelEditProblem}>
+                                    <X className="h-3 w-3 mr-1" />Cancel
+                                  </Button>
+                                  <Button size="sm" onClick={() => p.id && saveProblemText(p.id)}>
+                                    <Check className="h-3 w-3 mr-1" />Save
+                                  </Button>
+                                </div>
+                              </div>
+                            ) : (
+                              <>
+                                <p className="text-sm flex-1">{p.problem}</p>
+                                <button
+                                  className="text-muted-foreground hover:text-foreground shrink-0"
+                                  onClick={() => startEditProblem(p)}
+                                  aria-label="Edit problem"
+                                >
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </button>
+                                <Badge variant={p.worth_solving_score >= 3 ? 'default' : 'secondary'} className="shrink-0">{p.worth_solving_score}/4</Badge>
+                              </>
+                            )}
                           </div>
                           <div className="flex flex-wrap gap-3 text-xs">
                             {(['has_owner', 'tried_and_failed', 'saves_or_makes_money', 'broader_impact'] as const).map((k) => (
