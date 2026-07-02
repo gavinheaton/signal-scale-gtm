@@ -38,6 +38,8 @@ export default function ICPWizard() {
   const [prevDraft, setPrevDraft] = useState<DraftOutput>({});
   const [savedIcpId, setSavedIcpId] = useState<string | null>(null);
   const [suggestedReplies, setSuggestedReplies] = useState<string[]>([]);
+  const [existingIcpCount, setExistingIcpCount] = useState(0);
+  const [staleResume, setStaleResume] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Detect newly completed sections for inline celebrations
