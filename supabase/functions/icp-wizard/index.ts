@@ -17,6 +17,46 @@ const INITIAL_MESSAGE_NO_CONTEXT = "Let's build your ICP. I'll start by research
 
 const INITIAL_MESSAGE_WITH_CONTEXT = "I already have context on your brand from a previous session. Let's define a new ICP segment — what market, vertical, or customer type are you targeting with this one?";
 
+const ICP_CONTEXT_VERSION = "company_context_v2";
+
+function buildKnownCompanyFactsBlock(
+  projectInfo: Record<string, any>,
+  brandContext: Record<string, any>,
+  brandVoiceContext: Record<string, any> | null,
+  existingIcps: any[],
+): string {
+  const facts = {
+    project: {
+      name: projectInfo?.name || null,
+      website_url: projectInfo?.website_url || brandContext?.website_url || null,
+    },
+    completed_brand_voice: brandVoiceContext ? {
+      brand_identity: brandVoiceContext.brand_identity,
+      tone_description: brandVoiceContext.tone_description,
+      personality_adjectives: brandVoiceContext.personality_adjectives,
+      target_audiences: brandVoiceContext.target_audiences,
+    } : null,
+    existing_icps_as_company_context: existingIcps.map((icp: any) => ({
+      id: icp.id,
+      segment_name: icp.segment_name,
+      matrix_category: icp.matrix_category,
+      fit_score: icp.fit_score,
+      access_score: icp.access_score,
+      firmographics: icp.firmographics,
+      psychographics: icp.psychographics,
+      buyer_roles: icp.buyer_roles,
+      anti_icp_signals: icp.anti_icp_signals,
+    })),
+  };
+
+  return `\n\n<known_company_facts>\nThese facts are already established for this project. Treat them as authoritative company/project context. Infer the company's base offer, audience, market assumptions, buying-culture patterns, and anti-fit patterns from the existing ICPs and brand voice. Do NOT ask the user to re-provide website, company, product, positioning, target-market basics, buyer roles, or shared anti-ICP patterns already visible here. Reuse them silently unless you need to confirm a genuine ambiguity.\n${JSON.stringify(facts, null, 2)}\n</known_company_facts>`;
+}
+
+function buildRuntimeDiffRules(existingIcps: any[]): string {
+  const segmentNames = existingIcps.map((i: any) => i.segment_name).filter(Boolean).join(", ");
+  return `\n\n<runtime_icp_diff_rules>\nThese runtime rules override any older admin-managed ICP prompt text.\n1. If <known_company_facts> or <existing_icps> is present, never start by asking for company basics, website URL, product description, positioning, broad target market, known buyer roles, or known anti-ICP patterns.\n2. For a new ICP when existing ICPs are present${segmentNames ? ` (${segmentNames})` : ""}, open with one short acknowledgement of what is already known, then ask only whether the new ICP is a variation of an existing segment or a genuinely different segment.\n3. If the user says "Variation of X", prefill the draft by inheriting reusable firmographics, psychographics, buyer_roles_behaviour, operational_readiness, alignment_urgency, and anti_icp_signals from X where applicable. Add inherited_sections mapping inherited section keys to X's ICP id. Ask only about deltas.\n4. If the user says "Different segment", still inherit company-wide facts, buying-culture norms, known buyer-role patterns, and anti-ICP patterns. Ask only for what distinguishes this segment.\n5. Every response must continue producing the <draft> JSON block.\n</runtime_icp_diff_rules>`;
+}
+
 /** Deep-merge two objects (shallow per top-level key) */
 function mergeDrafts(existing: Record<string, any>, incoming: Record<string, any>): Record<string, any> {
   const merged = { ...existing };
