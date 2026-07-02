@@ -1,4 +1,4 @@
-import { Home, Users, Mic, Megaphone, FileText, BarChart3, Settings, LogOut, FolderOpen, Shield, HelpCircle, Gauge, MessagesSquare } from 'lucide-react';
+import { Home, Users, Mic, Megaphone, FileText, BarChart3, Settings, LogOut, FolderOpen, Shield, HelpCircle, Gauge, MessagesSquare, Network } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
