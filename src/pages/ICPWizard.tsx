@@ -242,12 +242,14 @@ export default function ICPWizard() {
   };
 
   const restartWizard = async () => {
-    if (sessionId) {
+    if (currentProject) {
       try {
         await supabase
           .from('wizard_sessions')
           .update({ status: 'cancelled' })
-          .eq('id', sessionId);
+          .eq('project_id', currentProject.id)
+          .eq('session_type', 'icp')
+          .eq('status', 'in_progress');
       } catch {}
     }
     setMessages([]);
@@ -256,6 +258,7 @@ export default function ICPWizard() {
     setSessionId(null);
     setSavedIcpId(null);
     setSuggestedReplies([]);
+    setStaleResume(false);
     setInput('');
     initSession();
     toast.success('Started a fresh ICP');
