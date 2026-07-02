@@ -34,7 +34,8 @@ Deno.serve(async (req) => {
     catch (e: any) { return json({ error: e?.message || "Forbidden" }, 403); }
 
     // Gather context
-    const [bvRes, icpRes, personaRes, allIcpsRes, allPersonasRes] = await Promise.all([
+    const [projRes, bvRes, icpRes, personaRes, allIcpsRes, allPersonasRes] = await Promise.all([
+      sb.from("projects").select("name").eq("id", body.project_id).maybeSingle(),
       sb.from("brand_voices").select("brand_name, tagline, tone_attributes, positioning, differentiators, voice_summary, website_url").eq("project_id", body.project_id).limit(1).maybeSingle(),
       body.icp_id ? sb.from("icps").select("*").eq("id", body.icp_id).maybeSingle() : Promise.resolve({ data: null }),
       body.persona_id ? sb.from("personas").select("*").eq("id", body.persona_id).maybeSingle() : Promise.resolve({ data: null }),
