@@ -149,6 +149,8 @@ export default function PersonaWizard() {
       setSessionId(data.session_id);
       setMessages([{ role: 'assistant', content: data.reply }]);
       if (data.updated_draft) setDraft(data.updated_draft);
+      setSuggestedReplies(Array.isArray(data.suggested_replies) ? data.suggested_replies : []);
+
     } catch (err: any) {
       toast.error('Failed to start wizard: ' + (err.message || 'Unknown error'));
     } finally {
