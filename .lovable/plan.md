@@ -1,43 +1,35 @@
 ## Goal
-Let users **move** a persona to a different ICP, or **duplicate** it into another ICP (so the same buying role can be reused across segments without rebuilding from scratch).
+Make org records on `/project/discovery/:id` editable, and add an AI-powered enrichment button that fetches profile info via web search.
 
-## Why it makes sense
-Personas today are hard-bound to a single `icp_id`. In reality, the same role (e.g. "Head of Marketing") often shows up across multiple ICP segments with mostly overlapping goals/pains and only small deltas. Rebuilding via the wizard each time is wasteful.
+## 1. Edit organisation records
+In `src/components/discovery/OrganizationsTab.tsx`:
+- Add an **Edit** action to each org row (pencil icon alongside the existing Roles/Delete actions).
+- Reuse a `Sheet` drawer (same style as the Add flow) with fields:
+  - Name, Domain, Segment, Tier (select from campaign tiers), Status (select), Confidence (high/medium/low), Signals matched (chips against `campaign.qualifying_signals`), Source URL, Fit notes (textarea), Leadership (editable list of {name, role}).
+- Save via `supabase.from('discovery_organizations').update(...).eq('id', org.id)` then refresh.
+- Allow inline quick-edit of **Status** directly in the table (keep current cell display but make it a Select) for fast triage.
 
-## UX
+## 2. Enrichment button
+- New edge function `supabase/functions/discovery-enrich-org/index.ts`:
+  1. Loads the org + parent campaign (for context: ICPs, qualifying signals, segment).
+  2. Uses **Firecrawl search + scrape** on the org's domain / name to pull homepage, about, leadership pages.
+  3. Sends scraped snippets to **Lovable AI Gateway** (`google/gemini-3-flash-preview`) with structured output to return:
+     ```
+     { description, industry, hq_location, employee_range, founded_year,
+       tech_focus[], leadership[{name,role,source_url}],
+       matched_signals[], fit_rationale, confidence }
+     ```
+  4. Merges result into the org row: updates `fit_notes` (prepends AI summary), `leadership` (dedup merge), `signals_matched` (union), `confidence`, and stores the full enrichment payload in a new `enrichment` jsonb column.
+- Migration: `ALTER TABLE discovery_organizations ADD COLUMN enrichment jsonb, ADD COLUMN enriched_at timestamptz;` (plus type export).
+- UI: **Enrich** button (Sparkles icon) per row + bulk "Enrich selected" in the table header. Shows spinner while running; toast on success/failure. Enriched orgs show a small "Enriched {relative time}" badge and an expandable panel with the AI-returned profile fields.
 
-**Entry points** — from both places a persona is actioned today:
-1. `PersonaDetailModal` footer: add **Move to ICP…** and **Duplicate to ICP…** buttons next to Edit/Delete.
-2. `ICPPersonas.tsx` persona card: add a small overflow menu (`⋯`) with the same two actions (so users don't have to open the modal).
-
-**Dialog** (single shared component `MovePersonaDialog.tsx`):
-- Title switches between "Move persona" / "Duplicate persona".
-- Shows current ICP as read-only chip.
-- Target ICP dropdown listing all other ICPs in the project (name + matrix category badge). Current ICP disabled.
-- For duplicate: optional "New persona name" input, pre-filled as `"{original name} ({target ICP name})"`.
-- Confirm button, loading state, toast on success, refresh gallery.
-
-## Behaviour
-
-**Move**
-- Update the persona row: `icp_id = <target>`. Nothing else changes. `is_current` stays true.
-
-**Duplicate**
-- Insert a new `personas` row copying every field from the source (persona_name, role_in_buying, goals, pain_points, channel_preferences, how_we_help, organisational_context, buying_behaviour, ai_readiness_score), overriding `icp_id` to the target, `persona_name` to the user-supplied name, `is_current = true`, new `id`. Do NOT copy `wizard_session_id` or any Notion linkage fields.
-
-Both actions are pure data ops — no edge function needed, done client-side via the Supabase client under existing RLS (persona rows are already writable by org members).
-
-## Guardrails
-- Disable both actions when the project has only one ICP (nowhere to move/duplicate to) — show a tooltip explaining why.
-- Prevent choosing the same ICP as source.
-- Wrap in try/catch with toast errors.
+## 3. Detail view
+When clicking an org name, open a read-only Sheet showing the merged profile (description, HQ, size, leadership with source links, matched signals, fit rationale) with Edit and Re-enrich buttons in the footer.
 
 ## Files touched
-- **New:** `src/components/MovePersonaDialog.tsx` — shared move/duplicate dialog.
-- **Edit:** `src/components/PersonaDetailModal.tsx` — add Move/Duplicate buttons + wire dialog.
-- **Edit:** `src/pages/ICPPersonas.tsx` — add overflow menu on persona cards + wire dialog; refresh `personas` state after success.
+- `src/components/discovery/OrganizationsTab.tsx` — edit dialog, enrich buttons, detail sheet.
+- `src/types/discovery.ts` — add `enrichment`, `enriched_at` to `DiscoveryOrganization`.
+- `supabase/functions/discovery-enrich-org/index.ts` — new.
+- Migration adding `enrichment jsonb`, `enriched_at timestamptz` on `discovery_organizations`.
 
-## Out of scope
-- Bulk move/duplicate across many personas at once.
-- Sunburst re-layout animation (it will just re-render from updated data).
-- Editing the duplicated persona inline in the dialog (user can open it after and edit if needed).
+No changes to other discovery tabs or ecosystem sync.
