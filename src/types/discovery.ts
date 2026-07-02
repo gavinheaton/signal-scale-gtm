@@ -75,8 +75,25 @@ export interface DiscoveryOrganization {
   status: DiscoveryOrgStatus;
   leadership: DiscoveryLeader[];
   confidence?: 'high' | 'medium' | 'low' | null;
+  enrichment?: DiscoveryEnrichment | null;
+  enriched_at?: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface DiscoveryEnrichment {
+  description?: string;
+  industry?: string | null;
+  hq_location?: string | null;
+  employee_range?: string | null;
+  founded_year?: number | null;
+  products?: string[];
+  tech_focus?: string[];
+  leadership?: { name: string; role?: string | null; source_url?: string | null }[];
+  matched_signals?: string[];
+  fit_rationale?: string;
+  confidence?: 'high' | 'medium' | 'low';
+  sources?: string[];
 }
 
 export interface DiscoveryOrgRole {

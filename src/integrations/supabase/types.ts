@@ -917,6 +917,8 @@ export type Database = {
           confidence: string | null
           created_at: string
           domain: string | null
+          enriched_at: string | null
+          enrichment: Json | null
           fit_notes: string | null
           id: string
           leadership: Json
@@ -934,6 +936,8 @@ export type Database = {
           confidence?: string | null
           created_at?: string
           domain?: string | null
+          enriched_at?: string | null
+          enrichment?: Json | null
           fit_notes?: string | null
           id?: string
           leadership?: Json
@@ -951,6 +955,8 @@ export type Database = {
           confidence?: string | null
           created_at?: string
           domain?: string | null
+          enriched_at?: string | null
+          enrichment?: Json | null
           fit_notes?: string | null
           id?: string
           leadership?: Json
