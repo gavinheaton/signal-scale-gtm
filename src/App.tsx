@@ -28,6 +28,7 @@ import SettingsPage from "@/pages/Settings";
 import IntegrationHelp from "@/pages/IntegrationHelp";
 import AdminDashboard from "@/pages/AdminDashboard";
 import Ecosystem from "@/pages/Ecosystem";
+import ValueProp from "@/pages/ValueProp";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -63,6 +64,7 @@ const App = () => (
                 <Route path="/project/content" element={<ContentPipeline />} />
                 <Route path="/project/analytics" element={<Analytics />} />
                 <Route path="/project/ecosystem" element={<Ecosystem />} />
+                <Route path="/project/value-prop" element={<ValueProp />} />
                 <Route path="/project/settings" element={<SettingsPage />} />
                 <Route path="/project/help" element={<IntegrationHelp />} />
                 <Route path="/admin" element={<AdminDashboard />} />
