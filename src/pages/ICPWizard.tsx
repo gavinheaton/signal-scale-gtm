@@ -94,6 +94,27 @@ export default function ICPWizard() {
         // If the project now has ICPs but the session predates company-context diff mode, flag as stale
         const isStale = priorIcps > 0 && (sessionMode !== 'diff' || contextVersion !== ICP_CONTEXT_VERSION);
 
+        if (isStale) {
+          await supabase
+            .from('wizard_sessions')
+            .update({ status: 'cancelled' })
+            .eq('id', session.id);
+
+          const res = await supabase.functions.invoke('icp-wizard', {
+            body: { project_id: currentProject!.id },
+          });
+          if (res.error) throw res.error;
+          const data = res.data;
+          setSessionId(data.session_id);
+          setMessages([{ role: 'assistant', content: data.reply }]);
+          if (data.updated_draft) setDraft(data.updated_draft);
+          setSuggestedReplies(Array.isArray(data.suggested_replies) ? data.suggested_replies : []);
+          if (typeof data.existing_icp_count === 'number') setExistingIcpCount(data.existing_icp_count);
+          setStaleResume(false);
+          toast.info('Started a fresh ICP using saved company context');
+          return;
+        }
+
         setSessionId(session.id);
         const sessionMessages = session.messages as Array<{ role: string; content: string }>;
         setMessages(
@@ -105,16 +126,12 @@ export default function ICPWizard() {
         if (session.draft_output && Object.keys(session.draft_output as object).length > 0) {
           setDraft(session.draft_output as DraftOutput);
         }
-        setStaleResume(isStale);
-        if (isStale) {
-          toast.info('You have saved ICPs — start fresh to reuse company context, or continue this draft.');
-        } else {
-          // Re-surface diff chips if this is an ongoing diff session
-          if (sessionMode === 'diff') {
-            setSuggestedReplies(await buildDiffChips(currentProject!.id));
-          }
-          toast.info('Resumed your previous session');
+        setStaleResume(false);
+        // Re-surface diff chips if this is an ongoing diff session
+        if (sessionMode === 'diff') {
+          setSuggestedReplies(await buildDiffChips(currentProject!.id));
         }
+        toast.info('Resumed your previous session');
         return;
       }
 
@@ -141,7 +158,7 @@ export default function ICPWizard() {
       .from('icps')
       .select('segment_name')
       .eq('project_id', projectId)
-      .order('created_at', { ascending: true })
+      .order('segment_name', { ascending: true })
       .limit(3);
     return [
       ...(icps || []).map((i: any) => `Variation of ${i.segment_name}`),
