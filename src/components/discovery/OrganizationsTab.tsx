@@ -210,18 +210,19 @@ export default function OrganizationsTab({ campaign, personas }: { campaign: Dis
 
 function SearchPanel({ campaign, onAdded, onClose }: { campaign: DiscoveryCampaign; onAdded: () => void | Promise<void>; onClose: () => void }) {
   const [running, setRunning] = useState(false);
-  const [candidates, setCandidates] = useState<FindCandidate[]>([]);
-  const [picked, setPicked] = useState<Set<number>>(new Set());
-  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState<(FindCandidate & { _rowId: string })[]>([]);
   const [debug, setDebug] = useState<any | null>(null);
-  const [lastAdded, setLastAdded] = useState<number | null>(null);
   const [hasRun, setHasRun] = useState(false);
+  const [savedCount, setSavedCount] = useState<number | null>(null);
+  const [skippedCount, setSkippedCount] = useState<number>(0);
 
   const run = async () => {
     setRunning(true);
-    setCandidates([]);
+    setSaved([]);
     setDebug(null);
-    setLastAdded(null);
+    setSavedCount(null);
+    setSkippedCount(0);
+
     const { data, error } = await supabase.functions.invoke('discovery-find-orgs', { body: { campaign_id: campaign.id } });
     setRunning(false);
     setHasRun(true);
@@ -232,15 +233,34 @@ function SearchPanel({ campaign, onAdded, onClose }: { campaign: DiscoveryCampai
       return;
     }
     const cands = (data?.candidates || []) as FindCandidate[];
-    setCandidates(cands);
-    setPicked(new Set(cands.map((_: any, i: number) => i)));
     setDebug((data as any)?.debug || null);
-  };
+    if (cands.length === 0) return;
 
-  const save = async () => {
-    if (picked.size === 0) return;
-    setSaving(true);
-    const rows = Array.from(picked).map((i) => candidates[i]).map((c) => ({
+    // Dedupe against existing orgs on this campaign (by lower(domain) or lower(name))
+    const { data: existing } = await (supabase as any)
+      .from('discovery_organizations')
+      .select('name, domain')
+      .eq('campaign_id', campaign.id);
+    const existingKeys = new Set<string>(
+      (existing || []).map((o: any) => (o.domain || o.name || '').toLowerCase()).filter(Boolean)
+    );
+    const fresh: FindCandidate[] = [];
+    let skipped = 0;
+    for (const c of cands) {
+      const key = (c.domain || c.name || '').toLowerCase();
+      if (!key || existingKeys.has(key)) { skipped++; continue; }
+      existingKeys.add(key);
+      fresh.push(c);
+    }
+    setSkippedCount(skipped);
+
+    if (fresh.length === 0) {
+      setSavedCount(0);
+      await onAdded();
+      return;
+    }
+
+    const rows = fresh.map((c) => ({
       campaign_id: campaign.id,
       name: c.name,
       domain: c.domain,
@@ -252,15 +272,23 @@ function SearchPanel({ campaign, onAdded, onClose }: { campaign: DiscoveryCampai
       leadership: Array.isArray(c.leadership) ? c.leadership : [],
       confidence: c.confidence || null,
     }));
-    const { error } = await (supabase as any).from('discovery_organizations').insert(rows);
-    setSaving(false);
-    if (error) {
-      toast.error(error.message);
+    const { data: inserted, error: insErr } = await (supabase as any)
+      .from('discovery_organizations').insert(rows).select('id, name, domain');
+    if (insErr) {
+      toast.error(`Saved 0 organisations: ${insErr.message}`);
       return;
     }
-    setLastAdded(rows.length);
-    setCandidates([]);
-    setPicked(new Set());
+    setSavedCount(inserted?.length || rows.length);
+    setSaved(fresh.map((c, i) => ({ ...c, _rowId: inserted?.[i]?.id || '' })));
+    toast.success(`Saved ${inserted?.length || rows.length} organisation${(inserted?.length || rows.length) === 1 ? '' : 's'}`);
+    await onAdded();
+  };
+
+  const removeOne = async (rowId: string) => {
+    if (!rowId) return;
+    const { error } = await (supabase as any).from('discovery_organizations').delete().eq('id', rowId);
+    if (error) { toast.error(error.message); return; }
+    setSaved((prev) => prev.filter((r) => r._rowId !== rowId));
     await onAdded();
   };
 
@@ -270,69 +298,57 @@ function SearchPanel({ campaign, onAdded, onClose }: { campaign: DiscoveryCampai
         <div className="flex items-start justify-between gap-3">
           <div>
             <h3 className="text-sm font-semibold">Find organisations</h3>
-            <p className="text-xs text-muted-foreground">Searches the web for orgs matching this campaign's target segment, ICP signals, and tier criteria. Review candidates before adding.</p>
+            <p className="text-xs text-muted-foreground">Searches the web for real prospective customers matching this campaign's target segment. Results are saved automatically — remove any you don't want.</p>
           </div>
           <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onClose} aria-label="Close search"><X className="h-4 w-4" /></Button>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <Button onClick={run} disabled={running} size="sm">
             {running ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Sparkles className="h-4 w-4 mr-1" />}
             {running ? 'Searching…' : hasRun ? 'Run another search' : 'Run search'}
           </Button>
-          {lastAdded !== null && (
-            <span className="text-xs text-muted-foreground">Added {lastAdded} organisation{lastAdded === 1 ? '' : 's'}.</span>
+          {savedCount !== null && (
+            <span className="text-xs text-muted-foreground">
+              Saved {savedCount}{skippedCount > 0 ? ` · skipped ${skippedCount} duplicate${skippedCount === 1 ? '' : 's'}` : ''}
+            </span>
           )}
         </div>
 
-        {candidates.length > 0 && (
-          <>
-            <div className="space-y-2 max-h-[55vh] overflow-y-auto border rounded p-2">
-              {candidates.map((c, i) => (
-                <div key={i} className="flex gap-2 p-2 rounded hover:bg-muted/50">
-                  <Checkbox checked={picked.has(i)} onCheckedChange={(v) => {
-                    const next = new Set(picked);
-                    v ? next.add(i) : next.delete(i);
-                    setPicked(next);
-                  }} />
-                  <div className="flex-1 text-sm">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <strong>{c.name}</strong>
-                      <Badge variant="outline" className="text-xs">{c.suggested_tier}</Badge>
-                      {c.confidence && (
-                        <Badge
-                          variant={c.confidence === 'high' ? 'default' : 'secondary'}
-                          className="text-[10px]"
-                          title="AI confidence this matches the ICP"
-                        >
-                          {c.confidence} confidence
-                        </Badge>
-                      )}
-                      {c.domain && <a href={`https://${c.domain}`} target="_blank" rel="noreferrer" className="text-xs text-primary hover:underline inline-flex items-center gap-1">{c.domain}<ExternalLink className="h-3 w-3" /></a>}
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-1">{c.rationale}</p>
-                    {Array.isArray(c.leadership) && c.leadership.length > 0 && (
-                      <div className="mt-1 text-xs">
-                        <span className="text-muted-foreground">Leaders identified: </span>
-                        {c.leadership.map((l, j) => (
-                          <Badge key={j} variant="outline" className="text-[10px] mr-1">{l.name}{l.role ? ` · ${l.role}` : ''}</Badge>
-                        ))}
-                      </div>
+        {saved.length > 0 && (
+          <div className="space-y-2 max-h-[55vh] overflow-y-auto border rounded p-2">
+            {saved.map((c) => (
+              <div key={c._rowId} className="flex gap-2 p-2 rounded hover:bg-muted/50">
+                <div className="flex-1 text-sm">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <strong>{c.name}</strong>
+                    <Badge variant="outline" className="text-xs">{c.suggested_tier}</Badge>
+                    {c.confidence && (
+                      <Badge variant={c.confidence === 'high' ? 'default' : 'secondary'} className="text-[10px]" title="AI confidence this matches the ICP">
+                        {c.confidence} confidence
+                      </Badge>
                     )}
-                    <div className="flex flex-wrap gap-1 mt-1">{c.matched_signals.map((s) => <Badge key={s} variant="secondary" className="text-[10px]">{s}</Badge>)}</div>
+                    {c.domain && <a href={`https://${c.domain}`} target="_blank" rel="noreferrer" className="text-xs text-primary hover:underline inline-flex items-center gap-1">{c.domain}<ExternalLink className="h-3 w-3" /></a>}
                   </div>
+                  <p className="text-xs text-muted-foreground mt-1">{c.rationale}</p>
+                  {Array.isArray(c.leadership) && c.leadership.length > 0 && (
+                    <div className="mt-1 text-xs">
+                      <span className="text-muted-foreground">Leaders: </span>
+                      {c.leadership.map((l, j) => (
+                        <Badge key={j} variant="outline" className="text-[10px] mr-1">{l.name}{l.role ? ` · ${l.role}` : ''}</Badge>
+                      ))}
+                    </div>
+                  )}
+                  <div className="flex flex-wrap gap-1 mt-1">{c.matched_signals.map((s) => <Badge key={s} variant="secondary" className="text-[10px]">{s}</Badge>)}</div>
                 </div>
-              ))}
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" size="sm" onClick={() => { setCandidates([]); setPicked(new Set()); }}>Clear</Button>
-              <Button size="sm" onClick={save} disabled={saving || picked.size === 0}>
-                {saving && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
-                Add {picked.size} organisation{picked.size === 1 ? '' : 's'}
-              </Button>
-            </div>
-          </>
+                <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => removeOne(c._rowId)} aria-label={`Remove ${c.name}`}>
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            ))}
+          </div>
         )}
+
 
         {hasRun && !running && debug && (
           <div className="rounded border bg-muted/30 p-3 text-xs space-y-2">
