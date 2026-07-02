@@ -1011,6 +1011,196 @@ export type Database = {
           },
         ]
       }
+      ecosystem_edges: {
+        Row: {
+          created_at: string
+          id: string
+          kind: Database["public"]["Enums"]["ecosystem_edge_kind"]
+          map_id: string
+          meta: Json
+          note: string | null
+          project_id: string
+          source_node_id: string
+          target_node_id: string
+          updated_at: string
+          weight: number | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          kind?: Database["public"]["Enums"]["ecosystem_edge_kind"]
+          map_id: string
+          meta?: Json
+          note?: string | null
+          project_id: string
+          source_node_id: string
+          target_node_id: string
+          updated_at?: string
+          weight?: number | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          kind?: Database["public"]["Enums"]["ecosystem_edge_kind"]
+          map_id?: string
+          meta?: Json
+          note?: string | null
+          project_id?: string
+          source_node_id?: string
+          target_node_id?: string
+          updated_at?: string
+          weight?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ecosystem_edges_map_id_fkey"
+            columns: ["map_id"]
+            isOneToOne: false
+            referencedRelation: "ecosystem_maps"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ecosystem_edges_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ecosystem_edges_source_node_id_fkey"
+            columns: ["source_node_id"]
+            isOneToOne: false
+            referencedRelation: "ecosystem_nodes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ecosystem_edges_target_node_id_fkey"
+            columns: ["target_node_id"]
+            isOneToOne: false
+            referencedRelation: "ecosystem_nodes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ecosystem_maps: {
+        Row: {
+          created_at: string
+          id: string
+          layout_mode: Database["public"]["Enums"]["ecosystem_layout_mode"]
+          meta: Json
+          name: string
+          project_id: string
+          updated_at: string
+          viewport: Json
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          layout_mode?: Database["public"]["Enums"]["ecosystem_layout_mode"]
+          meta?: Json
+          name?: string
+          project_id: string
+          updated_at?: string
+          viewport?: Json
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          layout_mode?: Database["public"]["Enums"]["ecosystem_layout_mode"]
+          meta?: Json
+          name?: string
+          project_id?: string
+          updated_at?: string
+          viewport?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ecosystem_maps_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ecosystem_nodes: {
+        Row: {
+          cluster: string | null
+          created_at: string
+          hidden: boolean
+          id: string
+          kind: Database["public"]["Enums"]["ecosystem_node_kind"]
+          label: string
+          map_id: string
+          meta: Json
+          project_id: string
+          readiness_score: number | null
+          ref_id: string | null
+          ref_table: string | null
+          ring: number | null
+          stale: boolean
+          subtitle: string | null
+          updated_at: string
+          x: number
+          y: number
+        }
+        Insert: {
+          cluster?: string | null
+          created_at?: string
+          hidden?: boolean
+          id?: string
+          kind: Database["public"]["Enums"]["ecosystem_node_kind"]
+          label: string
+          map_id: string
+          meta?: Json
+          project_id: string
+          readiness_score?: number | null
+          ref_id?: string | null
+          ref_table?: string | null
+          ring?: number | null
+          stale?: boolean
+          subtitle?: string | null
+          updated_at?: string
+          x?: number
+          y?: number
+        }
+        Update: {
+          cluster?: string | null
+          created_at?: string
+          hidden?: boolean
+          id?: string
+          kind?: Database["public"]["Enums"]["ecosystem_node_kind"]
+          label?: string
+          map_id?: string
+          meta?: Json
+          project_id?: string
+          readiness_score?: number | null
+          ref_id?: string | null
+          ref_table?: string | null
+          ring?: number | null
+          stale?: boolean
+          subtitle?: string | null
+          updated_at?: string
+          x?: number
+          y?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ecosystem_nodes_map_id_fkey"
+            columns: ["map_id"]
+            isOneToOne: false
+            referencedRelation: "ecosystem_maps"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ecosystem_nodes_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       icps: {
         Row: {
           access_score: number | null
@@ -1548,6 +1738,32 @@ export type Database = {
         | "closed_no_response"
       discovery_role_status: "identified" | "enriched" | "skipped"
       discovery_theme_status: "emerging" | "confirmed" | "discarded"
+      ecosystem_edge_kind:
+        | "serves"
+        | "buys_from"
+        | "partners_with"
+        | "regulates"
+        | "competes_with"
+        | "influences"
+        | "belongs_to"
+        | "evidences"
+        | "custom"
+      ecosystem_layout_mode: "concentric" | "freeform"
+      ecosystem_node_kind:
+        | "project"
+        | "segment"
+        | "company"
+        | "role"
+        | "person"
+        | "partner"
+        | "regulator"
+        | "competitor"
+        | "channel"
+        | "influencer"
+        | "community"
+        | "theme"
+        | "insight"
+        | "custom"
       matrix_category:
         | "now_account"
         | "strategic_nurture"
@@ -1741,6 +1957,34 @@ export const Constants = {
       ],
       discovery_role_status: ["identified", "enriched", "skipped"],
       discovery_theme_status: ["emerging", "confirmed", "discarded"],
+      ecosystem_edge_kind: [
+        "serves",
+        "buys_from",
+        "partners_with",
+        "regulates",
+        "competes_with",
+        "influences",
+        "belongs_to",
+        "evidences",
+        "custom",
+      ],
+      ecosystem_layout_mode: ["concentric", "freeform"],
+      ecosystem_node_kind: [
+        "project",
+        "segment",
+        "company",
+        "role",
+        "person",
+        "partner",
+        "regulator",
+        "competitor",
+        "channel",
+        "influencer",
+        "community",
+        "theme",
+        "insight",
+        "custom",
+      ],
       matrix_category: [
         "now_account",
         "strategic_nurture",
