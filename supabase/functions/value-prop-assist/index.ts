@@ -110,7 +110,7 @@ Task: Draft the value proposition slots for the requested format.
 
 If format = "memory_dart" (Steve Woodruff's Memory Dart):
 Return JSON: {"fields": {"i_am": string, "i_help": string, "impact_direction": "reduce"|"increase", "impact_metric": string, "impact_size": string}, "statement": string, "rationale": string}
-- i_am: brand + short descriptor
+- i_am: MUST begin with the project_name from context + short descriptor (do not substitute any agency or third-party brand)
 - i_help: bullseye customer (segment / role)
 - impact_metric: the pain point + measurement (e.g. "customer onboarding time")
 - impact_size: the size/comparison of impact (e.g. "by 60% in 90 days")
