@@ -394,6 +394,8 @@ Deno.serve(async (req) => {
         ]
       : [];
 
+    const sessionMode = (existingDraft?._meta?.mode as string) || (hasPriorIcps ? "diff" : "first");
+
     return new Response(
       JSON.stringify({
         reply: cleanReply,
@@ -402,6 +404,7 @@ Deno.serve(async (req) => {
         draft_warning: draftWarning,
         suggested_replies: suggestedReplies,
         existing_icp_count: existingIcps.length,
+        mode: sessionMode,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
