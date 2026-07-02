@@ -196,6 +196,8 @@ export default function OrganizationsTab({ campaign, personas }: { campaign: Dis
 
       {addOpen && <AddOrgSheet campaign={campaign} onClose={() => { setAddOpen(false); refresh(); }} />}
       {rolesFor && <FindRolesSheet org={rolesFor} personas={personas} onClose={() => { setRolesFor(null); refresh(); }} />}
+      {editing && <EditOrgSheet org={editing} campaign={campaign} onClose={() => { setEditing(null); refresh(); }} />}
+      {viewing && <OrgDetailSheet org={viewing} onClose={() => setViewing(null)} onEdit={() => { setEditing(viewing); setViewing(null); }} onEnrich={() => { enrichOne(viewing); setViewing(null); }} enriching={enrichingId === viewing.id} />}
 
       <AlertDialog open={!!deleting} onOpenChange={(o) => !o && setDeleting(null)}>
         <AlertDialogContent>
