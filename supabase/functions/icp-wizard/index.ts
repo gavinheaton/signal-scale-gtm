@@ -256,6 +256,7 @@ Deno.serve(async (req) => {
       }
 
       sessionId = session.id;
+      existingDraft = initialDraftOutput;
 
       if (!message && !hasPriorIcps) {
         const initialSuggestedReplies = hasPriorIcps
@@ -302,9 +303,9 @@ Deno.serve(async (req) => {
 
     // Detect URLs and fetch content (trimmed to 4000 chars)
     const lastUserMsg = messages[messages.length - 1];
-    let enrichedContent = lastUserMsg.content;
+    let enrichedContent = lastUserMsg?.content || "";
     const urlRegex = /https?:\/\/[^\s<>"{}|\\^`\[\]]+/gi;
-    const urls = lastUserMsg.role === "user" ? lastUserMsg.content.match(urlRegex) : null;
+    const urls = lastUserMsg?.role === "user" ? lastUserMsg.content.match(urlRegex) : null;
     let newlyCrawledContent: { url: string; content: string } | null = null;
 
     if (urls && urls.length > 0) {
@@ -337,7 +338,9 @@ Deno.serve(async (req) => {
           enrichedContent += `\n\n[Failed to fetch ${url}: ${fetchErr instanceof Error ? fetchErr.message : "unknown error"}]`;
         }
       }
-      messages[messages.length - 1] = { ...lastUserMsg, content: enrichedContent };
+      if (lastUserMsg) {
+        messages[messages.length - 1] = { ...lastUserMsg, content: enrichedContent };
+      }
     }
 
     // Save brand context to project if this is the first crawl
@@ -365,12 +368,19 @@ Deno.serve(async (req) => {
     if (hasBrandContext) {
       systemPrompt += `\n\nBRAND CONTEXT (from previous analysis of ${brandContext.website_url || "company website"}):\n${brandContext.crawled_content}\n\nUse this to inform your ICP questions. Do NOT ask for the website URL again — you already have the brand context.`;
     }
+    if (hasPriorIcps || brandVoiceContext || Object.keys(brandContext).length > 0 || projectInfo?.name || projectInfo?.website_url) {
+      systemPrompt += buildKnownCompanyFactsBlock(projectInfo, brandContext, brandVoiceContext, existingIcps);
+    }
     if (hasPriorIcps) {
       systemPrompt += `\n\n<existing_icps>\nThis project already has the following ICPs. Reuse their firmographics/psychographics/buyer_roles/anti-ICP signals rather than re-asking. Ask only about deltas for the new segment.\n${JSON.stringify(existingIcps, null, 2)}\n</existing_icps>`;
+      systemPrompt += buildRuntimeDiffRules(existingIcps);
     }
 
     // Build Anthropic messages — strip draft tags from prior assistant messages to save tokens
-    const anthropicMessages = messages.map((m) => ({
+    const anthropicMessages = (syntheticInitialPrompt
+      ? [{ role: "user", content: syntheticInitialPrompt, timestamp: new Date().toISOString() }]
+      : messages
+    ).map((m) => ({
       role: m.role as "user" | "assistant",
       content: m.role === "assistant"
         ? m.content.replace(/<draft>[\s\S]*?<\/draft>/g, "").trim()
