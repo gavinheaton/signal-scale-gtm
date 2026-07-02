@@ -1,28 +1,35 @@
-## Plan
+## What’s going wrong
 
-1. **Make the ICP wizard generate its opening through AI, not a static message**
-   - Change the first turn so the edge function sends a synthetic instruction to Claude when prior ICPs exist.
-   - The opening should acknowledge the company knowledge already available and ask only whether the new ICP is a variation of an existing ICP or a genuinely new segment.
+The wizard is still starting in `mode:first` for the project you’re testing, even though that project has a saved ICP. I found the likely cause: the edge function and frontend both count existing ICPs using `created_at`, but the live `icps` table does not have a `created_at` column.
 
-2. **Inject a stronger “known company facts” context block**
-   - Load and pass these into `icp-wizard` before any AI response:
-     - Existing ICPs for the project.
-     - Completed brand voice data where available.
-     - `projects` fields such as name, website URL, and `brand_context`.
-   - Mark this block as authoritative so the AI must not ask again for company basics like website, product, positioning, target market context, or buying culture if already present.
+That means the “read prior ICPs” query can fail or behave as if there are no prior ICPs, so the wizard falls back to the first-ICP flow and asks basic company questions again.
 
-3. **Always append runtime diff-mode rules**
-   - Do not rely only on the editable/admin prompt template, because the active database prompt may be older than the fallback prompt.
-   - Append non-negotiable runtime rules after the active prompt so diff mode works even if the admin-managed ICP prompt has not been updated.
+## Fix plan
 
-4. **Prefill inherited draft sections where possible**
-   - When the user chooses “Variation of X”, instruct the AI to copy usable sections from that ICP into the draft and only ask about deltas.
-   - Preserve `inherited_sections` metadata so the preview can track which sections came from a previous ICP.
+1. **Make prior ICP lookup work against the real schema**
+   - Remove `.order('created_at')` from ICP queries because `icps.created_at` does not exist.
+   - Order by a stable existing field such as `segment_name` or just fetch without ordering.
+   - Apply this in both:
+     - `supabase/functions/icp-wizard/index.ts`
+     - `src/pages/ICPWizard.tsx` chip builder.
 
-5. **Tighten session handling**
-   - When existing ICPs are present but the current in-progress session was created without company-context diff mode, prompt the user to start fresh.
-   - Starting fresh should cancel stale in-progress ICP sessions and immediately create a context-aware diff-mode session.
+2. **Make existing-ICP detection more robust**
+   - In `icp-wizard`, explicitly handle ICP query errors instead of silently treating them as zero ICPs.
+   - If the prior-ICP fetch fails, return a clear diagnostic error instead of starting the wrong wizard mode.
 
-6. **Validate the flow**
-   - Confirm that creating another ICP starts with known company context instead of asking for the website/company basics again.
-   - Confirm quick-reply chips still appear and the draft updates after selecting a variation.
+3. **Fix stale session resume logic**
+   - On the frontend, avoid resuming an in-progress `mode:first` session when the project now has saved ICPs.
+   - Automatically cancel that stale session and start a new diff-mode session, instead of showing a banner that still lets the old flow persist.
+
+4. **Ensure the first assistant message uses company context**
+   - For projects with prior ICPs, always invoke the AI-generated opening.
+   - Include project fields, brand voice, brand context, and saved ICPs in the `<known_company_facts>` block.
+   - Return quick-reply chips immediately: `Variation of X`, `Different segment`, `Ask me everything`.
+
+5. **Validate the actual project state**
+   - Confirm the project with ICP `Scaling Community Services Organisations — Australia` now creates a new ICP session with `mode:diff` and `context_version:company_context_v2`.
+   - Confirm the opening no longer asks for website/company basics.
+
+## Technical notes
+
+No database migration is required for this fix. The bug is caused by code assuming timestamp columns exist on `icps` when they do not.
