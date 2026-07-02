@@ -29,6 +29,7 @@ import IntegrationHelp from "@/pages/IntegrationHelp";
 import AdminDashboard from "@/pages/AdminDashboard";
 import Ecosystem from "@/pages/Ecosystem";
 import ValueProp from "@/pages/ValueProp";
+import CanvasPage from "@/pages/Canvas";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -65,6 +66,7 @@ const App = () => (
                 <Route path="/project/analytics" element={<Analytics />} />
                 <Route path="/project/ecosystem" element={<Ecosystem />} />
                 <Route path="/project/value-prop" element={<ValueProp />} />
+                <Route path="/project/canvas" element={<CanvasPage />} />
                 <Route path="/project/settings" element={<SettingsPage />} />
                 <Route path="/project/help" element={<IntegrationHelp />} />
                 <Route path="/admin" element={<AdminDashboard />} />
