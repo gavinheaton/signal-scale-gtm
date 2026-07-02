@@ -63,7 +63,9 @@ export default function PersonaWizard() {
   const [saving, setSaving] = useState(false);
   const [savedPersonaId, setSavedPersonaId] = useState<string | null>(null);
   const [initStage, setInitStage] = useState<string | null>(null);
+  const [suggestedReplies, setSuggestedReplies] = useState<string[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
 
   const currentPhase = PERSONA_SECTIONS.find(s => getSectionStatus(draft, s.key) !== 'complete');
   const completedCount = PERSONA_SECTIONS.filter(s => getSectionStatus(draft, s.key) === 'complete').length;
