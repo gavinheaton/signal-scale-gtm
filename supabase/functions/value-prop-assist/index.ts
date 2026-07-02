@@ -94,7 +94,7 @@ Speaker identity: When drafting any first-person or brand self-reference slot (e
     case "brainstorm_problems":
       return `${base}
 
-Task: Brainstorm the top customer problems for the given ICP/persona. Score each problem against the 4 handbook criteria for "problems worth solving":
+Task: Brainstorm the top customer problems for the given ICP/persona. Score each problem against 4 criteria for "problems worth solving":
 1. has_owner — someone is accountable for it today
 2. tried_and_failed — they've attempted a fix that didn't work
 3. saves_or_makes_money — solving it moves revenue or cost
