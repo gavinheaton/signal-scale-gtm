@@ -9,25 +9,39 @@ const FIRECRAWL_API_KEY = Deno.env.get("FIRECRAWL_API_KEY")!;
 
 interface Body { campaign_id: string }
 
-// Pure social/video noise — drop entirely.
-const HARD_BLOCK_HOSTS = new Set([
+// Pure social/video/junk — skip entirely (neither candidate nor article source).
+const SKIP_HOSTS = new Set([
   "instagram.com", "facebook.com", "tiktok.com", "youtube.com", "youtu.be",
   "twitter.com", "x.com", "pinterest.com", "vimeo.com", "spotify.com", "soundcloud.com",
 ]);
-const HARD_BLOCK_PATHS = ["/reel/", "/reels/", "/shorts/", "/watch", "/status/"];
+const SKIP_PATHS = ["/reel/", "/reels/", "/shorts/", "/watch", "/status/"];
 
-// Hosts that are usually article/listicle sources — keep, scrape in stage 2.
+// Directories / aggregators / review sites / job boards / news wires.
+// These are NEVER candidate orgs themselves, but their pages CAN be scraped
+// in stage 2 to extract the real companies they list.
+const DIRECTORY_HOSTS = new Set([
+  "crunchbase.com", "owler.com", "pitchbook.com", "similarweb.com",
+  "zoominfo.com", "apollo.io", "rocketreach.co", "wikipedia.org",
+  "g2.com", "capterra.com", "getapp.com", "softwareadvice.com", "trustpilot.com",
+  "clutch.co", "producthunt.com", "angel.co", "wellfound.com", "builtin.com",
+  "indeed.com", "seek.com.au", "glassdoor.com", "ziprecruiter.com",
+  "businesswire.com", "prnewswire.com", "globenewswire.com",
+]);
+
+// Editorial hosts — treat as article sources for stage-2 extraction.
 const ARTICLE_HOSTS = new Set([
   "medium.com", "substack.com", "linkedin.com", "reddit.com", "quora.com",
   "forbes.com", "techcrunch.com", "businessinsider.com", "afr.com", "smh.com.au",
   "theaustralian.com.au", "startupdaily.net", "fintechmagazine.com", "fintechnews.com.au",
-  "crunchbase.com", "owler.com", "pitchbook.com", "g2.com", "capterra.com",
-  "builtin.com", "wikipedia.org", "businesswire.com", "prnewswire.com",
 ]);
 const ARTICLE_PATH_HINTS = [
   "/best-", "/top-", "/top_", "/list", "/companies/", "/startup", "/founders",
   "/leaders", "/post/", "/posts/", "/article/", "/blog/", "/news/", "/202",
 ];
+
+// Only trust deep paths on unknown hosts as direct candidates when the path
+// looks like a company root — otherwise route to stage-2 scraping.
+const ROOT_PATH_HINTS = ["/", "/about", "/about-us", "/company", "/home"];
 
 const COMPOUND_TLDS = new Set([
   "co.uk", "com.au", "co.nz", "co.za", "com.br", "co.in", "co.jp", "com.sg", "com.hk",
@@ -130,8 +144,10 @@ Deno.serve(async (req) => {
       catch { dropped.push({ title, reason: "bad-url" }); continue; }
       const apex = apexDomain(host);
 
-      if (HARD_BLOCK_HOSTS.has(apex)) { dropped.push({ title, reason: `blocked-host:${apex}` }); continue; }
-      if (HARD_BLOCK_PATHS.some((p) => path.includes(p))) { dropped.push({ title, reason: "blocked-path" }); continue; }
+      if (SKIP_HOSTS.has(apex)) { dropped.push({ title, reason: `blocked-host:${apex}` }); continue; }
+      if (SKIP_PATHS.some((p) => path.includes(p))) { dropped.push({ title, reason: "blocked-path" }); continue; }
+      // LinkedIn /jobs is a job board — skip entirely.
+      if (host.endsWith("linkedin.com") && path.startsWith("/jobs")) { dropped.push({ title, reason: "linkedin-jobs" }); continue; }
 
       const key = apex + path;
       if (seen.has(key)) continue;
@@ -139,12 +155,24 @@ Deno.serve(async (req) => {
 
       const hit: Hit = { title, url, description, apex, host, path };
       const isLinkedinCompany = host.endsWith("linkedin.com") && (path.startsWith("/company/") || path.startsWith("/school/"));
+      const isDirectory = DIRECTORY_HOSTS.has(apex);
       const isArticleHost = ARTICLE_HOSTS.has(apex) && !isLinkedinCompany;
       const looksLikeArticle = isArticleHost || ARTICLE_PATH_HINTS.some((p) => path.includes(p));
+      const isRootish = ROOT_PATH_HINTS.includes(path) || path === "" || /^\/[a-z-]{0,20}\/?$/.test(path);
 
-      if (isLinkedinCompany) directCandidates.push(hit);
-      else if (looksLikeArticle) articleSources.push(hit);
-      else directCandidates.push(hit);
+      if (isDirectory) {
+        // Directory pages feed stage-2 extraction only, never candidacy.
+        articleSources.push(hit);
+      } else if (isLinkedinCompany) {
+        directCandidates.push(hit);
+      } else if (looksLikeArticle) {
+        articleSources.push(hit);
+      } else if (isRootish) {
+        directCandidates.push(hit);
+      } else {
+        // Unknown host, deep path — likely an article/listing, route to scrape.
+        articleSources.push(hit);
+      }
     }
 
     console.log("[find-orgs] direct:", directCandidates.length, "articles:", articleSources.length, "dropped:", dropped.length);
@@ -197,7 +225,8 @@ Deno.serve(async (req) => {
 Return ONLY JSON: {"organisations":[{"name":string,"domain":string|null,"source_article_url":string,"mention_context":string,"leadership":[{"name":string,"role":string|null}]}]}
 
 HARD RULES:
-- Only include organisations that plausibly fit the supplied target_segment + qualifying_signals.
+- Only include organisations that would BUY or USE the service/product implied by target_segment + qualifying_signals. They are prospective CUSTOMERS.
+- EXCLUDE vendors, agencies, consultancies, SaaS tools, marketplaces, directories, aggregators, media outlets, industry bodies, associations, and events — unless target_segment explicitly names them as buyers.
 - Skip orgs that clearly match a disqualifying_signal.
 - "name" must be a real company name copied verbatim from the article text. Strip legal suffixes (Pty Ltd, Inc., LLC) unless essential.
 - "domain" is your best-guess apex (e.g. "stripe.com") if the article cites it; otherwise null. Never invent.
@@ -309,7 +338,8 @@ RULES — default to INCLUDE, not exclude:
 - Preserve names, domains, source_url and leadership from input candidates verbatim. Do not invent organisations.
 - INCLUDE any candidate whose name or domain plausibly fits the target_segment, even if no qualifying_signals are visible in the input. Set "matched_signals": [] in that case.
 - Treat qualifying_signals as scoring HINTS, not gates. Lack of evidence is not a reason to drop.
-- Only put a candidate in "dropped" when it CLEARLY matches a disqualifying_signal, is obviously the wrong industry/geography for the target_segment, or is not a real organisation (e.g. a job board, an article aggregator).
+- DROP any candidate that is a vendor/provider of the category the target_segment BUYS (e.g. if target_segment is "companies that need X", drop "X software vendors", "X agencies", "X consultancies", "X platforms", "X marketplaces", directories, review sites, job boards, industry associations, media outlets, event organisers). Candidates must be prospective CUSTOMERS.
+- Only put a candidate in "dropped" when it CLEARLY matches a disqualifying_signal, is a provider/directory rather than a buyer, is obviously the wrong industry/geography, or is not a real organisation.
 - "confidence": "high" if the name/domain plus signals strongly match the segment; "medium" if it fits the segment but signals are unverified; "low" if it's a plausible guess only.
 - "suggested_tier" must be one of the provided tier labels (pick the closest fit; if unsure, pick the first tier).
 - For every dropped candidate, give a one-sentence reason.
