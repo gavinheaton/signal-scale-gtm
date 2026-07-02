@@ -353,9 +353,9 @@ function SearchPanel({ campaign, onAdded, onClose }: { campaign: DiscoveryCampai
         {hasRun && !running && debug && (
           <div className="rounded border bg-muted/30 p-3 text-xs space-y-2">
             <div className="font-medium text-sm">
-              {candidates.length === 0 ? 'No candidates returned' : 'Search diagnostics'}
+              {savedCount === 0 ? 'No candidates returned' : 'Search diagnostics'}
             </div>
-            {candidates.length === 0 && (
+            {savedCount === 0 && (
               <p className="text-muted-foreground">No time filter is applied to the search. If results are sparse, broaden the target segment or qualifying signals.</p>
             )}
             <div className="space-y-1 text-muted-foreground">
