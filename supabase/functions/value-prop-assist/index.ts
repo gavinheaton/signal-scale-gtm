@@ -86,7 +86,9 @@ Deno.serve(async (req) => {
 });
 
 function buildSystemPrompt(action: Action): string {
-  const base = `You are a value proposition strategist trained on the Disruptors Co DH18 Value Prop Design handbook. You write in a crisp, plain-spoken B2B tone grounded in customer language. Always return JSON only.`;
+  const base = `You are a value proposition strategist. You write in a crisp, plain-spoken B2B tone grounded in customer language. Always return JSON only.
+
+Speaker identity: When drafting any first-person or brand self-reference slot (e.g. "i_am", "solution"), the speaker is the project itself — use the "project_name" from context as the identity. Never introduce, cite, or credit any agency, consultancy, methodology author, or framework name (e.g. do not mention "Disruptors Co", "DH18", "Memory Dart author", "handbook"). Use brand_voice fields only for tone, positioning, and differentiators — not as the speaker's identity unless brand_voice.brand_name matches the project.`;
 
   switch (action) {
     case "brainstorm_problems":
