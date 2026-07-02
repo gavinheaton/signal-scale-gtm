@@ -343,10 +343,20 @@ Deno.serve(async (req) => {
       })
       .eq("id", sessionId);
 
+    // Suggested quick-reply chips for the UI on the first turn when prior personas exist
+    const suggestedReplies = (!session_id && hasPriorPersonas && !edit_persona_id)
+      ? [
+          ...priorPersonasInIcp.slice(0, 4).map((p: any) => `Similar to ${p.persona_name}`),
+          ...(priorPersonasInIcp.length > 0 ? [`Variation of ${priorPersonasInIcp[0].persona_name}`] : []),
+          "Different role",
+        ]
+      : [];
+
     return new Response(
-      JSON.stringify({ reply: cleanReply, updated_draft: updatedDraft, session_id: sessionId, draft_warning: draftWarning }),
+      JSON.stringify({ reply: cleanReply, updated_draft: updatedDraft, session_id: sessionId, draft_warning: draftWarning, suggested_replies: suggestedReplies }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
+
   } catch (err) {
     console.error("persona-wizard error:", err);
     return new Response(
