@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Loader2, Plus, Sparkles, Star, StarOff, Trash2, Save } from 'lucide-react';
+import { Loader2, Plus, Sparkles, Star, StarOff, Trash2, Save, Pencil, X, Check } from 'lucide-react';
 import { toast } from 'sonner';
 
 type Format = 'memory_dart' | 'elevator_pitch';
@@ -71,6 +71,8 @@ export default function ValueProp() {
   const [aiBusy, setAiBusy] = useState<string | null>(null);
   const [problems, setProblems] = useState<Problem[]>([]);
   const [variations, setVariations] = useState<{ label: string; statement: string; angle: string }[]>([]);
+  const [editingProblemId, setEditingProblemId] = useState<string | null>(null);
+  const [editingText, setEditingText] = useState('');
 
   const selected = useMemo(() => items.find((i) => i.id === selectedId) || null, [items, selectedId]);
 
@@ -244,6 +246,30 @@ export default function ValueProp() {
     }).select('*').single() as any);
     if (error) { toast.error(error.message); return; }
     setProblems([data, ...problems]);
+    setEditingProblemId(data.id);
+    setEditingText(data.problem);
+  };
+
+  const startEditProblem = (p: Problem) => {
+    if (!p.id) return;
+    setEditingProblemId(p.id);
+    setEditingText(p.problem);
+  };
+
+  const cancelEditProblem = () => {
+    setEditingProblemId(null);
+    setEditingText('');
+  };
+
+  const saveProblemText = async (id: string) => {
+    const text = editingText.trim();
+    if (!text) { toast.error('Problem cannot be empty'); return; }
+    const { error } = await (supabase.from('value_prop_problems' as any).update({ problem: text }).eq('id', id) as any);
+    if (error) { toast.error(error.message); return; }
+    setProblems(problems.map((p) => (p.id === id ? { ...p, problem: text } : p)));
+    setEditingProblemId(null);
+    setEditingText('');
+    toast.success('Problem updated');
   };
 
   const deleteProblem = async (id: string) => {
@@ -369,8 +395,37 @@ export default function ValueProp() {
                       {problems.map((p) => (
                         <div key={p.id} className="border rounded-md p-3 space-y-2">
                           <div className="flex items-start justify-between gap-2">
-                            <p className="text-sm">{p.problem}</p>
-                            <Badge variant={p.worth_solving_score >= 3 ? 'default' : 'secondary'} className="shrink-0">{p.worth_solving_score}/4</Badge>
+                            {editingProblemId === p.id ? (
+                              <div className="flex-1 space-y-2">
+                                <Textarea
+                                  rows={2}
+                                  value={editingText}
+                                  onChange={(e) => setEditingText(e.target.value)}
+                                  autoFocus
+                                  className="text-sm"
+                                />
+                                <div className="flex gap-2 justify-end">
+                                  <Button size="sm" variant="ghost" onClick={cancelEditProblem}>
+                                    <X className="h-3 w-3 mr-1" />Cancel
+                                  </Button>
+                                  <Button size="sm" onClick={() => p.id && saveProblemText(p.id)}>
+                                    <Check className="h-3 w-3 mr-1" />Save
+                                  </Button>
+                                </div>
+                              </div>
+                            ) : (
+                              <>
+                                <p className="text-sm flex-1">{p.problem}</p>
+                                <button
+                                  className="text-muted-foreground hover:text-foreground shrink-0"
+                                  onClick={() => startEditProblem(p)}
+                                  aria-label="Edit problem"
+                                >
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </button>
+                                <Badge variant={p.worth_solving_score >= 3 ? 'default' : 'secondary'} className="shrink-0">{p.worth_solving_score}/4</Badge>
+                              </>
+                            )}
                           </div>
                           <div className="flex flex-wrap gap-3 text-xs">
                             {(['has_owner', 'tried_and_failed', 'saves_or_makes_money', 'broader_impact'] as const).map((k) => (
