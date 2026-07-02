@@ -1,14 +1,26 @@
-## Changes
+## Make problem statements editable on /project/value-prop
 
-**1. `src/pages/ValueProp.tsx`** — remove framework references
-- Header subtitle: drop "— DH18 framework" so it reads "Design pitches that resonate with each ICP".
-- Problem-brainstorm helper text: replace "4 DH18 criteria" with "4 criteria".
+Currently in the "Problems worth solving" section, each problem's text is rendered as static `<p>`. Users can toggle the 4 criteria and delete, but cannot edit the wording of the problem itself.
 
-**2. `supabase/functions/value-prop-assist/index.ts`** — decouple from Disruptors branding, use project name
-- System prompt base: remove "trained on the Disruptors Co DH18 Value Prop Design handbook"; keep the strategist framing without the brand/handbook name.
-- Other prompt sections: replace "handbook criteria" with "criteria" (behavior unchanged).
-- Context injection: pass the current project's name into the AI payload as `project_name` and instruct the model that when drafting the `i_am` slot (or any brand self-reference), it must use the project name — not "Disruptors Co", not the operator's agency. Fetch `projects.name` alongside the existing `brand_voices` lookup.
-- Draft prompt: explicitly state "`i_am` must start with the project name". Leave brand_voice tone/positioning available as flavor but never as the identity of the speaker.
+### Changes (single file: `src/pages/ValueProp.tsx`)
 
-## Out of scope
-No schema changes. No UI restructuring. Existing saved value props are untouched.
+1. **Inline edit UI for each problem row**
+   - Replace the static `<p>{p.problem}</p>` with a click-to-edit pattern:
+     - Default: text display with a small pencil (Edit) icon button beside it.
+     - Editing state: `Textarea` (auto-sized, 2 rows) prefilled with current text, plus Save and Cancel buttons.
+   - Track editing state locally: `const [editingId, setEditingId] = useState<string | null>(null)` and `const [editingText, setEditingText] = useState('')`.
+
+2. **Save handler**
+   - `updateProblemText(id, text)`:
+     - Trim, guard against empty.
+     - `supabase.from('value_prop_problems').update({ problem: text }).eq('id', id)`.
+     - On success: update local `problems` state, clear editing state, toast success.
+     - On error: toast error, keep editing state open.
+
+3. **Manual add UX improvement (small)**
+   - Keep existing `addManualProblem` (uses `prompt()`), but after creation, drop straight into edit mode for the new row so users can refine without a second click. Optional — include only if it doesn't complicate the diff.
+
+### Out of scope
+- No schema changes (the `problem` column already exists and is writable via existing RLS).
+- No edge function changes.
+- No changes to AI-brainstormed insertion flow beyond making resulting rows editable (which they will be automatically).
