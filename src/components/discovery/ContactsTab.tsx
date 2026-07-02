@@ -87,6 +87,18 @@ export default function ContactsTab({ campaign, personas }: { campaign: Discover
           {orgs.map((org) => {
             const unenriched = org.discovery_org_roles.filter((r) => r.status === 'identified');
             const rolesById = new Map(org.discovery_org_roles.map((r) => [r.id, r]));
+            const combined: (
+              | { kind: 'contact'; data: DiscoveryContact }
+              | { kind: 'role'; data: DiscoveryOrgRole }
+            )[] = [
+              ...org.discovery_contacts.map((c) => ({ kind: 'contact' as const, data: c })),
+              ...unenriched.map((r) => ({ kind: 'role' as const, data: r })),
+            ];
+            combined.sort((a, b) => {
+              const aLabel = a.kind === 'contact' ? a.data.name : a.data.role_title;
+              const bLabel = b.kind === 'contact' ? b.data.name : b.data.role_title;
+              return aLabel.localeCompare(bLabel);
+            });
             return (
               <Card key={org.id}>
                 <CardContent className="p-4">
@@ -107,30 +119,42 @@ export default function ContactsTab({ campaign, personas }: { campaign: Discover
                     <Button size="sm" variant="outline" onClick={() => setAddingFor(org)}><Plus className="h-4 w-4 mr-1" /> Add manually</Button>
                   </div>
 
-                  {unenriched.length > 0 && (
-                    <div className="mb-3 p-2 rounded bg-amber-50 border border-amber-200">
-                      <p className="text-xs font-medium text-amber-900 mb-2">{unenriched.length} role{unenriched.length === 1 ? '' : 's'} ready to enrich with Apollo (finds email + verified LinkedIn)</p>
-                      <div className="space-y-1">
-                        {unenriched.map((r) => (
-                          <div key={r.id} className="flex items-center justify-between text-xs">
-                            <span>{r.role_title} {personaLabel(r.persona_id) && <Badge variant="outline" className="ml-1 text-[10px]">{personaLabel(r.persona_id)}</Badge>}</span>
-                            <Button size="sm" variant="ghost" onClick={() => setEnrichingRole({ org, role: r })}>
-                              <Sparkles className="h-3 w-3 mr-1" /> Enrich
-                            </Button>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
 
-                  {org.discovery_contacts.length > 0 && (
+                  {combined.length > 0 && (
                     <div className="border rounded divide-y">
-                      {org.discovery_contacts.map((c) => {
+                      {combined.map((item) => {
+                        if (item.kind === 'role') {
+                          const r = item.data;
+                          const pLabel = personaLabel(r.persona_id);
+                          return (
+                            <div key={`role-${r.id}`} className="text-sm bg-muted/20 border-l-2 border-dashed border-muted-foreground/20">
+                              <div className="flex items-center gap-2 p-2">
+                                <div className="w-5" />
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="font-medium truncate text-muted-foreground">{r.role_title}</span>
+                                    <Badge variant="outline" className="text-[10px] border-dashed text-muted-foreground">Role identified</Badge>
+                                    {pLabel && <Badge variant="outline" className="text-[10px]">{pLabel}</Badge>}
+                                  </div>
+                                  {r.source_snippet && (
+                                    <div className="text-xs text-muted-foreground truncate italic">{r.source_snippet}</div>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-2 shrink-0">
+                                  <Button size="sm" variant="ghost" onClick={() => setEnrichingRole({ org, role: r })}>
+                                    <Sparkles className="h-3 w-3 mr-1" /> Enrich
+                                  </Button>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        }
+                        const c = item.data;
                         const isOpen = expanded.has(c.id);
                         const role = c.org_role_id ? rolesById.get(c.org_role_id) : null;
                         const pLabel = personaLabel(c.persona_id);
                         return (
-                          <div key={c.id} className="text-sm">
+                          <div key={`contact-${c.id}`} className="text-sm">
                             <div className="flex items-center gap-2 p-2">
                               <button className="p-0.5 hover:bg-muted rounded" onClick={() => toggleExpand(c.id)} aria-label="Expand">
                                 {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
