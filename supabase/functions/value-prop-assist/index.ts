@@ -34,7 +34,8 @@ Deno.serve(async (req) => {
     catch (e: any) { return json({ error: e?.message || "Forbidden" }, 403); }
 
     // Gather context
-    const [bvRes, icpRes, personaRes, allIcpsRes, allPersonasRes] = await Promise.all([
+    const [projRes, bvRes, icpRes, personaRes, allIcpsRes, allPersonasRes] = await Promise.all([
+      sb.from("projects").select("name").eq("id", body.project_id).maybeSingle(),
       sb.from("brand_voices").select("brand_name, tagline, tone_attributes, positioning, differentiators, voice_summary, website_url").eq("project_id", body.project_id).limit(1).maybeSingle(),
       body.icp_id ? sb.from("icps").select("*").eq("id", body.icp_id).maybeSingle() : Promise.resolve({ data: null }),
       body.persona_id ? sb.from("personas").select("*").eq("id", body.persona_id).maybeSingle() : Promise.resolve({ data: null }),
@@ -43,6 +44,7 @@ Deno.serve(async (req) => {
     ]);
 
     const ctx = {
+      project_name: (projRes as any)?.data?.name || null,
       brand_voice: bvRes?.data || null,
       target_icp: (icpRes as any)?.data || null,
       target_persona: (personaRes as any)?.data || null,
@@ -84,13 +86,15 @@ Deno.serve(async (req) => {
 });
 
 function buildSystemPrompt(action: Action): string {
-  const base = `You are a value proposition strategist trained on the Disruptors Co DH18 Value Prop Design handbook. You write in a crisp, plain-spoken B2B tone grounded in customer language. Always return JSON only.`;
+  const base = `You are a value proposition strategist. You write in a crisp, plain-spoken B2B tone grounded in customer language. Always return JSON only.
+
+Speaker identity: When drafting any first-person or brand self-reference slot (e.g. "i_am", "solution"), the speaker is the project itself — use the "project_name" from context as the identity. Never introduce, cite, or credit any agency, consultancy, methodology author, or framework name (e.g. do not mention "Disruptors Co", "DH18", "Memory Dart author", "handbook"). Use brand_voice fields only for tone, positioning, and differentiators — not as the speaker's identity unless brand_voice.brand_name matches the project.`;
 
   switch (action) {
     case "brainstorm_problems":
       return `${base}
 
-Task: Brainstorm the top customer problems for the given ICP/persona. Score each problem against the 4 handbook criteria for "problems worth solving":
+Task: Brainstorm the top customer problems for the given ICP/persona. Score each problem against 4 criteria for "problems worth solving":
 1. has_owner — someone is accountable for it today
 2. tried_and_failed — they've attempted a fix that didn't work
 3. saves_or_makes_money — solving it moves revenue or cost
@@ -106,7 +110,7 @@ Task: Draft the value proposition slots for the requested format.
 
 If format = "memory_dart" (Steve Woodruff's Memory Dart):
 Return JSON: {"fields": {"i_am": string, "i_help": string, "impact_direction": "reduce"|"increase", "impact_metric": string, "impact_size": string}, "statement": string, "rationale": string}
-- i_am: brand + short descriptor
+- i_am: MUST begin with the project_name from context + short descriptor (do not substitute any agency or third-party brand)
 - i_help: bullseye customer (segment / role)
 - impact_metric: the pain point + measurement (e.g. "customer onboarding time")
 - impact_size: the size/comparison of impact (e.g. "by 60% in 90 days")
@@ -132,7 +136,7 @@ Task: Given a base statement, produce 3 tonal variations that preserve meaning b
     case "critique":
       return `${base}
 
-Task: Critique the given value proposition against the handbook criteria: audience specificity, problem clarity, measurable impact, differentiation, and language of the customer. Return JSON: {"score": 0-10, "strengths": string[], "gaps": string[], "rewrite_suggestion": string}.`;
+Task: Critique the given value proposition against these criteria: audience specificity, problem clarity, measurable impact, differentiation, and language of the customer. Return JSON: {"score": 0-10, "strengths": string[], "gaps": string[], "rewrite_suggestion": string}.`;
   }
 }
 
