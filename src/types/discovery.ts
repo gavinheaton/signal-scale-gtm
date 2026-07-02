@@ -79,6 +79,8 @@ export interface DiscoveryOrganization {
   confidence?: 'high' | 'medium' | 'low' | null;
   enrichment?: DiscoveryEnrichment | null;
   enriched_at?: string | null;
+  linkedin_url?: string | null;
+  website_verified?: boolean;
   created_at: string;
   updated_at: string;
 }
