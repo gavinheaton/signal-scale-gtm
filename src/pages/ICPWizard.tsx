@@ -214,19 +214,6 @@ export default function ICPWizard() {
     toast.success('Started a fresh ICP');
   };
 
-  const _legacyPostSave = (action: 'another_icp' | 'personas') => {
-      // Reset state and start fresh session
-      setMessages([]);
-      setDraft({});
-      setPrevDraft({});
-      setSessionId(null);
-      setSavedIcpId(null);
-      initSession();
-    } else {
-      // Navigate to persona wizard with the saved ICP context
-      navigate(`/project/persona-wizard?icp_id=${savedIcpId}`);
-    }
-  };
 
   if (!currentProject) {
     navigate('/projects');
