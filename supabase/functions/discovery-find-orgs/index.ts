@@ -225,7 +225,8 @@ Deno.serve(async (req) => {
 Return ONLY JSON: {"organisations":[{"name":string,"domain":string|null,"source_article_url":string,"mention_context":string,"leadership":[{"name":string,"role":string|null}]}]}
 
 HARD RULES:
-- Only include organisations that plausibly fit the supplied target_segment + qualifying_signals.
+- Only include organisations that would BUY or USE the service/product implied by target_segment + qualifying_signals. They are prospective CUSTOMERS.
+- EXCLUDE vendors, agencies, consultancies, SaaS tools, marketplaces, directories, aggregators, media outlets, industry bodies, associations, and events — unless target_segment explicitly names them as buyers.
 - Skip orgs that clearly match a disqualifying_signal.
 - "name" must be a real company name copied verbatim from the article text. Strip legal suffixes (Pty Ltd, Inc., LLC) unless essential.
 - "domain" is your best-guess apex (e.g. "stripe.com") if the article cites it; otherwise null. Never invent.
