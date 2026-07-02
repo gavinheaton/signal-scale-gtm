@@ -41,6 +41,7 @@ export default function ICPWizard() {
   const [existingIcpCount, setExistingIcpCount] = useState(0);
   const [staleResume, setStaleResume] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const ICP_CONTEXT_VERSION = 'company_context_v2';
 
   // Detect newly completed sections for inline celebrations
   useEffect(() => {
@@ -89,8 +90,9 @@ export default function ICPWizard() {
         const session = existingSessions[0];
         const draftOut = (session.draft_output as any) || {};
         const sessionMode = draftOut?._meta?.mode as string | undefined;
-        // If the project now has ICPs but the session predates diff mode, flag as stale
-        const isStale = priorIcps > 0 && sessionMode !== 'diff';
+        const contextVersion = draftOut?._meta?.context_version as string | undefined;
+        // If the project now has ICPs but the session predates company-context diff mode, flag as stale
+        const isStale = priorIcps > 0 && (sessionMode !== 'diff' || contextVersion !== ICP_CONTEXT_VERSION);
 
         setSessionId(session.id);
         const sessionMessages = session.messages as Array<{ role: string; content: string }>;
@@ -323,7 +325,7 @@ export default function ICPWizard() {
           {staleResume && (
             <div className="px-4 py-3 border-b bg-orange-50 dark:bg-orange-950/20 flex items-center justify-between gap-3">
               <div className="text-xs text-foreground">
-                You have <strong>{existingIcpCount}</strong> saved ICP{existingIcpCount === 1 ? '' : 's'}. This draft was started before diff mode — start fresh to reuse what's already known.
+                You have <strong>{existingIcpCount}</strong> saved ICP{existingIcpCount === 1 ? '' : 's'}. This draft was started before company-context diff mode — start fresh to reuse what's already known.
               </div>
               <div className="flex gap-2 shrink-0">
                 <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setStaleResume(false)}>Continue draft</Button>
