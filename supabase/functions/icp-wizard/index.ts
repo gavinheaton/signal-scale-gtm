@@ -208,10 +208,11 @@ Deno.serve(async (req) => {
         return new Response(
           JSON.stringify({
             reply: initialMessage,
-            updated_draft: {},
+            updated_draft: initialDraftOutput,
             session_id: sessionId,
             suggested_replies: initialSuggestedReplies,
             existing_icp_count: existingIcps.length,
+            mode: hasPriorIcps ? "diff" : "first",
           }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
