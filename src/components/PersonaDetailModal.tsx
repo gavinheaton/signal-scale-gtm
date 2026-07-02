@@ -23,6 +23,8 @@ interface PersonaDetailModalProps {
   onOpenChange: (open: boolean) => void;
   onEdit: (persona: Persona) => void;
   onDelete: (persona: Persona) => void;
+  onMove?: (persona: Persona) => void;
+  onDuplicate?: (persona: Persona) => void;
   onRefreshed?: (updatedPersona: Persona) => void;
 }
 
