@@ -293,6 +293,9 @@ Deno.serve(async (req) => {
     if (hasBrandContext) {
       systemPrompt += `\n\nBRAND CONTEXT (from previous analysis of ${brandContext.website_url || "company website"}):\n${brandContext.crawled_content}\n\nUse this to inform your ICP questions. Do NOT ask for the website URL again — you already have the brand context.`;
     }
+    if (hasPriorIcps) {
+      systemPrompt += `\n\n<existing_icps>\nThis project already has the following ICPs. Reuse their firmographics/psychographics/buyer_roles/anti-ICP signals rather than re-asking. Ask only about deltas for the new segment.\n${JSON.stringify(existingIcps, null, 2)}\n</existing_icps>`;
+    }
 
     // Build Anthropic messages — strip draft tags from prior assistant messages to save tokens
     const anthropicMessages = messages.map((m) => ({
