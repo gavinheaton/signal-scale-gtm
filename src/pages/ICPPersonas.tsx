@@ -260,8 +260,35 @@ export default function ICPPersonas() {
                   <CardHeader className="pb-2">
                     <div className="flex items-center justify-between">
                       <CardTitle className="text-base">{p.persona_name}</CardTitle>
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
                         <Badge className={roleColors[p.role_in_buying]}>{p.role_in_buying.replace('_', ' ')}</Badge>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-6 w-6">
+                              <MoreHorizontal className="h-3.5 w-3.5" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              disabled={icps.length < 2}
+                              onClick={() => setMoveDialog({ mode: 'move', persona: p })}
+                            >
+                              <ArrowRightLeft className="h-3.5 w-3.5 mr-2" /> Move to ICP…
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              disabled={icps.length < 2}
+                              onClick={() => setMoveDialog({ mode: 'duplicate', persona: p })}
+                            >
+                              <Copy className="h-3.5 w-3.5 mr-2" /> Duplicate to ICP…
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              className="text-destructive focus:text-destructive"
+                              onClick={() => setDeleteTarget(p)}
+                            >
+                              <Trash2 className="h-3.5 w-3.5 mr-2" /> Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
                     </div>
                     {icp && <p className="text-xs text-muted-foreground mt-1">{icp.segment_name}</p>}
