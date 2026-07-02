@@ -119,21 +119,6 @@ export default function ContactsTab({ campaign, personas }: { campaign: Discover
                     <Button size="sm" variant="outline" onClick={() => setAddingFor(org)}><Plus className="h-4 w-4 mr-1" /> Add manually</Button>
                   </div>
 
-                  {unenriched.length > 0 && (
-                    <div className="mb-3 p-2 rounded bg-amber-50 border border-amber-200">
-                      <p className="text-xs font-medium text-amber-900 mb-2">{unenriched.length} role{unenriched.length === 1 ? '' : 's'} ready to enrich with Apollo (finds email + verified LinkedIn)</p>
-                      <div className="space-y-1">
-                        {unenriched.map((r) => (
-                          <div key={r.id} className="flex items-center justify-between text-xs">
-                            <span>{r.role_title} {personaLabel(r.persona_id) && <Badge variant="outline" className="ml-1 text-[10px]">{personaLabel(r.persona_id)}</Badge>}</span>
-                            <Button size="sm" variant="ghost" onClick={() => setEnrichingRole({ org, role: r })}>
-                              <Sparkles className="h-3 w-3 mr-1" /> Enrich
-                            </Button>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
 
                   {org.discovery_contacts.length > 0 && (
                     <div className="border rounded divide-y">
