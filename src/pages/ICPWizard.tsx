@@ -199,7 +199,7 @@ export default function ICPWizard() {
       try {
         await supabase
           .from('wizard_sessions')
-          .update({ status: 'abandoned' })
+          .update({ status: 'cancelled' })
           .eq('id', sessionId);
       } catch {}
     }
