@@ -331,7 +331,7 @@ export default function OrganizationsTab({ campaign, personas }: { campaign: Dis
                         </TableCell>
                       </TableRow>
                     )}
-                  </>
+                  </Fragment>
                 );
               })}
             </TableBody>
