@@ -59,6 +59,8 @@ export interface DiscoveryCampaign {
 export interface DiscoveryLeader {
   name: string;
   role?: string | null;
+  linkedin_url?: string | null;
+  source_url?: string | null;
 }
 
 export interface DiscoveryOrganization {
