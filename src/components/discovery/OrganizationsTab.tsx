@@ -10,7 +10,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sh
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Plus, Sparkles, Loader2, Building2, ExternalLink, Users, Trash2, X } from 'lucide-react';
+import { Plus, Sparkles, Loader2, Building2, ExternalLink, Users, Trash2, X, Pencil, Eye } from 'lucide-react';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -21,6 +21,7 @@ import {
   DiscoveryOrganization,
   DiscoveryOrgRole,
   DiscoveryOrgStatus,
+  DiscoveryEnrichment,
 } from '@/types/discovery';
 import { Persona } from '@/types/database';
 
