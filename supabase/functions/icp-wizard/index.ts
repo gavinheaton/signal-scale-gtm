@@ -196,11 +196,20 @@ Deno.serve(async (req) => {
       sessionId = session.id;
 
       if (!message) {
+        const initialSuggestedReplies = hasPriorIcps
+          ? [
+              ...existingIcps.slice(0, 3).map((i: any) => `Variation of ${i.segment_name}`),
+              "Different segment",
+              "Ask me everything",
+            ]
+          : [];
         return new Response(
           JSON.stringify({
             reply: initialMessage,
             updated_draft: {},
             session_id: sessionId,
+            suggested_replies: initialSuggestedReplies,
+            existing_icp_count: existingIcps.length,
           }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
