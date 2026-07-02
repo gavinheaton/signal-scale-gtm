@@ -122,7 +122,34 @@ export default function ContactsTab({ campaign, personas }: { campaign: Discover
 
                   {combined.length > 0 && (
                     <div className="border rounded divide-y">
-                      {org.discovery_contacts.map((c) => {
+                      {combined.map((item) => {
+                        if (item.kind === 'role') {
+                          const r = item.data;
+                          const pLabel = personaLabel(r.persona_id);
+                          return (
+                            <div key={`role-${r.id}`} className="text-sm bg-muted/20 border-l-2 border-dashed border-muted-foreground/20">
+                              <div className="flex items-center gap-2 p-2">
+                                <div className="w-5" />
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="font-medium truncate text-muted-foreground">{r.role_title}</span>
+                                    <Badge variant="outline" className="text-[10px] border-dashed text-muted-foreground">Role identified</Badge>
+                                    {pLabel && <Badge variant="outline" className="text-[10px]">{pLabel}</Badge>}
+                                  </div>
+                                  {r.source_snippet && (
+                                    <div className="text-xs text-muted-foreground truncate italic">{r.source_snippet}</div>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-2 shrink-0">
+                                  <Button size="sm" variant="ghost" onClick={() => setEnrichingRole({ org, role: r })}>
+                                    <Sparkles className="h-3 w-3 mr-1" /> Enrich
+                                  </Button>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        }
+                        const c = item.data;
                         const isOpen = expanded.has(c.id);
                         const role = c.org_role_id ? rolesById.get(c.org_role_id) : null;
                         const pLabel = personaLabel(c.persona_id);
