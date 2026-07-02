@@ -21,6 +21,7 @@ const navItems = [
   { title: 'Home', url: '/project/home', icon: Home },
   { title: 'ICP & Personas', url: '/project/icp-personas', icon: Users },
   { title: 'Discovery', url: '/project/discovery', icon: MessagesSquare },
+  { title: 'Ecosystem', url: '/project/ecosystem', icon: Network },
   { title: 'Brand Voice', url: '/project/brand-voice', icon: Mic },
   { title: 'Brand Audit', url: '/project/brand-audit', icon: Gauge },
   { title: 'Campaigns', url: '/project/campaigns', icon: Megaphone },
