@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -191,8 +191,8 @@ export default function OrganizationsTab({ campaign, personas }: { campaign: Dis
                 const isOpen = expanded.has(o.id);
                 const e = o.enrichment as DiscoveryEnrichment | null | undefined;
                 return (
-                  <>
-                    <TableRow key={o.id} className="cursor-pointer" onClick={() => toggleExpand(o.id)}>
+                  <Fragment key={o.id}>
+                    <TableRow className="cursor-pointer" onClick={() => toggleExpand(o.id)}>
                       <TableCell className="align-top">
                         <button className="p-0.5 hover:bg-muted rounded" aria-label="Expand">
                           {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
