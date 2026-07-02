@@ -107,7 +107,7 @@ export default function ICPWizard() {
         }
         setStaleResume(isStale);
         if (isStale) {
-          toast.info('You have saved ICPs — start fresh to use diff mode, or continue this draft.');
+          toast.info('You have saved ICPs — start fresh to reuse company context, or continue this draft.');
         } else {
           // Re-surface diff chips if this is an ongoing diff session
           if (sessionMode === 'diff') {
