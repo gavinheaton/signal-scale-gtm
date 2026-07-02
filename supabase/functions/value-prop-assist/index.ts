@@ -44,6 +44,7 @@ Deno.serve(async (req) => {
     ]);
 
     const ctx = {
+      project_name: (projRes as any)?.data?.name || null,
       brand_voice: bvRes?.data || null,
       target_icp: (icpRes as any)?.data || null,
       target_persona: (personaRes as any)?.data || null,
