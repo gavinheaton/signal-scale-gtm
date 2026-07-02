@@ -10,15 +10,15 @@ import { Navigate, Link } from 'react-router-dom';
 import { toast } from 'sonner';
 
 
-const phases: { key: MethodologyPhase; label: string }[] = [
-  { key: 'icp', label: 'ICP' },
-  { key: 'personas', label: 'Personas' },
-  { key: 'customer_conversations', label: 'Conversations' },
+const phases: { key: MethodologyPhase; label: string; path?: string }[] = [
+  { key: 'icp', label: 'ICP', path: '/project/icp-personas' },
+  { key: 'personas', label: 'Personas', path: '/project/icp-personas' },
+  { key: 'value_proposition', label: 'Value Prop', path: '/project/value-prop' },
+  { key: 'customer_conversations', label: 'Conversations', path: '/project/discovery' },
   { key: 'competitor_mapping', label: 'Competitors' },
-  { key: 'ecosystem_map', label: 'Ecosystem' },
-  { key: 'value_proposition', label: 'Value Prop' },
-  { key: 'campaign_strategy', label: 'Strategy' },
-  { key: 'execution', label: 'Execution' },
+  { key: 'ecosystem_map', label: 'Ecosystem', path: '/project/ecosystem' },
+  { key: 'campaign_strategy', label: 'Strategy', path: '/project/campaigns' },
+  { key: 'execution', label: 'Execution', path: '/project/content' },
 ];
 
 const phaseColors: Record<PhaseStatus, string> = {
@@ -38,6 +38,8 @@ export default function Home() {
   const [brandVoiceStatus, setBrandVoiceStatus] = useState<string | null>(null);
   const [assetStatuses, setAssetStatuses] = useState<string[]>([]);
   const [icpWizardComplete, setIcpWizardComplete] = useState(false);
+  const [valuePropCount, setValuePropCount] = useState(0);
+  const [activeValuePropCount, setActiveValuePropCount] = useState(0);
 
   useEffect(() => {
     if (!currentProject) return;
@@ -73,6 +75,12 @@ export default function Home() {
     supabase.from('campaign_assets').select('status, campaign_id').then(({ data }) => {
       if (data) setAssetStatuses(data.map((a: any) => a.status));
     });
+
+    (supabase.from('value_propositions' as any).select('id, status').eq('project_id', pid) as any)
+      .then(({ data }: { data: any[] | null }) => {
+        setValuePropCount(data?.length || 0);
+        setActiveValuePropCount((data || []).filter((v: any) => v.status === 'active').length);
+      });
   }, [currentProject]);
 
   if (!currentProject) return <Navigate to="/projects" replace />;
@@ -81,10 +89,10 @@ export default function Home() {
   const computedProgress: Record<string, PhaseStatus> = {
     icp: icpCount === 0 ? 'not_started' : icpWizardComplete ? 'complete' : 'in_progress',
     personas: personaCount === 0 ? 'not_started' : personaCount >= 3 ? 'complete' : 'in_progress',
+    value_proposition: valuePropCount === 0 ? 'not_started' : activeValuePropCount >= 1 ? 'complete' : 'in_progress',
     customer_conversations: 'not_started',
     competitor_mapping: 'not_started',
     ecosystem_map: 'not_started',
-    value_proposition: !brandVoiceStatus ? 'not_started' : brandVoiceStatus === 'complete' ? 'complete' : 'in_progress',
     campaign_strategy: allCampaigns.length === 0 ? 'not_started' :
       allCampaigns.some(c => ['active', 'complete'].includes(c.status)) ? 'complete' : 'in_progress',
     execution: assetStatuses.length === 0 ? 'not_started' :
@@ -127,8 +135,8 @@ export default function Home() {
               );
               return (
                 <div key={phase.key} className="flex items-center">
-                  {phase.key === 'customer_conversations'
-                    ? <Link to="/project/discovery" className="hover:opacity-80 transition-opacity">{inner}</Link>
+                  {phase.path
+                    ? <Link to={phase.path} className="hover:opacity-80 transition-opacity">{inner}</Link>
                     : inner}
                   {i < phases.length - 1 && <div className="w-6 h-0.5 bg-border mt-[-20px]" />}
                 </div>
