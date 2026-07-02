@@ -175,6 +175,7 @@ Deno.serve(async (req) => {
         });
       }
 
+      const initialDraftOutput = { _meta: { mode: hasPriorIcps ? "diff" : "first" } } as Record<string, any>;
       const { data: session, error: insertError } = await supabase
         .from("wizard_sessions")
         .insert({
@@ -182,6 +183,7 @@ Deno.serve(async (req) => {
           session_type: "icp",
           messages,
           status: "in_progress",
+          draft_output: initialDraftOutput,
         })
         .select("id")
         .single();
