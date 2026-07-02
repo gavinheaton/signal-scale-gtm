@@ -319,6 +319,30 @@ Deno.serve(async (req) => {
       if (!org) continue;
       for (const L of leaders) await edge(L.id, org, "belongs_to");
     }
+    // Theme -belongs_to→ Segment(s) via its campaign's icp_ids
+    for (const t of themes) {
+      const from = themeNodeId.get(t.id);
+      if (!from) continue;
+      const icpIds = campIcp.get(t.campaign_id) || [];
+      for (const iid of icpIds) {
+        const seg = icpNodeId.get(iid);
+        if (seg) await edge(from, seg, "belongs_to");
+      }
+    }
+    // Insight -evidences→ Contact (via conversation.contact_id) and -evidences→ Theme
+    for (const ins of insights) {
+      const from = insightNodeId.get(ins.id);
+      if (!from) continue;
+      const contactId = ins.conversation_id ? convoContact.get(ins.conversation_id) : null;
+      if (contactId) {
+        const ct = contactNodeId.get(contactId);
+        if (ct) await edge(from, ct, "evidences");
+      }
+      if (ins.theme_id) {
+        const th = themeNodeId.get(ins.theme_id);
+        if (th) await edge(from, th, "evidences");
+      }
+    }
 
     // Refresh viewport touched-at
     await svc.from("ecosystem_maps").update({ updated_at: new Date().toISOString() }).eq("id", map_id);
