@@ -62,6 +62,7 @@ const App = () => (
                 <Route path="/project/discovery/:id/edit" element={<DiscoveryCampaignForm />} />
                 <Route path="/project/content" element={<ContentPipeline />} />
                 <Route path="/project/analytics" element={<Analytics />} />
+                <Route path="/project/ecosystem" element={<Ecosystem />} />
                 <Route path="/project/settings" element={<SettingsPage />} />
                 <Route path="/project/help" element={<IntegrationHelp />} />
                 <Route path="/admin" element={<AdminDashboard />} />
