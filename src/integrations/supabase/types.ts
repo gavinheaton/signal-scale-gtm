@@ -1620,6 +1620,165 @@ export type Database = {
           },
         ]
       }
+      value_prop_problems: {
+        Row: {
+          broader_impact: boolean
+          created_at: string
+          has_owner: boolean
+          icp_id: string | null
+          id: string
+          notes: string | null
+          persona_id: string | null
+          problem: string
+          project_id: string
+          saves_or_makes_money: boolean
+          source: Database["public"]["Enums"]["problem_source"]
+          tried_and_failed: boolean
+          updated_at: string
+          value_prop_id: string | null
+          worth_solving_score: number
+        }
+        Insert: {
+          broader_impact?: boolean
+          created_at?: string
+          has_owner?: boolean
+          icp_id?: string | null
+          id?: string
+          notes?: string | null
+          persona_id?: string | null
+          problem: string
+          project_id: string
+          saves_or_makes_money?: boolean
+          source?: Database["public"]["Enums"]["problem_source"]
+          tried_and_failed?: boolean
+          updated_at?: string
+          value_prop_id?: string | null
+          worth_solving_score?: number
+        }
+        Update: {
+          broader_impact?: boolean
+          created_at?: string
+          has_owner?: boolean
+          icp_id?: string | null
+          id?: string
+          notes?: string | null
+          persona_id?: string | null
+          problem?: string
+          project_id?: string
+          saves_or_makes_money?: boolean
+          source?: Database["public"]["Enums"]["problem_source"]
+          tried_and_failed?: boolean
+          updated_at?: string
+          value_prop_id?: string | null
+          worth_solving_score?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "value_prop_problems_icp_id_fkey"
+            columns: ["icp_id"]
+            isOneToOne: false
+            referencedRelation: "icps"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "value_prop_problems_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "value_prop_problems_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "value_prop_problems_value_prop_id_fkey"
+            columns: ["value_prop_id"]
+            isOneToOne: false
+            referencedRelation: "value_propositions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      value_propositions: {
+        Row: {
+          ai_model: string | null
+          ai_rationale: string | null
+          created_at: string
+          created_by: string | null
+          fields: Json
+          format: Database["public"]["Enums"]["value_prop_format"]
+          icp_id: string | null
+          id: string
+          is_primary: boolean
+          persona_id: string | null
+          project_id: string
+          segment_label: string | null
+          statement: string | null
+          status: Database["public"]["Enums"]["value_prop_status"]
+          updated_at: string
+        }
+        Insert: {
+          ai_model?: string | null
+          ai_rationale?: string | null
+          created_at?: string
+          created_by?: string | null
+          fields?: Json
+          format?: Database["public"]["Enums"]["value_prop_format"]
+          icp_id?: string | null
+          id?: string
+          is_primary?: boolean
+          persona_id?: string | null
+          project_id: string
+          segment_label?: string | null
+          statement?: string | null
+          status?: Database["public"]["Enums"]["value_prop_status"]
+          updated_at?: string
+        }
+        Update: {
+          ai_model?: string | null
+          ai_rationale?: string | null
+          created_at?: string
+          created_by?: string | null
+          fields?: Json
+          format?: Database["public"]["Enums"]["value_prop_format"]
+          icp_id?: string | null
+          id?: string
+          is_primary?: boolean
+          persona_id?: string | null
+          project_id?: string
+          segment_label?: string | null
+          statement?: string | null
+          status?: Database["public"]["Enums"]["value_prop_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "value_propositions_icp_id_fkey"
+            columns: ["icp_id"]
+            isOneToOne: false
+            referencedRelation: "icps"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "value_propositions_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "value_propositions_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       wizard_sessions: {
         Row: {
           context: Json | null
@@ -1783,6 +1942,7 @@ export type Database = {
         | "analyst"
         | "client"
       org_type: "disruptors_own" | "disruptors_client" | "independent"
+      problem_source: "manual" | "ai" | "conversation"
       project_status: "setup" | "active" | "review" | "complete" | "archived"
       role_in_buying:
         | "champion"
@@ -1790,6 +1950,8 @@ export type Database = {
         | "influencer"
         | "end_user"
         | "blocker"
+      value_prop_format: "memory_dart" | "elevator_pitch"
+      value_prop_status: "draft" | "active" | "archived"
       wizard_session_status: "in_progress" | "complete" | "cancelled"
       wizard_session_type:
         | "icp"
@@ -2006,6 +2168,7 @@ export const Constants = {
         "client",
       ],
       org_type: ["disruptors_own", "disruptors_client", "independent"],
+      problem_source: ["manual", "ai", "conversation"],
       project_status: ["setup", "active", "review", "complete", "archived"],
       role_in_buying: [
         "champion",
@@ -2014,6 +2177,8 @@ export const Constants = {
         "end_user",
         "blocker",
       ],
+      value_prop_format: ["memory_dart", "elevator_pitch"],
+      value_prop_status: ["draft", "active", "archived"],
       wizard_session_status: ["in_progress", "complete", "cancelled"],
       wizard_session_type: [
         "icp",
