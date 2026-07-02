@@ -246,6 +246,30 @@ export default function ValueProp() {
     }).select('*').single() as any);
     if (error) { toast.error(error.message); return; }
     setProblems([data, ...problems]);
+    setEditingProblemId(data.id);
+    setEditingText(data.problem);
+  };
+
+  const startEditProblem = (p: Problem) => {
+    if (!p.id) return;
+    setEditingProblemId(p.id);
+    setEditingText(p.problem);
+  };
+
+  const cancelEditProblem = () => {
+    setEditingProblemId(null);
+    setEditingText('');
+  };
+
+  const saveProblemText = async (id: string) => {
+    const text = editingText.trim();
+    if (!text) { toast.error('Problem cannot be empty'); return; }
+    const { error } = await (supabase.from('value_prop_problems' as any).update({ problem: text }).eq('id', id) as any);
+    if (error) { toast.error(error.message); return; }
+    setProblems(problems.map((p) => (p.id === id ? { ...p, problem: text } : p)));
+    setEditingProblemId(null);
+    setEditingText('');
+    toast.success('Problem updated');
   };
 
   const deleteProblem = async (id: string) => {
