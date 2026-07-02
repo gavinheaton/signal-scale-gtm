@@ -144,8 +144,10 @@ Deno.serve(async (req) => {
       catch { dropped.push({ title, reason: "bad-url" }); continue; }
       const apex = apexDomain(host);
 
-      if (HARD_BLOCK_HOSTS.has(apex)) { dropped.push({ title, reason: `blocked-host:${apex}` }); continue; }
-      if (HARD_BLOCK_PATHS.some((p) => path.includes(p))) { dropped.push({ title, reason: "blocked-path" }); continue; }
+      if (SKIP_HOSTS.has(apex)) { dropped.push({ title, reason: `blocked-host:${apex}` }); continue; }
+      if (SKIP_PATHS.some((p) => path.includes(p))) { dropped.push({ title, reason: "blocked-path" }); continue; }
+      // LinkedIn /jobs is a job board — skip entirely.
+      if (host.endsWith("linkedin.com") && path.startsWith("/jobs")) { dropped.push({ title, reason: "linkedin-jobs" }); continue; }
 
       const key = apex + path;
       if (seen.has(key)) continue;
@@ -153,12 +155,24 @@ Deno.serve(async (req) => {
 
       const hit: Hit = { title, url, description, apex, host, path };
       const isLinkedinCompany = host.endsWith("linkedin.com") && (path.startsWith("/company/") || path.startsWith("/school/"));
+      const isDirectory = DIRECTORY_HOSTS.has(apex);
       const isArticleHost = ARTICLE_HOSTS.has(apex) && !isLinkedinCompany;
       const looksLikeArticle = isArticleHost || ARTICLE_PATH_HINTS.some((p) => path.includes(p));
+      const isRootish = ROOT_PATH_HINTS.includes(path) || path === "" || /^\/[a-z-]{0,20}\/?$/.test(path);
 
-      if (isLinkedinCompany) directCandidates.push(hit);
-      else if (looksLikeArticle) articleSources.push(hit);
-      else directCandidates.push(hit);
+      if (isDirectory) {
+        // Directory pages feed stage-2 extraction only, never candidacy.
+        articleSources.push(hit);
+      } else if (isLinkedinCompany) {
+        directCandidates.push(hit);
+      } else if (looksLikeArticle) {
+        articleSources.push(hit);
+      } else if (isRootish) {
+        directCandidates.push(hit);
+      } else {
+        // Unknown host, deep path — likely an article/listing, route to scrape.
+        articleSources.push(hit);
+      }
     }
 
     console.log("[find-orgs] direct:", directCandidates.length, "articles:", articleSources.length, "dropped:", dropped.length);
