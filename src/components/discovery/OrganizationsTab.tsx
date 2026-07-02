@@ -52,8 +52,29 @@ export default function OrganizationsTab({ campaign, personas }: { campaign: Dis
   const [searchOpen, setSearchOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [rolesFor, setRolesFor] = useState<DiscoveryOrganization | null>(null);
+  const [editing, setEditing] = useState<DiscoveryOrganization | null>(null);
+  const [viewing, setViewing] = useState<DiscoveryOrganization | null>(null);
+  const [enrichingId, setEnrichingId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<DiscoveryOrganization | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
+
+  const enrichOne = async (org: DiscoveryOrganization) => {
+    setEnrichingId(org.id);
+    try {
+      const { data, error } = await supabase.functions.invoke('discovery-enrich-org', {
+        body: { organization_id: org.id },
+      });
+      if (error || (data as any)?.error) {
+        throw new Error((data as any)?.error || error?.message || 'Enrichment failed');
+      }
+      toast.success(`Enriched ${org.name}`);
+      await refresh();
+    } catch (e: any) {
+      toast.error(e?.message || 'Enrichment failed');
+    } finally {
+      setEnrichingId(null);
+    }
+  };
 
   const refresh = async () => {
     setLoading(true);
