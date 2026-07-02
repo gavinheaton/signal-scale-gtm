@@ -87,6 +87,18 @@ export default function ContactsTab({ campaign, personas }: { campaign: Discover
           {orgs.map((org) => {
             const unenriched = org.discovery_org_roles.filter((r) => r.status === 'identified');
             const rolesById = new Map(org.discovery_org_roles.map((r) => [r.id, r]));
+            const combined: (
+              | { kind: 'contact'; data: DiscoveryContact }
+              | { kind: 'role'; data: DiscoveryOrgRole }
+            )[] = [
+              ...org.discovery_contacts.map((c) => ({ kind: 'contact' as const, data: c })),
+              ...unenriched.map((r) => ({ kind: 'role' as const, data: r })),
+            ];
+            combined.sort((a, b) => {
+              const aLabel = a.kind === 'contact' ? a.data.name : a.data.role_title;
+              const bLabel = b.kind === 'contact' ? b.data.name : b.data.role_title;
+              return aLabel.localeCompare(bLabel);
+            });
             return (
               <Card key={org.id}>
                 <CardContent className="p-4">
