@@ -1,46 +1,45 @@
-# Canvas variants: rename + add Business Model Canvas
+# Fix critique freshness · proper edit UX · bulk-add AI suggestions
 
-## 1. Rename "Standard" → "Disruptors"
+## 1. Critique includes recent edits
 
-Purely a label change. Keep the underlying variant key as `standard` in the database so existing canvases keep working (no migration/backfill risk). Only the tab label in `src/pages/Canvas.tsx` changes to **Disruptors**. The 9 boxes stay identical.
+**Root cause:** two racing issues in `CanvasBox`:
+- Inline `contentEditable` only saves on blur, so if the user clicks **Critique** immediately after typing, the edit fires after the critique request has already sent stale content.
+- Adding an AI suggestion or editing a box doesn't update `canvases.updated_at`, so the critique fn has no signal for freshness (minor — mostly about the race).
 
-## 2. Add Business Model Canvas as a third variant
+**Fix:**
+- Replace `contentEditable` with an explicit edit mode (pencil icon → `<Textarea>` + Save/Cancel — same pattern as `Add`). This eliminates the blur race and gives users clear affordance (also covers request #2).
+- In `Canvas.tsx`, before calling `runCritique` / `runNarrative`, `document.activeElement?.blur()` and `await` a `load()` so the entries state is guaranteed fresh.
+- On the server side (`canvas-critique`), select `content, status, source, updated_at` and pass `updated_at` into the prompt so the model can reason about "recent" changes. Also add `AI-suggested and auto-imported entries should be treated as first-class content for critique` to the system prompt.
 
-New variant key: `business_model`. Nine classic Osterwalder blocks (skipping the header meta — no "Designed for / by / date / version / iteration"):
+## 2. Proper manual editing per entry
 
-1. Key Partners
-2. Key Activities
-3. Key Resources
-4. Value Propositions
-5. Customer Relationships
-6. Channels
-7. Customer Segments
-8. Cost Structure
-9. Revenue Streams
+New per-entry UI in `CanvasBox`:
+- Hover reveals **pencil** (edit) and **trash** icons.
+- Click pencil → the entry text swaps to a `<Textarea>` with **Save / Cancel** buttons underneath.
+- Save calls the existing `updateContent` (writes `content` + `updated_at = now()` client-side) and reloads.
+- Clicking the status pip still cycles assumption → hypothesis → validated (unchanged).
+- Drops the buggy `contentEditable` element.
 
-Each block gets a short hint (e.g. Key Partners → "Who are your key partners and suppliers?").
+## 3. Bulk-add AI suggestions
 
-## 3. Where to change things
+Currently the AI returns 3 suggestions and the user clicks ✓ on each one individually.
 
-- **`src/components/canvas/types.ts`**
-  - Extend `CanvasVariant` to `'standard' | 'shared_value' | 'business_model'`.
-  - Add `BUSINESS_MODEL_BOXES` array with the 9 blocks above.
-- **`src/pages/Canvas.tsx`**
-  - Tabs: `Disruptors` (value `standard`), `Shared Value` (value `shared_value`), `Business Model` (value `business_model`).
-  - Extend the boxes selector to pick `BUSINESS_MODEL_BOXES` when variant is `business_model`.
-  - Grid: use a 4-col layout for Business Model (top row Partners/Activities/Value Props/Relationships/Segments, etc.) — same responsive pattern already used for the other variants.
-- **Database enum** (`canvas_variant`): add `'business_model'` value via a new migration so `canvases.variant` accepts it. Existing rows untouched.
-- **Edge functions** (`canvas-sync`, `canvas-suggest`, `canvas-critique`, `canvas-narrative`): teach them the new box keys so AI suggestions / auto-population / narrative rendering handle Business Model blocks. Auto-mapping suggestions:
-  - `customer_segments` ← ICPs (already exists)
-  - `value_propositions` ← existing value_prop rows
-  - `channels` ← campaigns' channel_mix
-  - `key_activities` / `key_resources` / `key_partners` / `customer_relationships` ← left for AI suggestions
-  - `cost_structure` / `revenue_streams` ← AI suggestions
+**Fix in `canvas-suggest` (server):** accept an optional `count` in the request body (default 5, max 8) and adjust the prompt accordingly.
 
-## 4. Out of scope
+**Fix in `CanvasBox` (client):**
+- Show suggestions with individual **✓** buttons **and** an **Add all** button at the top of the suggestion list.
+- Add a small **⟳ More** button next to Add all to fetch another batch (appends, doesn't replace).
+- After adding, remove that suggestion from the list; **Add all** inserts all remaining as a single `.insert([...])` call for one round-trip.
+- Bump the default `Sparkles` button to fetch 5 suggestions instead of 3.
 
-- No changes to the Disruptors 9-box content or Shared Value canvas.
-- No header/meta fields ("Designed for", "Date", etc.).
-- No new tables — reuses `canvases` / `canvas_entries` / `canvas_validations`.
+## Files touched
 
-After you approve, I'll implement in build mode.
+- `src/components/canvas/CanvasBox.tsx` — new edit mode, bulk-add / add-all / more buttons.
+- `src/pages/Canvas.tsx` — blur + await load before critique/narrative.
+- `supabase/functions/canvas-suggest/index.ts` — support `count`, larger default.
+- `supabase/functions/canvas-critique/index.ts` — include `updated_at` + tweak system prompt.
+
+## Non-goals
+
+- No schema changes — `updated_at` already exists on `canvas_entries` via the discovery trigger.
+- Board-pack PDF and completion checkboxes stay parked (previously proposed) — this ships in a later turn.

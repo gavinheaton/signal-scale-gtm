@@ -16,12 +16,16 @@ Deno.serve(async (req) => {
     if (!canvas) throw new Error("Canvas not found");
     await assertProjectAccess(svc, user.id, canvas.project_id);
 
-    const { data: entries } = await svc.from("canvas_entries").select("box, content, status").eq("canvas_id", canvas_id);
+    const { data: entries } = await svc
+      .from("canvas_entries")
+      .select("box, content, status, source, updated_at")
+      .eq("canvas_id", canvas_id)
+      .order("updated_at", { ascending: false });
 
     const apiKey = Deno.env.get("LOVABLE_API_KEY");
     if (!apiKey) throw new Error("LOVABLE_API_KEY not configured");
 
-    const system = `You review Disruptors Canvas business models. Check that every PROBLEM has a matching SOLUTION, USP is analogy-based (not a feature list), Customer Segments align with Channels, Revenue Streams cover Cost Structure. Return STRICT JSON:
+    const system = `You review Disruptors Canvas business models. Treat AI-suggested and auto-imported entries as first-class content alongside user entries — critique them all equally. Pay attention to recently updated entries (they represent the current thinking). Check that every PROBLEM has a matching SOLUTION, USP is analogy-based (not a feature list), Customer Segments align with Channels, Revenue Streams cover Cost Structure. Return STRICT JSON:
 {
   "alignment_issues": [{"boxes": ["problem","solution"], "issue": "...", "fix": "..."}],
   "weak_boxes": [{"box":"usp","issue":"..."}],

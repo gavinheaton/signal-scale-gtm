@@ -2,7 +2,7 @@
 import { corsHeaders } from "../_shared/cors.ts";
 import { requireUser, serviceClient, assertProjectAccess } from "../_shared/auth.ts";
 
-interface Body { canvas_id: string; box: string }
+interface Body { canvas_id: string; box: string; count?: number }
 
 const BOX_PROMPTS: Record<string, string> = {
   problem: "the customer's most urgent, worth-solving problems",
@@ -29,8 +29,9 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
     const { user } = await requireUser(req, corsHeaders);
-    const { canvas_id, box } = (await req.json()) as Body;
+    const { canvas_id, box, count } = (await req.json()) as Body;
     if (!canvas_id || !box) throw new Error("canvas_id and box required");
+    const n = Math.min(Math.max(count ?? 5, 1), 8);
     const svc = serviceClient();
 
     const { data: canvas } = await svc.from("canvases").select("id, project_id, variant").eq("id", canvas_id).maybeSingle();
@@ -58,8 +59,8 @@ Deno.serve(async (req) => {
     const apiKey = Deno.env.get("LOVABLE_API_KEY");
     if (!apiKey) throw new Error("LOVABLE_API_KEY not configured");
 
-    const system = `You are a startup business-model strategist filling in the Disruptors Canvas. Return concise, punchy suggestions (max 25 words each). Return STRICT JSON only: {"suggestions": ["...", "...", "..."]}`;
-    const userPrompt = `Suggest 3 entries for the "${box}" box — ${BOX_PROMPTS[box] || box}.\n\nProject context:\n${JSON.stringify(context, null, 2)}`;
+    const system = `You are a startup business-model strategist filling in the Disruptors Canvas. Return concise, punchy suggestions (max 25 words each). Do not repeat any content already listed in existing_canvas. Return STRICT JSON only: {"suggestions": ["...", "..."]}`;
+    const userPrompt = `Suggest ${n} distinct entries for the "${box}" box — ${BOX_PROMPTS[box] || box}.\n\nProject context:\n${JSON.stringify(context, null, 2)}`;
 
     const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -79,7 +80,7 @@ Deno.serve(async (req) => {
     const j = await r.json();
     const raw = j.choices?.[0]?.message?.content || "{}";
     let suggestions: string[] = [];
-    try { suggestions = (JSON.parse(raw).suggestions || []).slice(0, 3); } catch { suggestions = []; }
+    try { suggestions = (JSON.parse(raw).suggestions || []).slice(0, n); } catch { suggestions = []; }
 
     return Response.json({ suggestions }, { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (e: any) {
