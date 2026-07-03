@@ -26,7 +26,9 @@ export function CanvasBox({ canvasId, boxKey, label, hint, entries, onChange }: 
   const [editText, setEditText] = useState('');
   const [suggesting, setSuggesting] = useState(false);
   const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [selected, setSelected] = useState<Set<number>>(new Set());
   const [addingAll, setAddingAll] = useState(false);
+  const [addingSelected, setAddingSelected] = useState(false);
 
   async function addEntry(content: string, source: 'user' | 'ai_suggestion' = 'user') {
     if (!content.trim()) return;
