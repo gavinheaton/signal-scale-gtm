@@ -90,8 +90,30 @@ export function CanvasBox({ canvasId, boxKey, label, hint, entries, onChange }: 
     try {
       await addManyAiEntries(suggestions);
       setSuggestions([]);
+      setSelected(new Set());
     } finally {
       setAddingAll(false);
+    }
+  }
+
+  function toggleSelected(i: number) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(i)) next.delete(i); else next.add(i);
+      return next;
+    });
+  }
+
+  async function addSelectedSuggestions() {
+    if (!selected.size) return;
+    setAddingSelected(true);
+    try {
+      const picked = suggestions.filter((_, i) => selected.has(i));
+      await addManyAiEntries(picked);
+      setSuggestions((prev) => prev.filter((_, i) => !selected.has(i)));
+      setSelected(new Set());
+    } finally {
+      setAddingSelected(false);
     }
   }
 
