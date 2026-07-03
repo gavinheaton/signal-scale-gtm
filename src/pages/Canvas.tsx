@@ -73,6 +73,10 @@ export default function CanvasPage() {
 
   async function runCritique() {
     if (!canvas) return;
+    // Flush any in-progress inline edits and reload entries so critique sees latest content.
+    (document.activeElement as HTMLElement | null)?.blur?.();
+    await new Promise((r) => setTimeout(r, 150));
+    await load();
     setCritiquing(true);
     try {
       const { data, error } = await supabase.functions.invoke('canvas-critique', { body: { canvas_id: canvas.id } });
