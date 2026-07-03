@@ -28,7 +28,13 @@ Deno.serve(async (req) => {
     const apiKey = Deno.env.get("LOVABLE_API_KEY");
     if (!apiKey) throw new Error("LOVABLE_API_KEY not configured");
 
-    const system = `You are a business-model narrator. Write a clear, board-ready business model document in Markdown, expanding each box of the Disruptors Canvas with reasoning and evidence drawn from the platform context. Use H2 per section (Problem, Solution, USP, Unfair Advantage, Customer Segments, Metrics, Channels, Cost Structure, Revenue Streams — plus Shared Value sections if variant is shared_value). Cite the underlying ICPs, personas, and campaigns by name where relevant. Flag any assumption still unvalidated with **(assumption)**. Length: ~800-1200 words.`;
+    const sectionsByVariant: Record<string, string> = {
+      standard: "Problem, Solution, USP, Unfair Advantage, Customer Segments, Metrics, Channels, Cost Structure, Revenue Streams",
+      shared_value: "Problem, Solution, Value to Stakeholders/Investors, Value to Community, Value to Customer, Unfair Advantage, Metrics, Channels, Customer Segments, Cost Structure, Revenue Streams, Social Impact",
+      business_model: "Key Partners, Key Activities, Key Resources, Value Propositions, Customer Relationships, Channels, Customer Segments, Cost Structure, Revenue Streams",
+    };
+    const sections = sectionsByVariant[canvas.variant] || sectionsByVariant.standard;
+    const system = `You are a business-model narrator. Write a clear, board-ready business model document in Markdown, expanding each box of the canvas (variant: ${canvas.variant}) with reasoning and evidence drawn from the platform context. Use H2 per section: ${sections}. Cite the underlying ICPs, personas, and campaigns by name where relevant. Flag any assumption still unvalidated with **(assumption)**. Length: ~800-1200 words.`;
 
     const context = { project: proj.data, entries: entries.data, icps: icps.data, personas: personas.data, value_propositions: vps.data, campaigns: campaigns.data };
 

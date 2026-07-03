@@ -4,7 +4,7 @@ import { useProject } from '@/contexts/ProjectContext';
 import { Button } from '@/components/ui/button';
 import { Loader2, RefreshCw, Sparkles, FileText, ClipboardCheck, X } from 'lucide-react';
 import { toast } from 'sonner';
-import { Canvas, CanvasEntry, STANDARD_BOXES, SHARED_VALUE_BOXES } from '@/components/canvas/types';
+import { Canvas, CanvasEntry, STANDARD_BOXES, SHARED_VALUE_BOXES, BUSINESS_MODEL_BOXES, CanvasVariant } from '@/components/canvas/types';
 import { CanvasBox } from '@/components/canvas/CanvasBox';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
@@ -40,7 +40,7 @@ export default function CanvasPage() {
 
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [currentProject]);
 
-  const boxes = canvas?.variant === 'shared_value' ? SHARED_VALUE_BOXES : STANDARD_BOXES;
+  const boxes = canvas?.variant === 'shared_value' ? SHARED_VALUE_BOXES : canvas?.variant === 'business_model' ? BUSINESS_MODEL_BOXES : STANDARD_BOXES;
   const entriesByBox = useMemo(() => {
     const map: Record<string, CanvasEntry[]> = {};
     for (const e of entries) (map[e.box] = map[e.box] || []).push(e);
@@ -53,7 +53,7 @@ export default function CanvasPage() {
     return { validated, total };
   }, [boxes, entriesByBox]);
 
-  async function setVariant(variant: 'standard' | 'shared_value') {
+  async function setVariant(variant: CanvasVariant) {
     if (!canvas) return;
     await (supabase as any).from('canvases').update({ variant }).eq('id', canvas.id);
     setCanvas({ ...canvas, variant });
@@ -110,10 +110,11 @@ export default function CanvasPage() {
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <Tabs value={canvas.variant} onValueChange={(v) => setVariant(v as any)}>
+          <Tabs value={canvas.variant} onValueChange={(v) => setVariant(v as CanvasVariant)}>
             <TabsList>
-              <TabsTrigger value="standard">Standard</TabsTrigger>
+              <TabsTrigger value="standard">Disruptors</TabsTrigger>
               <TabsTrigger value="shared_value">Shared Value</TabsTrigger>
+              <TabsTrigger value="business_model">Business Model</TabsTrigger>
             </TabsList>
           </Tabs>
           <Button size="sm" variant="outline" onClick={runSync} disabled={syncing}>
@@ -135,7 +136,7 @@ export default function CanvasPage() {
       </div>
 
       <div className="flex-1 min-h-0 overflow-auto p-4 bg-muted/30">
-        <div className={`grid gap-3 ${canvas.variant === 'shared_value' ? 'grid-cols-1 md:grid-cols-3 lg:grid-cols-4' : 'grid-cols-1 md:grid-cols-3 lg:grid-cols-5'}`}>
+        <div className={`grid gap-3 ${canvas.variant === 'shared_value' ? 'grid-cols-1 md:grid-cols-3 lg:grid-cols-4' : canvas.variant === 'business_model' ? 'grid-cols-1 md:grid-cols-3 lg:grid-cols-5' : 'grid-cols-1 md:grid-cols-3 lg:grid-cols-5'}`}>
           {boxes.map((b) => (
             <CanvasBox key={b.key} canvasId={canvas.id} boxKey={b.key} label={b.label} hint={b.hint}
               entries={entriesByBox[b.key] || []} onChange={load} />

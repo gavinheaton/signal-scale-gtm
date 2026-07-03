@@ -18,6 +18,11 @@ const BOX_PROMPTS: Record<string, string> = {
   vp_community: "value proposition to the wider community",
   vp_customer: "value proposition to end customers",
   social_impact: "measurable social/environmental impact created",
+  key_partners: "key external partners, suppliers, and alliances required",
+  key_activities: "the most important activities the business must perform",
+  key_resources: "the critical resources (physical, IP, human, financial) required",
+  value_propositions: "the bundles of products/services that create value for each segment",
+  customer_relationships: "the type of relationship established with each customer segment",
 };
 
 Deno.serve(async (req) => {

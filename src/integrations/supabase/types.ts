@@ -2031,7 +2031,7 @@ export type Database = {
       canvas_entry_source: "user" | "auto" | "ai_suggestion"
       canvas_entry_status: "assumption" | "hypothesis" | "validated"
       canvas_validation_outcome: "supports" | "contradicts" | "inconclusive"
-      canvas_variant: "standard" | "shared_value"
+      canvas_variant: "standard" | "shared_value" | "business_model"
       discovery_campaign_status: "active" | "paused" | "archived"
       discovery_enrichment_source: "apollo" | "manual" | "firecrawl"
       discovery_insight_kind: "observation" | "interpretation"
@@ -2255,7 +2255,7 @@ export const Constants = {
       canvas_entry_source: ["user", "auto", "ai_suggestion"],
       canvas_entry_status: ["assumption", "hypothesis", "validated"],
       canvas_validation_outcome: ["supports", "contradicts", "inconclusive"],
-      canvas_variant: ["standard", "shared_value"],
+      canvas_variant: ["standard", "shared_value", "business_model"],
       discovery_campaign_status: ["active", "paused", "archived"],
       discovery_enrichment_source: ["apollo", "manual", "firecrawl"],
       discovery_insight_kind: ["observation", "interpretation"],

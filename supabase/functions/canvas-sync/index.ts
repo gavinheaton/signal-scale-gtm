@@ -97,6 +97,13 @@ Deno.serve(async (req) => {
       for (const [k, v] of Object.entries(totals)) if (v > 0) add("metrics", labels[k] || k, { table: "campaign_metrics" });
     }
 
+    // Business Model Canvas — value_propositions box (customer_segments & channels box keys are shared across variants)
+    if (canvas.variant === "business_model") {
+      for (const v of vps) {
+        if (v.statement) add("value_propositions", v.statement, { table: "value_propositions", id: v.id });
+      }
+    }
+
     let inserted = 0;
     if (rows.length) {
       const { error, count } = await svc.from("canvas_entries").insert(rows, { count: "exact" });
