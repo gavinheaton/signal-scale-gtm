@@ -181,9 +181,22 @@ export function CanvasBox({ canvasId, boxKey, label, hint, entries, onChange }: 
 
         {suggestions.length > 0 && (
           <div className="border-t pt-1.5 mt-1.5 space-y-1">
-            <div className="flex items-center justify-between gap-1">
-              <p className="text-[9px] uppercase text-muted-foreground">AI suggestions ({suggestions.length})</p>
+            <div className="flex items-center justify-between gap-1 flex-wrap">
+              <div className="flex items-center gap-1">
+                <p className="text-[9px] uppercase text-muted-foreground">AI suggestions ({suggestions.length})</p>
+                <button
+                  className="text-[9px] uppercase text-muted-foreground underline hover:text-foreground"
+                  onClick={() =>
+                    setSelected(selected.size === suggestions.length ? new Set() : new Set(suggestions.map((_, i) => i)))
+                  }
+                >
+                  {selected.size === suggestions.length ? 'clear' : 'all'}
+                </button>
+              </div>
               <div className="flex gap-1">
+                <Button size="sm" variant="ghost" className="h-5 text-[10px] px-1.5" onClick={addSelectedSuggestions} disabled={addingSelected || selected.size === 0} title="Add selected">
+                  {addingSelected ? <Loader2 className="h-3 w-3 animate-spin" /> : <><Check className="h-3 w-3 mr-0.5" />Add selected ({selected.size})</>}
+                </Button>
                 <Button size="sm" variant="ghost" className="h-5 text-[10px] px-1.5" onClick={addAllSuggestions} disabled={addingAll} title="Add all">
                   {addingAll ? <Loader2 className="h-3 w-3 animate-spin" /> : <><CheckCheck className="h-3 w-3 mr-0.5" />Add all</>}
                 </Button>
@@ -194,8 +207,13 @@ export function CanvasBox({ canvasId, boxKey, label, hint, entries, onChange }: 
             </div>
             {suggestions.map((s, i) => (
               <div key={i} className="text-xs flex items-start gap-1 bg-purple-50 p-1.5 rounded">
-                <span className="flex-1">{s}</span>
-                <Button size="icon" variant="ghost" className="h-5 w-5" onClick={() => { addEntry(s, 'ai_suggestion'); setSuggestions(suggestions.filter((_, j) => j !== i)); }} title="Add">
+                <Checkbox
+                  checked={selected.has(i)}
+                  onCheckedChange={() => toggleSelected(i)}
+                  className="mt-0.5 h-3.5 w-3.5"
+                />
+                <span className="flex-1 cursor-pointer" onClick={() => toggleSelected(i)}>{s}</span>
+                <Button size="icon" variant="ghost" className="h-5 w-5" onClick={() => { addEntry(s, 'ai_suggestion'); setSuggestions(suggestions.filter((_, j) => j !== i)); setSelected((prev) => { const n = new Set<number>(); prev.forEach((x) => { if (x < i) n.add(x); else if (x > i) n.add(x - 1); }); return n; }); }} title="Add just this">
                   <Check className="h-3 w-3" />
                 </Button>
               </div>
