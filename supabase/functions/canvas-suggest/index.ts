@@ -2,7 +2,7 @@
 import { corsHeaders } from "../_shared/cors.ts";
 import { requireUser, serviceClient, assertProjectAccess } from "../_shared/auth.ts";
 
-interface Body { canvas_id: string; box: string }
+interface Body { canvas_id: string; box: string; count?: number }
 
 const BOX_PROMPTS: Record<string, string> = {
   problem: "the customer's most urgent, worth-solving problems",
