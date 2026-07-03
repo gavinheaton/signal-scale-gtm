@@ -53,7 +53,7 @@ export default function CanvasPage() {
     return { validated, total };
   }, [boxes, entriesByBox]);
 
-  async function setVariant(variant: 'standard' | 'shared_value') {
+  async function setVariant(variant: CanvasVariant) {
     if (!canvas) return;
     await (supabase as any).from('canvases').update({ variant }).eq('id', canvas.id);
     setCanvas({ ...canvas, variant });
