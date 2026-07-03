@@ -59,8 +59,8 @@ Deno.serve(async (req) => {
     const apiKey = Deno.env.get("LOVABLE_API_KEY");
     if (!apiKey) throw new Error("LOVABLE_API_KEY not configured");
 
-    const system = `You are a startup business-model strategist filling in the Disruptors Canvas. Return concise, punchy suggestions (max 25 words each). Return STRICT JSON only: {"suggestions": ["...", "...", "..."]}`;
-    const userPrompt = `Suggest 3 entries for the "${box}" box — ${BOX_PROMPTS[box] || box}.\n\nProject context:\n${JSON.stringify(context, null, 2)}`;
+    const system = `You are a startup business-model strategist filling in the Disruptors Canvas. Return concise, punchy suggestions (max 25 words each). Do not repeat any content already listed in existing_canvas. Return STRICT JSON only: {"suggestions": ["...", "..."]}`;
+    const userPrompt = `Suggest ${n} distinct entries for the "${box}" box — ${BOX_PROMPTS[box] || box}.\n\nProject context:\n${JSON.stringify(context, null, 2)}`;
 
     const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
