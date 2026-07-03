@@ -30,6 +30,7 @@ import AdminDashboard from "@/pages/AdminDashboard";
 import Ecosystem from "@/pages/Ecosystem";
 import ValueProp from "@/pages/ValueProp";
 import CanvasPage from "@/pages/Canvas";
+import CanvasPrint from "@/pages/CanvasPrint";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
