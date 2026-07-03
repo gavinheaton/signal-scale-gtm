@@ -150,17 +150,50 @@ export default function CanvasPage() {
             {syncing ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-1" />}
             Sync from data
           </Button>
-          <Button size="sm" variant="outline" onClick={runCritique} disabled={critiquing}>
-            {critiquing ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <ClipboardCheck className="h-4 w-4 mr-1" />}
-            Critique
-          </Button>
-          <Button size="sm" onClick={runNarrative} disabled={narrating}>
-            {narrating ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <FileText className="h-4 w-4 mr-1" />}
-            {canvas.narrative_md ? 'View narrative' : 'Generate narrative'}
-          </Button>
+          <div className="flex items-center gap-1 border rounded px-2 py-1">
+            <Checkbox
+              id="cx-canvas-done"
+              checked={!!canvas.completion?.canvas}
+              onCheckedChange={(v) => updateCompletion({ canvas: !!v })}
+            />
+            <label htmlFor="cx-canvas-done" className="text-xs cursor-pointer">Canvas complete</label>
+          </div>
+          <div className="flex items-center gap-1">
+            <Button size="sm" variant="outline" onClick={runCritique} disabled={critiquing}>
+              {critiquing ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <ClipboardCheck className="h-4 w-4 mr-1" />}
+              Critique
+            </Button>
+            {canvas.critique && (
+              <Checkbox
+                checked={!!canvas.completion?.critique}
+                onCheckedChange={(v) => updateCompletion({ critique: !!v })}
+                title="Mark critique complete"
+              />
+            )}
+          </div>
+          <div className="flex items-center gap-1">
+            <Button size="sm" onClick={runNarrative} disabled={narrating}>
+              {narrating ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <FileText className="h-4 w-4 mr-1" />}
+              {canvas.narrative_md ? 'View narrative' : 'Generate narrative'}
+            </Button>
+            {canvas.narrative_md && (
+              <Checkbox
+                checked={!!canvas.completion?.narrative}
+                onCheckedChange={(v) => updateCompletion({ narrative: !!v })}
+                title="Mark narrative complete"
+              />
+            )}
+          </div>
           {canvas.narrative_md && !narrating && (
             <Button size="sm" variant="ghost" onClick={() => setShowNarrative(true)}>Open doc</Button>
           )}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => window.open(`/project/canvas/print?project=${currentProject.id}&auto=1`, '_blank')}
+          >
+            <Printer className="h-4 w-4 mr-1" /> Export board pack
+          </Button>
         </div>
       </div>
 
@@ -168,7 +201,7 @@ export default function CanvasPage() {
         <div className={`grid gap-3 ${canvas.variant === 'shared_value' ? 'grid-cols-1 md:grid-cols-3 lg:grid-cols-4' : canvas.variant === 'business_model' ? 'grid-cols-1 md:grid-cols-3 lg:grid-cols-5' : 'grid-cols-1 md:grid-cols-3 lg:grid-cols-5'}`}>
           {boxes.map((b) => (
             <CanvasBox key={b.key} canvasId={canvas.id} boxKey={b.key} label={b.label} hint={b.hint}
-              entries={entriesByBox[b.key] || []} onChange={load} />
+              entries={entriesByBox[b.key] || []} onChange={handleEntriesChanged} />
           ))}
         </div>
       </div>
