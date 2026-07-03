@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useProject } from '@/contexts/ProjectContext';
 import { Button } from '@/components/ui/button';
-import { Loader2, RefreshCw, Sparkles, FileText, ClipboardCheck, X } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Loader2, RefreshCw, Sparkles, FileText, ClipboardCheck, X, Printer } from 'lucide-react';
 import { toast } from 'sonner';
 import { Canvas, CanvasEntry, STANDARD_BOXES, SHARED_VALUE_BOXES, BUSINESS_MODEL_BOXES, CanvasVariant } from '@/components/canvas/types';
 import { CanvasBox } from '@/components/canvas/CanvasBox';
@@ -71,9 +72,24 @@ export default function CanvasPage() {
     finally { setSyncing(false); }
   }
 
+  async function updateCompletion(patch: Partial<{ canvas: boolean; critique: boolean; narrative: boolean }>) {
+    if (!canvas) return;
+    const current = (canvas.completion || { canvas: false, critique: false, narrative: false }) as any;
+    const next = { ...current, ...patch };
+    setCanvas({ ...canvas, completion: next });
+    await (supabase as any).from('canvases').update({ completion: next }).eq('id', canvas.id);
+  }
+
+  async function handleEntriesChanged() {
+    // Any entry change invalidates canvas sign-off.
+    if (canvas?.completion?.canvas) {
+      await updateCompletion({ canvas: false });
+    }
+    await load();
+  }
+
   async function runCritique() {
     if (!canvas) return;
-    // Flush any in-progress inline edits and reload entries so critique sees latest content.
     (document.activeElement as HTMLElement | null)?.blur?.();
     await new Promise((r) => setTimeout(r, 150));
     await load();
@@ -81,7 +97,10 @@ export default function CanvasPage() {
     try {
       const { data, error } = await supabase.functions.invoke('canvas-critique', { body: { canvas_id: canvas.id } });
       if (error) throw error;
-      setCanvas({ ...canvas, critique: (data as any).critique, critique_generated_at: new Date().toISOString() });
+      const current = (canvas.completion || { canvas: false, critique: false, narrative: false }) as any;
+      const nextCompletion = { ...current, critique: false };
+      setCanvas({ ...canvas, critique: (data as any).critique, critique_generated_at: new Date().toISOString(), completion: nextCompletion });
+      await (supabase as any).from('canvases').update({ completion: nextCompletion }).eq('id', canvas.id);
       setShowCritique(true);
     } catch (e: any) { toast.error(`Critique failed: ${e.message || e}`); }
     finally { setCritiquing(false); }
@@ -96,7 +115,10 @@ export default function CanvasPage() {
     try {
       const { data, error } = await supabase.functions.invoke('canvas-narrative', { body: { canvas_id: canvas.id } });
       if (error) throw error;
-      setCanvas({ ...canvas, narrative_md: (data as any).narrative_md, narrative_generated_at: (data as any).narrative_generated_at });
+      const current = (canvas.completion || { canvas: false, critique: false, narrative: false }) as any;
+      const nextCompletion = { ...current, narrative: false };
+      setCanvas({ ...canvas, narrative_md: (data as any).narrative_md, narrative_generated_at: (data as any).narrative_generated_at, completion: nextCompletion });
+      await (supabase as any).from('canvases').update({ completion: nextCompletion }).eq('id', canvas.id);
       setShowNarrative(true);
     } catch (e: any) { toast.error(`Narrative failed: ${e.message || e}`); }
     finally { setNarrating(false); }
@@ -128,17 +150,50 @@ export default function CanvasPage() {
             {syncing ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-1" />}
             Sync from data
           </Button>
-          <Button size="sm" variant="outline" onClick={runCritique} disabled={critiquing}>
-            {critiquing ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <ClipboardCheck className="h-4 w-4 mr-1" />}
-            Critique
-          </Button>
-          <Button size="sm" onClick={runNarrative} disabled={narrating}>
-            {narrating ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <FileText className="h-4 w-4 mr-1" />}
-            {canvas.narrative_md ? 'View narrative' : 'Generate narrative'}
-          </Button>
+          <div className="flex items-center gap-1 border rounded px-2 py-1">
+            <Checkbox
+              id="cx-canvas-done"
+              checked={!!canvas.completion?.canvas}
+              onCheckedChange={(v) => updateCompletion({ canvas: !!v })}
+            />
+            <label htmlFor="cx-canvas-done" className="text-xs cursor-pointer">Canvas complete</label>
+          </div>
+          <div className="flex items-center gap-1">
+            <Button size="sm" variant="outline" onClick={runCritique} disabled={critiquing}>
+              {critiquing ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <ClipboardCheck className="h-4 w-4 mr-1" />}
+              Critique
+            </Button>
+            {canvas.critique && (
+              <Checkbox
+                checked={!!canvas.completion?.critique}
+                onCheckedChange={(v) => updateCompletion({ critique: !!v })}
+                title="Mark critique complete"
+              />
+            )}
+          </div>
+          <div className="flex items-center gap-1">
+            <Button size="sm" onClick={runNarrative} disabled={narrating}>
+              {narrating ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <FileText className="h-4 w-4 mr-1" />}
+              {canvas.narrative_md ? 'View narrative' : 'Generate narrative'}
+            </Button>
+            {canvas.narrative_md && (
+              <Checkbox
+                checked={!!canvas.completion?.narrative}
+                onCheckedChange={(v) => updateCompletion({ narrative: !!v })}
+                title="Mark narrative complete"
+              />
+            )}
+          </div>
           {canvas.narrative_md && !narrating && (
             <Button size="sm" variant="ghost" onClick={() => setShowNarrative(true)}>Open doc</Button>
           )}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => window.open(`/project/canvas/print?project=${currentProject.id}&auto=1`, '_blank')}
+          >
+            <Printer className="h-4 w-4 mr-1" /> Export board pack
+          </Button>
         </div>
       </div>
 
@@ -146,7 +201,7 @@ export default function CanvasPage() {
         <div className={`grid gap-3 ${canvas.variant === 'shared_value' ? 'grid-cols-1 md:grid-cols-3 lg:grid-cols-4' : canvas.variant === 'business_model' ? 'grid-cols-1 md:grid-cols-3 lg:grid-cols-5' : 'grid-cols-1 md:grid-cols-3 lg:grid-cols-5'}`}>
           {boxes.map((b) => (
             <CanvasBox key={b.key} canvasId={canvas.id} boxKey={b.key} label={b.label} hint={b.hint}
-              entries={entriesByBox[b.key] || []} onChange={load} />
+              entries={entriesByBox[b.key] || []} onChange={handleEntriesChanged} />
           ))}
         </div>
       </div>

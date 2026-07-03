@@ -30,6 +30,7 @@ import AdminDashboard from "@/pages/AdminDashboard";
 import Ecosystem from "@/pages/Ecosystem";
 import ValueProp from "@/pages/ValueProp";
 import CanvasPage from "@/pages/Canvas";
+import CanvasPrint from "@/pages/CanvasPrint";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -45,6 +46,7 @@ const App = () => (
             <Routes>
               <Route path="/auth" element={<Auth />} />
               <Route path="/auth/callback" element={<AuthCallback />} />
+              <Route path="/project/canvas/print" element={<CanvasPrint />} />
               <Route path="/" element={<Navigate to="/projects" replace />} />
               <Route element={<AppLayout />}>
                 <Route path="/projects" element={<Projects />} />

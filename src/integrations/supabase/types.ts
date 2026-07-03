@@ -699,6 +699,7 @@ export type Database = {
       }
       canvases: {
         Row: {
+          completion: Json
           created_at: string
           critique: Json | null
           critique_generated_at: string | null
@@ -710,6 +711,7 @@ export type Database = {
           variant: Database["public"]["Enums"]["canvas_variant"]
         }
         Insert: {
+          completion?: Json
           created_at?: string
           critique?: Json | null
           critique_generated_at?: string | null
@@ -721,6 +723,7 @@ export type Database = {
           variant?: Database["public"]["Enums"]["canvas_variant"]
         }
         Update: {
+          completion?: Json
           created_at?: string
           critique?: Json | null
           critique_generated_at?: string | null

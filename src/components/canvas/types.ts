@@ -2,6 +2,12 @@ export type CanvasVariant = 'standard' | 'shared_value' | 'business_model';
 export type CanvasEntryStatus = 'assumption' | 'hypothesis' | 'validated';
 export type CanvasEntrySource = 'user' | 'auto' | 'ai_suggestion';
 
+export interface CanvasCompletion {
+  canvas: boolean;
+  critique: boolean;
+  narrative: boolean;
+}
+
 export interface Canvas {
   id: string;
   project_id: string;
@@ -10,6 +16,7 @@ export interface Canvas {
   narrative_generated_at: string | null;
   critique: any | null;
   critique_generated_at: string | null;
+  completion?: CanvasCompletion | null;
 }
 
 export interface CanvasEntry {
