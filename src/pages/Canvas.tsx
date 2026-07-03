@@ -110,10 +110,11 @@ export default function CanvasPage() {
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <Tabs value={canvas.variant} onValueChange={(v) => setVariant(v as any)}>
+          <Tabs value={canvas.variant} onValueChange={(v) => setVariant(v as CanvasVariant)}>
             <TabsList>
-              <TabsTrigger value="standard">Standard</TabsTrigger>
+              <TabsTrigger value="standard">Disruptors</TabsTrigger>
               <TabsTrigger value="shared_value">Shared Value</TabsTrigger>
+              <TabsTrigger value="business_model">Business Model</TabsTrigger>
             </TabsList>
           </Tabs>
           <Button size="sm" variant="outline" onClick={runSync} disabled={syncing}>
