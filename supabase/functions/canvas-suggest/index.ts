@@ -29,8 +29,9 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
     const { user } = await requireUser(req, corsHeaders);
-    const { canvas_id, box } = (await req.json()) as Body;
+    const { canvas_id, box, count } = (await req.json()) as Body;
     if (!canvas_id || !box) throw new Error("canvas_id and box required");
+    const n = Math.min(Math.max(count ?? 5, 1), 8);
     const svc = serviceClient();
 
     const { data: canvas } = await svc.from("canvases").select("id, project_id, variant").eq("id", canvas_id).maybeSingle();
