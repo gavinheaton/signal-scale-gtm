@@ -40,7 +40,7 @@ export default function CanvasPage() {
 
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [currentProject]);
 
-  const boxes = canvas?.variant === 'shared_value' ? SHARED_VALUE_BOXES : STANDARD_BOXES;
+  const boxes = canvas?.variant === 'shared_value' ? SHARED_VALUE_BOXES : canvas?.variant === 'business_model' ? BUSINESS_MODEL_BOXES : STANDARD_BOXES;
   const entriesByBox = useMemo(() => {
     const map: Record<string, CanvasEntry[]> = {};
     for (const e of entries) (map[e.box] = map[e.box] || []).push(e);
