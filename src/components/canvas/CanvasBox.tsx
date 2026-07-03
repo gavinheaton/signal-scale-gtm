@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Sparkles, Plus, Trash2, Check, Loader2, Link as LinkIcon, Pencil, RefreshCw, CheckCheck } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -25,7 +26,9 @@ export function CanvasBox({ canvasId, boxKey, label, hint, entries, onChange }: 
   const [editText, setEditText] = useState('');
   const [suggesting, setSuggesting] = useState(false);
   const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [selected, setSelected] = useState<Set<number>>(new Set());
   const [addingAll, setAddingAll] = useState(false);
+  const [addingSelected, setAddingSelected] = useState(false);
 
   async function addEntry(content: string, source: 'user' | 'ai_suggestion' = 'user') {
     if (!content.trim()) return;
@@ -67,7 +70,7 @@ export function CanvasBox({ canvasId, boxKey, label, hint, entries, onChange }: 
 
   async function suggest(append = false) {
     setSuggesting(true);
-    if (!append) setSuggestions([]);
+    if (!append) { setSuggestions([]); setSelected(new Set()); }
     try {
       const { data, error } = await supabase.functions.invoke('canvas-suggest', {
         body: { canvas_id: canvasId, box: boxKey, count: 5 },
@@ -87,8 +90,30 @@ export function CanvasBox({ canvasId, boxKey, label, hint, entries, onChange }: 
     try {
       await addManyAiEntries(suggestions);
       setSuggestions([]);
+      setSelected(new Set());
     } finally {
       setAddingAll(false);
+    }
+  }
+
+  function toggleSelected(i: number) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(i)) next.delete(i); else next.add(i);
+      return next;
+    });
+  }
+
+  async function addSelectedSuggestions() {
+    if (!selected.size) return;
+    setAddingSelected(true);
+    try {
+      const picked = suggestions.filter((_, i) => selected.has(i));
+      await addManyAiEntries(picked);
+      setSuggestions((prev) => prev.filter((_, i) => !selected.has(i)));
+      setSelected(new Set());
+    } finally {
+      setAddingSelected(false);
     }
   }
 
@@ -156,9 +181,22 @@ export function CanvasBox({ canvasId, boxKey, label, hint, entries, onChange }: 
 
         {suggestions.length > 0 && (
           <div className="border-t pt-1.5 mt-1.5 space-y-1">
-            <div className="flex items-center justify-between gap-1">
-              <p className="text-[9px] uppercase text-muted-foreground">AI suggestions ({suggestions.length})</p>
+            <div className="flex items-center justify-between gap-1 flex-wrap">
+              <div className="flex items-center gap-1">
+                <p className="text-[9px] uppercase text-muted-foreground">AI suggestions ({suggestions.length})</p>
+                <button
+                  className="text-[9px] uppercase text-muted-foreground underline hover:text-foreground"
+                  onClick={() =>
+                    setSelected(selected.size === suggestions.length ? new Set() : new Set(suggestions.map((_, i) => i)))
+                  }
+                >
+                  {selected.size === suggestions.length ? 'clear' : 'all'}
+                </button>
+              </div>
               <div className="flex gap-1">
+                <Button size="sm" variant="ghost" className="h-5 text-[10px] px-1.5" onClick={addSelectedSuggestions} disabled={addingSelected || selected.size === 0} title="Add selected">
+                  {addingSelected ? <Loader2 className="h-3 w-3 animate-spin" /> : <><Check className="h-3 w-3 mr-0.5" />Add selected ({selected.size})</>}
+                </Button>
                 <Button size="sm" variant="ghost" className="h-5 text-[10px] px-1.5" onClick={addAllSuggestions} disabled={addingAll} title="Add all">
                   {addingAll ? <Loader2 className="h-3 w-3 animate-spin" /> : <><CheckCheck className="h-3 w-3 mr-0.5" />Add all</>}
                 </Button>
@@ -169,8 +207,13 @@ export function CanvasBox({ canvasId, boxKey, label, hint, entries, onChange }: 
             </div>
             {suggestions.map((s, i) => (
               <div key={i} className="text-xs flex items-start gap-1 bg-purple-50 p-1.5 rounded">
-                <span className="flex-1">{s}</span>
-                <Button size="icon" variant="ghost" className="h-5 w-5" onClick={() => { addEntry(s, 'ai_suggestion'); setSuggestions(suggestions.filter((_, j) => j !== i)); }} title="Add">
+                <Checkbox
+                  checked={selected.has(i)}
+                  onCheckedChange={() => toggleSelected(i)}
+                  className="mt-0.5 h-3.5 w-3.5"
+                />
+                <span className="flex-1 cursor-pointer" onClick={() => toggleSelected(i)}>{s}</span>
+                <Button size="icon" variant="ghost" className="h-5 w-5" onClick={() => { addEntry(s, 'ai_suggestion'); setSuggestions(suggestions.filter((_, j) => j !== i)); setSelected((prev) => { const n = new Set<number>(); prev.forEach((x) => { if (x < i) n.add(x); else if (x > i) n.add(x - 1); }); return n; }); }} title="Add just this">
                   <Check className="h-3 w-3" />
                 </Button>
               </div>
