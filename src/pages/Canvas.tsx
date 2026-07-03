@@ -4,7 +4,7 @@ import { useProject } from '@/contexts/ProjectContext';
 import { Button } from '@/components/ui/button';
 import { Loader2, RefreshCw, Sparkles, FileText, ClipboardCheck, X } from 'lucide-react';
 import { toast } from 'sonner';
-import { Canvas, CanvasEntry, STANDARD_BOXES, SHARED_VALUE_BOXES } from '@/components/canvas/types';
+import { Canvas, CanvasEntry, STANDARD_BOXES, SHARED_VALUE_BOXES, BUSINESS_MODEL_BOXES, CanvasVariant } from '@/components/canvas/types';
 import { CanvasBox } from '@/components/canvas/CanvasBox';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
