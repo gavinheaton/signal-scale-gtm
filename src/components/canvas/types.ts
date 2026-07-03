@@ -51,6 +51,18 @@ export const SHARED_VALUE_BOXES: { key: string; label: string; hint: string }[] 
   { key: 'social_impact', label: 'Social Impact', hint: 'Measurable social/environmental impact.' },
 ];
 
+export const BUSINESS_MODEL_BOXES: { key: string; label: string; hint: string }[] = [
+  { key: 'key_partners', label: 'Key Partners', hint: 'Who are your key partners and suppliers?' },
+  { key: 'key_activities', label: 'Key Activities', hint: 'What key activities does your value proposition require?' },
+  { key: 'key_resources', label: 'Key Resources', hint: 'What key resources does your value proposition require?' },
+  { key: 'value_propositions', label: 'Value Propositions', hint: 'What value do you deliver to the customer?' },
+  { key: 'customer_relationships', label: 'Customer Relationships', hint: 'What type of relationship does each segment expect?' },
+  { key: 'channels', label: 'Channels', hint: 'Through which channels do you reach customers?' },
+  { key: 'customer_segments', label: 'Customer Segments', hint: 'For whom are you creating value?' },
+  { key: 'cost_structure', label: 'Cost Structure', hint: 'What are the most important costs in your model?' },
+  { key: 'revenue_streams', label: 'Revenue Streams', hint: 'For what value are customers willing to pay?' },
+];
+
 export const STATUS_COLOR: Record<CanvasEntryStatus, string> = {
   assumption: 'bg-muted text-muted-foreground',
   hypothesis: 'bg-amber-100 text-amber-800',
