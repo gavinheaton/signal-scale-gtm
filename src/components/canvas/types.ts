@@ -1,4 +1,4 @@
-export type CanvasVariant = 'standard' | 'shared_value';
+export type CanvasVariant = 'standard' | 'shared_value' | 'business_model';
 export type CanvasEntryStatus = 'assumption' | 'hypothesis' | 'validated';
 export type CanvasEntrySource = 'user' | 'auto' | 'ai_suggestion';
 
