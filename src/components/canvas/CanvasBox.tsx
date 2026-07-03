@@ -70,7 +70,7 @@ export function CanvasBox({ canvasId, boxKey, label, hint, entries, onChange }: 
 
   async function suggest(append = false) {
     setSuggesting(true);
-    if (!append) setSuggestions([]);
+    if (!append) { setSuggestions([]); setSelected(new Set()); }
     try {
       const { data, error } = await supabase.functions.invoke('canvas-suggest', {
         body: { canvas_id: canvasId, box: boxKey, count: 5 },
