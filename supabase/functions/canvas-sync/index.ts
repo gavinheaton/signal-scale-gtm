@@ -97,6 +97,19 @@ Deno.serve(async (req) => {
       for (const [k, v] of Object.entries(totals)) if (v > 0) add("metrics", labels[k] || k, { table: "campaign_metrics" });
     }
 
+    // Business Model Canvas box mappings (same underlying data, different box keys)
+    if (canvas.variant === "business_model") {
+      for (const icp of icps) {
+        const firm = icp.firmographics as any;
+        const bits = [firm?.industry, firm?.company_size, firm?.geography].filter(Boolean).join(" · ");
+        add("customer_segments", `${icp.segment_name}${bits ? ` — ${bits}` : ""}`, { table: "icps", id: icp.id });
+      }
+      for (const v of vps) {
+        if (v.statement) add("value_propositions", v.statement, { table: "value_propositions", id: v.id });
+      }
+      for (const ch of channels) if (ch) add("channels", ch, { table: "campaigns" });
+    }
+
     let inserted = 0;
     if (rows.length) {
       const { error, count } = await svc.from("canvas_entries").insert(rows, { count: "exact" });
