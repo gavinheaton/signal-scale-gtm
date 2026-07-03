@@ -72,9 +72,24 @@ export default function CanvasPage() {
     finally { setSyncing(false); }
   }
 
+  async function updateCompletion(patch: Partial<{ canvas: boolean; critique: boolean; narrative: boolean }>) {
+    if (!canvas) return;
+    const current = (canvas.completion || { canvas: false, critique: false, narrative: false }) as any;
+    const next = { ...current, ...patch };
+    setCanvas({ ...canvas, completion: next });
+    await (supabase as any).from('canvases').update({ completion: next }).eq('id', canvas.id);
+  }
+
+  async function handleEntriesChanged() {
+    // Any entry change invalidates canvas sign-off.
+    if (canvas?.completion?.canvas) {
+      await updateCompletion({ canvas: false });
+    }
+    await load();
+  }
+
   async function runCritique() {
     if (!canvas) return;
-    // Flush any in-progress inline edits and reload entries so critique sees latest content.
     (document.activeElement as HTMLElement | null)?.blur?.();
     await new Promise((r) => setTimeout(r, 150));
     await load();
@@ -82,7 +97,10 @@ export default function CanvasPage() {
     try {
       const { data, error } = await supabase.functions.invoke('canvas-critique', { body: { canvas_id: canvas.id } });
       if (error) throw error;
-      setCanvas({ ...canvas, critique: (data as any).critique, critique_generated_at: new Date().toISOString() });
+      const current = (canvas.completion || { canvas: false, critique: false, narrative: false }) as any;
+      const nextCompletion = { ...current, critique: false };
+      setCanvas({ ...canvas, critique: (data as any).critique, critique_generated_at: new Date().toISOString(), completion: nextCompletion });
+      await (supabase as any).from('canvases').update({ completion: nextCompletion }).eq('id', canvas.id);
       setShowCritique(true);
     } catch (e: any) { toast.error(`Critique failed: ${e.message || e}`); }
     finally { setCritiquing(false); }
@@ -97,7 +115,10 @@ export default function CanvasPage() {
     try {
       const { data, error } = await supabase.functions.invoke('canvas-narrative', { body: { canvas_id: canvas.id } });
       if (error) throw error;
-      setCanvas({ ...canvas, narrative_md: (data as any).narrative_md, narrative_generated_at: (data as any).narrative_generated_at });
+      const current = (canvas.completion || { canvas: false, critique: false, narrative: false }) as any;
+      const nextCompletion = { ...current, narrative: false };
+      setCanvas({ ...canvas, narrative_md: (data as any).narrative_md, narrative_generated_at: (data as any).narrative_generated_at, completion: nextCompletion });
+      await (supabase as any).from('canvases').update({ completion: nextCompletion }).eq('id', canvas.id);
       setShowNarrative(true);
     } catch (e: any) { toast.error(`Narrative failed: ${e.message || e}`); }
     finally { setNarrating(false); }
