@@ -88,3 +88,23 @@
     font-family: 'Poppins', sans-serif;
   }
 }
+
+/* Board pack print styles */
+.print-root .print-page {
+  break-after: page;
+  page-break-after: always;
+  min-height: 100vh;
+}
+.print-root .print-page:last-child {
+  break-after: auto;
+  page-break-after: auto;
+}
+@media print {
+  @page { size: A4 portrait; margin: 10mm; }
+  @page :first { size: A4 portrait; }
+  .print-root .print-landscape { }
+  @page landscape { size: A4 landscape; margin: 8mm; }
+  .print-root .print-landscape { page: landscape; }
+  .print-controls { display: none !important; }
+  body { background: white !important; }
+}
