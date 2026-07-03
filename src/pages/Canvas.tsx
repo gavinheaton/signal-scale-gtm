@@ -136,7 +136,7 @@ export default function CanvasPage() {
       </div>
 
       <div className="flex-1 min-h-0 overflow-auto p-4 bg-muted/30">
-        <div className={`grid gap-3 ${canvas.variant === 'shared_value' ? 'grid-cols-1 md:grid-cols-3 lg:grid-cols-4' : 'grid-cols-1 md:grid-cols-3 lg:grid-cols-5'}`}>
+        <div className={`grid gap-3 ${canvas.variant === 'shared_value' ? 'grid-cols-1 md:grid-cols-3 lg:grid-cols-4' : canvas.variant === 'business_model' ? 'grid-cols-1 md:grid-cols-3 lg:grid-cols-5' : 'grid-cols-1 md:grid-cols-3 lg:grid-cols-5'}`}>
           {boxes.map((b) => (
             <CanvasBox key={b.key} canvasId={canvas.id} boxKey={b.key} label={b.label} hint={b.hint}
               entries={entriesByBox[b.key] || []} onChange={load} />
