@@ -80,7 +80,7 @@ Deno.serve(async (req) => {
     const j = await r.json();
     const raw = j.choices?.[0]?.message?.content || "{}";
     let suggestions: string[] = [];
-    try { suggestions = (JSON.parse(raw).suggestions || []).slice(0, 3); } catch { suggestions = []; }
+    try { suggestions = (JSON.parse(raw).suggestions || []).slice(0, n); } catch { suggestions = []; }
 
     return Response.json({ suggestions }, { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (e: any) {
