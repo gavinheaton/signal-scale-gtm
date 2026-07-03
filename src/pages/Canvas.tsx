@@ -89,6 +89,9 @@ export default function CanvasPage() {
 
   async function runNarrative() {
     if (!canvas) return;
+    (document.activeElement as HTMLElement | null)?.blur?.();
+    await new Promise((r) => setTimeout(r, 150));
+    await load();
     setNarrating(true);
     try {
       const { data, error } = await supabase.functions.invoke('canvas-narrative', { body: { canvas_id: canvas.id } });
