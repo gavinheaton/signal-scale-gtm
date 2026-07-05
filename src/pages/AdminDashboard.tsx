@@ -266,6 +266,9 @@ export default function AdminDashboard() {
         </CardContent>
       </Card>
 
+      {/* Users management (superadmin only) */}
+      <UsersCard />
+
       {/* AI Prompts (superadmin only — page already gated) */}
       <AIPromptsAdmin />
 
