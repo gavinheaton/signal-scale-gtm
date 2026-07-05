@@ -4,21 +4,26 @@ import { supabase } from '@/integrations/supabase/client';
 import { OrgMembership, Organisation, OrgRole } from '@/types/database';
 
 const ROLE_HIERARCHY: OrgRole[] = ['client', 'analyst', 'manager', 'admin', 'owner', 'superadmin'];
+const ACTIVE_ORG_STORAGE_KEY = 'activeOrgId';
 
 interface AuthState {
   session: Session | null;
   user: User | null;
   membership: OrgMembership | null;
   organisation: Organisation | null;
+  memberships: OrgMembership[];
+  organisations: Organisation[];
+  setActiveOrg: (orgId: string) => void;
   loading: boolean;
   isSuperAdmin: boolean;
-  hasMinRole: (minRole: OrgRole) => boolean;
+  hasMinRole: (minRole: OrgRole, orgId?: string) => boolean;
   signOut: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthState>({
-  session: null, user: null, membership: null, organisation: null, loading: true,
-  isSuperAdmin: false, hasMinRole: () => false, signOut: async () => {},
+  session: null, user: null, membership: null, organisation: null,
+  memberships: [], organisations: [], setActiveOrg: () => {},
+  loading: true, isSuperAdmin: false, hasMinRole: () => false, signOut: async () => {},
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -26,44 +31,66 @@ export const useAuth = () => useContext(AuthContext);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
-  const [membership, setMembership] = useState<OrgMembership | null>(null);
-  const [organisation, setOrganisation] = useState<Organisation | null>(null);
+  const [memberships, setMemberships] = useState<OrgMembership[]>([]);
+  const [organisations, setOrganisations] = useState<Organisation[]>([]);
+  const [activeOrgId, setActiveOrgIdState] = useState<string | null>(
+    () => (typeof window !== 'undefined' ? localStorage.getItem(ACTIVE_ORG_STORAGE_KEY) : null)
+  );
   const [loading, setLoading] = useState(true);
   const bootstrapped = useRef(false);
 
-  const isSuperAdmin = membership?.role === 'superadmin';
+  const membership =
+    memberships.find(m => m.org_id === activeOrgId) ?? memberships[0] ?? null;
+  const organisation =
+    organisations.find(o => o.id === membership?.org_id) ?? null;
 
-  const hasMinRole = (minRole: OrgRole): boolean => {
-    if (!membership) return false;
-    const userLevel = ROLE_HIERARCHY.indexOf(membership.role);
+  const isSuperAdmin = memberships.some(m => m.role === 'superadmin');
+
+  const hasMinRole = (minRole: OrgRole, orgId?: string): boolean => {
     const requiredLevel = ROLE_HIERARCHY.indexOf(minRole);
-    return userLevel >= requiredLevel;
+    const candidates = orgId
+      ? memberships.filter(m => m.org_id === orgId)
+      : memberships;
+    return candidates.some(m => ROLE_HIERARCHY.indexOf(m.role) >= requiredLevel);
+  };
+
+  const setActiveOrg = (orgId: string) => {
+    setActiveOrgIdState(orgId);
+    try { localStorage.setItem(ACTIVE_ORG_STORAGE_KEY, orgId); } catch {}
   };
 
   const fetchOrgData = async (userId: string) => {
     try {
-      const { data: mem } = await supabase
+      const { data: mems } = await supabase
         .from('org_memberships')
         .select('*')
-        .eq('user_id', userId)
-        .limit(1)
-        .single();
+        .eq('user_id', userId);
 
-      if (mem) {
-        setMembership(mem as unknown as OrgMembership);
-        const { data: org } = await supabase
+      const memList = (mems ?? []) as unknown as OrgMembership[];
+      setMemberships(memList);
+
+      if (memList.length > 0) {
+        const orgIds = memList.map(m => m.org_id);
+        const { data: orgs } = await supabase
           .from('organisations')
           .select('*')
-          .eq('id', mem.org_id)
-          .single();
-        if (org) setOrganisation(org as unknown as Organisation);
+          .in('id', orgIds);
+        setOrganisations((orgs ?? []) as unknown as Organisation[]);
+
+        // Ensure activeOrgId points to a valid membership
+        const stored = typeof window !== 'undefined' ? localStorage.getItem(ACTIVE_ORG_STORAGE_KEY) : null;
+        if (!stored || !memList.some(m => m.org_id === stored)) {
+          setActiveOrgIdState(memList[0].org_id);
+          try { localStorage.setItem(ACTIVE_ORG_STORAGE_KEY, memList[0].org_id); } catch {}
+        } else if (stored !== activeOrgId) {
+          setActiveOrgIdState(stored);
+        }
       } else {
-        setMembership(null);
-        setOrganisation(null);
+        setOrganisations([]);
       }
     } catch {
-      setMembership(null);
-      setOrganisation(null);
+      setMemberships([]);
+      setOrganisations([]);
     }
   };
 
@@ -107,8 +134,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             }
           }, 0);
         } else {
-          setMembership(null);
-          setOrganisation(null);
+          setMemberships([]);
+          setOrganisations([]);
           if (mounted && bootstrapped.current) setLoading(false);
         }
       }
@@ -127,7 +154,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ session, user, membership, organisation, loading, isSuperAdmin, hasMinRole, signOut }}>
+    <AuthContext.Provider value={{
+      session, user, membership, organisation,
+      memberships, organisations, setActiveOrg,
+      loading, isSuperAdmin, hasMinRole, signOut,
+    }}>
       {children}
     </AuthContext.Provider>
   );
