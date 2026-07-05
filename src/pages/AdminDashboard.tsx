@@ -16,6 +16,7 @@ import { Plus, Building2, Users, FolderOpen, Shield, Clock, Wand2 } from 'lucide
 import { useNavigate } from 'react-router-dom';
 import { Organisation, OrgMembership, Project } from '@/types/database';
 import AIPromptsAdmin from '@/components/admin/AIPromptsAdmin';
+import UsersCard from '@/components/admin/UsersCard';
 import type { OrgType, OrgRole } from '@/types/database';
 
 interface OrgWithCounts extends Organisation {
@@ -264,6 +265,9 @@ export default function AdminDashboard() {
           </Table>
         </CardContent>
       </Card>
+
+      {/* Users management (superadmin only) */}
+      <UsersCard />
 
       {/* AI Prompts (superadmin only — page already gated) */}
       <AIPromptsAdmin />
