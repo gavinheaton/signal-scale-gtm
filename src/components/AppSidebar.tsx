@@ -37,8 +37,9 @@ export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === 'collapsed';
   const location = useLocation();
-  const { signOut, organisation, isSuperAdmin } = useAuth();
+  const { signOut, organisation, isSuperAdmin, memberships, organisations, setActiveOrg } = useAuth();
   const { currentProject } = useProject();
+  const multiOrg = memberships.length > 1;
 
   return (
     <Sidebar collapsible="icon" className="border-r-0">
@@ -48,8 +49,20 @@ export function AppSidebar() {
             <h1 className="text-lg font-bold tracking-tight text-sidebar-foreground">
               Signal + Scale
             </h1>
-            {organisation && (
+            {organisation && !multiOrg && (
               <p className="text-xs text-sidebar-foreground/60 mt-0.5">{organisation.name}</p>
+            )}
+            {multiOrg && (
+              <select
+                value={organisation?.id ?? ''}
+                onChange={(e) => setActiveOrg(e.target.value)}
+                className="mt-1 w-full bg-transparent text-xs text-sidebar-foreground/70 border border-sidebar-foreground/20 rounded px-1.5 py-0.5 focus:outline-none focus:border-sidebar-foreground/40"
+              >
+                {memberships.map(m => {
+                  const name = organisations.find(o => o.id === m.org_id)?.name ?? '—';
+                  return <option key={m.org_id} value={m.org_id} className="text-foreground">{name}</option>;
+                })}
+              </select>
             )}
           </div>
         )}
@@ -57,6 +70,7 @@ export function AppSidebar() {
           <span className="text-sidebar-foreground font-bold text-lg">S</span>
         )}
       </SidebarHeader>
+
 
       <SidebarContent>
         {currentProject && (
