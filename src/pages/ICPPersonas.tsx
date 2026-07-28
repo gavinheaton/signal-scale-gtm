@@ -10,7 +10,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Label as RLabel } from 'recharts';
-import { Target, Users, Sparkles, ChevronDown, Pencil, Trash2, DownloadCloud, MoreHorizontal, ArrowRightLeft, Copy } from 'lucide-react';
+import { Target, Users, Sparkles, ChevronDown, Pencil, Trash2, DownloadCloud, MoreHorizontal, ArrowRightLeft, Copy, FileText } from 'lucide-react';
+import { downloadPersonaDocx, downloadAllPersonasDocx } from '@/lib/personaDocx';
 import MovePersonaDialog from '@/components/MovePersonaDialog';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -87,6 +88,24 @@ export default function ICPPersonas() {
     }
     setDeleting(false);
     setDeleteTarget(null);
+  };
+
+  const handleDownloadPersona = async (persona: Persona) => {
+    try {
+      await downloadPersonaDocx(persona, icps.find(i => i.id === persona.icp_id));
+      toast.success('Word document downloaded');
+    } catch (e: any) {
+      toast.error('Failed to generate document: ' + e.message);
+    }
+  };
+
+  const handleDownloadAll = async () => {
+    try {
+      await downloadAllPersonasDocx(personas, icps, currentProject?.name);
+      toast.success('Word document downloaded');
+    } catch (e: any) {
+      toast.error('Failed to generate document: ' + e.message);
+    }
   };
 
   if (!currentProject) return <Navigate to="/projects" replace />;
@@ -235,6 +254,10 @@ export default function ICPPersonas() {
 
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold" style={{ color: 'hsl(var(--orange))' }}>Persona Gallery</h2>
+            <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline" disabled={personas.length === 0} onClick={handleDownloadAll}>
+              <FileText className="h-4 w-4 mr-1" /> Download all (Word)
+            </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button size="sm">
@@ -250,6 +273,7 @@ export default function ICPPersonas() {
                 ))}
               </DropdownMenuContent>
             </DropdownMenu>
+            </div>
           </div>
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {personas.map(p => {
@@ -275,7 +299,11 @@ export default function ICPPersonas() {
                             >
                               <ArrowRightLeft className="h-3.5 w-3.5 mr-2" /> Move to ICP…
                             </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleDownloadPersona(p)}>
+                              <FileText className="h-3.5 w-3.5 mr-2" /> Download Word
+                            </DropdownMenuItem>
                             <DropdownMenuItem
+
                               disabled={icps.length < 2}
                               onClick={() => setMoveDialog({ mode: 'duplicate', persona: p })}
                             >

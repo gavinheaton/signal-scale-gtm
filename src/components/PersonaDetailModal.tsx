@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Pencil, Trash2, Target, Zap, Building2, ShoppingCart, Radio, FileCheck, Handshake, Brain, RefreshCw, Loader2, ArrowRightLeft, Copy, MoreHorizontal } from 'lucide-react';
+import { Pencil, Trash2, Target, Zap, Building2, ShoppingCart, Radio, FileCheck, Handshake, Brain, RefreshCw, Loader2, ArrowRightLeft, Copy, MoreHorizontal, FileText } from 'lucide-react';
+import { downloadPersonaDocx } from '@/lib/personaDocx';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -208,6 +209,9 @@ export default function PersonaDetailModal({ persona, icp, open, onOpenChange, o
                 </div>
               </div>
               <div className="flex items-center gap-1">
+                <Button variant="outline" size="sm" onClick={() => downloadPersonaDocx(persona, icp).then(() => toast.success('Word document downloaded')).catch(e => toast.error('Failed: ' + e.message))}>
+                  <FileText className="h-3.5 w-3.5 mr-1" /> Word
+                </Button>
                 <Button variant="ghost" size="sm" onClick={() => { onOpenChange(false); onEdit(persona); }}>
                   <Pencil className="h-3.5 w-3.5 mr-1" /> Edit
                 </Button>
