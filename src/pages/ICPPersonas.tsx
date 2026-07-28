@@ -90,6 +90,24 @@ export default function ICPPersonas() {
     setDeleteTarget(null);
   };
 
+  const handleDownloadPersona = async (persona: Persona) => {
+    try {
+      await downloadPersonaDocx(persona, icps.find(i => i.id === persona.icp_id));
+      toast.success('Word document downloaded');
+    } catch (e: any) {
+      toast.error('Failed to generate document: ' + e.message);
+    }
+  };
+
+  const handleDownloadAll = async () => {
+    try {
+      await downloadAllPersonasDocx(personas, icps, currentProject?.name);
+      toast.success('Word document downloaded');
+    } catch (e: any) {
+      toast.error('Failed to generate document: ' + e.message);
+    }
+  };
+
   if (!currentProject) return <Navigate to="/projects" replace />;
 
   const scatterData = icps.map(icp => ({
