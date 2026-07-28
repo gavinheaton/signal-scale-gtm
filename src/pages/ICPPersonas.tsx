@@ -254,6 +254,10 @@ export default function ICPPersonas() {
 
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold" style={{ color: 'hsl(var(--orange))' }}>Persona Gallery</h2>
+            <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline" disabled={personas.length === 0} onClick={handleDownloadAll}>
+              <FileText className="h-4 w-4 mr-1" /> Download all (Word)
+            </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button size="sm">
