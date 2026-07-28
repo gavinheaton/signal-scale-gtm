@@ -294,7 +294,11 @@ export default function ICPPersonas() {
                             >
                               <ArrowRightLeft className="h-3.5 w-3.5 mr-2" /> Move to ICP…
                             </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleDownloadPersona(p)}>
+                              <FileText className="h-3.5 w-3.5 mr-2" /> Download Word
+                            </DropdownMenuItem>
                             <DropdownMenuItem
+
                               disabled={icps.length < 2}
                               onClick={() => setMoveDialog({ mode: 'duplicate', persona: p })}
                             >
