@@ -208,6 +208,9 @@ export default function PersonaDetailModal({ persona, icp, open, onOpenChange, o
                 </div>
               </div>
               <div className="flex items-center gap-1">
+                <Button variant="outline" size="sm" onClick={() => downloadPersonaDocx(persona, icp).then(() => toast.success('Word document downloaded')).catch(e => toast.error('Failed: ' + e.message))}>
+                  <FileText className="h-3.5 w-3.5 mr-1" /> Word
+                </Button>
                 <Button variant="ghost" size="sm" onClick={() => { onOpenChange(false); onEdit(persona); }}>
                   <Pencil className="h-3.5 w-3.5 mr-1" /> Edit
                 </Button>
