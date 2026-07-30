@@ -96,13 +96,63 @@ Deno.serve(async (req) => {
     const firmographic = allSignals.filter(isFirmographic).slice(0, 3);
     const segment = (campaign.target_segment || "").trim();
     const baseSegment = segment || firmographic.join(" ");
-    const variants = Array.from(new Set([
-      [baseSegment, ...firmographic, "companies"].filter(Boolean).join(" "),
-      [baseSegment, "companies list directory"].filter(Boolean).join(" "),
-      firmographic[0] ? [baseSegment, firmographic[0], "founders leadership"].filter(Boolean).join(" ") : "",
-    ].filter(Boolean))).slice(0, 3).map((s) => s.slice(0, 140));
+
+    // Heuristic fallback: short, company-seeking queries (never raw ICP prose).
+    const shortSegment = baseSegment.split(/[\n.;:—–]/)[0].trim().slice(0, 70);
+    const fallbackVariants = [
+      `${shortSegment} directory list of businesses`,
+      `${shortSegment} clinics practices companies`,
+      `"${shortSegment}" contact us about us`,
+    ].filter((s) => s.replace(/["\s]/g, "").length > 8);
+
+    // Ask the AI to write real web-search queries that surface COMPANIES,
+    // not industry/market-overview content.
+    let variants: string[] = [];
+    try {
+      const qr = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "google/gemini-2.5-flash",
+          messages: [
+            { role: "system", content: `You write web search queries that find NAMED INDIVIDUAL BUSINESSES that match an ideal customer profile.
+
+Return ONLY JSON: {"queries": [string, string, string, string]}
+
+RULES:
+- Each query must be a natural search phrase a person would type to find ACTUAL COMPANIES — never market research, industry reports, statistics, government policy, academic papers, or "about the industry" pages.
+- Never paste the ICP description verbatim. Extract: what the business DOES, where it is, and its size/type.
+- Max 12 words per query. No boolean operators except quotes.
+- Mix query shapes: (1) a directory/list query ("... directory", "list of ... in <place>"), (2) a local business query using the industry noun + city/region, (3) a query that lands on company websites (e.g. industry noun + "clinic" / "practice" / "studio" + place), (4) an association/member-list query ("<industry> association member directory <place>").
+- Use the concrete industry noun and geography. If geography is a country, also name its 1-2 largest cities in one of the queries.` },
+            { role: "user", content: JSON.stringify({
+              target_segment: campaign.target_segment,
+              description: campaign.description,
+              qualifying_signals: allSignals.slice(0, 10),
+            }) },
+          ],
+          response_format: { type: "json_object" },
+        }),
+      });
+      if (qr.ok) {
+        const d = await qr.json();
+        const parsedQ = JSON.parse(d?.choices?.[0]?.message?.content || "{}");
+        if (Array.isArray(parsedQ.queries)) {
+          variants = parsedQ.queries
+            .filter((q: any) => typeof q === "string" && q.trim().length > 5)
+            .map((q: string) => q.trim().slice(0, 120));
+        }
+      } else {
+        console.error("[find-orgs] query-gen failed", qr.status);
+      }
+    } catch (e: any) {
+      console.error("[find-orgs] query-gen error", e?.message);
+    }
+    if (variants.length === 0) variants = fallbackVariants;
+    variants = Array.from(new Set(variants)).slice(0, 4);
 
     console.log("[find-orgs] campaign:", campaign_id, "variants:", variants);
+
 
     // ---- Stage 1: search ----
     const searches = await Promise.all(variants.map(async (q) => {
