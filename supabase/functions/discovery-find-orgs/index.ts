@@ -241,26 +241,30 @@ RULES:
 
     console.log("[find-orgs] direct:", directCandidates.length, "articles:", articleSources.length, "dropped:", dropped.length);
 
-    // ---- Stage 2: scrape up to 8 article sources, with retry + outcome capture ----
+    // ---- Stage 2: scrape article sources, throttled (concurrency 2) with 429 backoff ----
     const toScrape = articleSources.slice(0, 8);
     type ScrapeOutcome = { url: string; title: string; http_status: number; markdown_length: number; kept: boolean; attempts: number; error?: string };
     const scrapeOnce = async (url: string, onlyMain: boolean) => {
-      const r = await fetch("https://api.firecrawl.dev/v2/scrape", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${FIRECRAWL_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ url, formats: ["markdown"], onlyMainContent: onlyMain, waitFor: 1500 }),
-      });
-      const txt = await r.text();
-      let d: any = {}; try { d = JSON.parse(txt); } catch {}
-      const md = d?.markdown || d?.data?.markdown || "";
-      if (!r.ok) console.error("[find-orgs] scrape non-2xx", r.status, url, txt.slice(0, 300));
-      return { status: r.status, md: typeof md === "string" ? md : "" };
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const r = await fetch("https://api.firecrawl.dev/v2/scrape", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${FIRECRAWL_API_KEY}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ url, formats: ["markdown"], onlyMainContent: onlyMain, waitFor: 1500 }),
+        });
+        const txt = await r.text();
+        if (r.status === 429) { await sleep(3000 * (attempt + 1)); continue; }
+        let d: any = {}; try { d = JSON.parse(txt); } catch {}
+        const md = d?.markdown || d?.data?.markdown || "";
+        if (!r.ok) console.error("[find-orgs] scrape non-2xx", r.status, url, txt.slice(0, 300));
+        return { status: r.status, md: typeof md === "string" ? md : "" };
+      }
+      return { status: 429, md: "" };
     };
-    const scrapeResults = await Promise.all(toScrape.map(async (a): Promise<{ outcome: ScrapeOutcome; markdown: string }> => {
+    const scrapeOne = async (a: Hit): Promise<{ outcome: ScrapeOutcome; markdown: string }> => {
       try {
         let attempts = 1;
         let { status, md } = await scrapeOnce(a.url, true);
-        if (md.length <= 200) { attempts = 2; const retry = await scrapeOnce(a.url, false); status = retry.status || status; md = retry.md || md; }
+        if (md.length <= 200) { attempts = 2; await sleep(800); const retry = await scrapeOnce(a.url, false); status = retry.status || status; md = retry.md || md; }
         const truncated = md.slice(0, 6000);
         const kept = truncated.length > 200;
         return { outcome: { url: a.url, title: a.title, http_status: status, markdown_length: md.length, kept, attempts }, markdown: kept ? truncated : "" };
@@ -268,7 +272,14 @@ RULES:
         console.error("[find-orgs] scrape error", a.url, e?.message);
         return { outcome: { url: a.url, title: a.title, http_status: 0, markdown_length: 0, kept: false, attempts: 1, error: e?.message || "fetch failed" }, markdown: "" };
       }
-    }));
+    };
+    const scrapeResults: { outcome: ScrapeOutcome; markdown: string }[] = [];
+    for (let i = 0; i < toScrape.length; i += 2) {
+      const batch = await Promise.all(toScrape.slice(i, i + 2).map(scrapeOne));
+      scrapeResults.push(...batch);
+      if (i + 2 < toScrape.length) await sleep(1500);
+    }
+
     const scrapeOutcomes = scrapeResults.map((s) => s.outcome);
     const scrapedArticles = scrapeResults
       .filter((s) => s.outcome.kept)
