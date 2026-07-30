@@ -96,37 +96,101 @@ Deno.serve(async (req) => {
     const firmographic = allSignals.filter(isFirmographic).slice(0, 3);
     const segment = (campaign.target_segment || "").trim();
     const baseSegment = segment || firmographic.join(" ");
-    const variants = Array.from(new Set([
-      [baseSegment, ...firmographic, "companies"].filter(Boolean).join(" "),
-      [baseSegment, "companies list directory"].filter(Boolean).join(" "),
-      firmographic[0] ? [baseSegment, firmographic[0], "founders leadership"].filter(Boolean).join(" ") : "",
-    ].filter(Boolean))).slice(0, 3).map((s) => s.slice(0, 140));
+
+    // Heuristic fallback: short, company-seeking queries (never raw ICP prose).
+    const shortSegment = baseSegment.split(/[\n.;:—–]/)[0].trim().slice(0, 70);
+    const fallbackVariants = [
+      `${shortSegment} directory list of businesses`,
+      `${shortSegment} clinics practices companies`,
+      `"${shortSegment}" contact us about us`,
+    ].filter((s) => s.replace(/["\s]/g, "").length > 8);
+
+    // Ask the AI to write real web-search queries that surface COMPANIES,
+    // not industry/market-overview content.
+    let variants: string[] = [];
+    try {
+      const qr = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "google/gemini-2.5-flash",
+          messages: [
+            { role: "system", content: `You write web search queries that find NAMED INDIVIDUAL BUSINESSES that match an ideal customer profile.
+
+Return ONLY JSON: {"queries": [string, string, string, string]}
+
+RULES:
+- Each query must be a natural search phrase a person would type to find ACTUAL COMPANIES — never market research, industry reports, statistics, government policy, academic papers, or "about the industry" pages.
+- Never paste the ICP description verbatim. Extract: what the business DOES, where it is, and its size/type.
+- Max 12 words per query. No boolean operators except quotes.
+- Mix query shapes: (1) a directory/list query ("... directory", "list of ... in <place>"), (2) a local business query using the industry noun + city/region, (3) a query that lands on company websites (e.g. industry noun + "clinic" / "practice" / "studio" + place), (4) an association/member-list query ("<industry> association member directory <place>").
+- Use the concrete industry noun and geography. If geography is a country, also name its 1-2 largest cities in one of the queries.` },
+            { role: "user", content: JSON.stringify({
+              target_segment: campaign.target_segment,
+              description: campaign.description,
+              qualifying_signals: allSignals.slice(0, 10),
+            }) },
+          ],
+          response_format: { type: "json_object" },
+        }),
+      });
+      if (qr.ok) {
+        const d = await qr.json();
+        const parsedQ = JSON.parse(d?.choices?.[0]?.message?.content || "{}");
+        if (Array.isArray(parsedQ.queries)) {
+          variants = parsedQ.queries
+            .filter((q: any) => typeof q === "string" && q.trim().length > 5)
+            .map((q: string) => q.trim().slice(0, 120));
+        }
+      } else {
+        console.error("[find-orgs] query-gen failed", qr.status);
+      }
+    } catch (e: any) {
+      console.error("[find-orgs] query-gen error", e?.message);
+    }
+    if (variants.length === 0) variants = fallbackVariants;
+    variants = Array.from(new Set(variants)).slice(0, 4);
 
     console.log("[find-orgs] campaign:", campaign_id, "variants:", variants);
 
-    // ---- Stage 1: search ----
-    const searches = await Promise.all(variants.map(async (q) => {
-      try {
-        const r = await fetch("https://api.firecrawl.dev/v2/search", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${FIRECRAWL_API_KEY}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ query: q, limit: 10 }),
-        });
-        const txt = await r.text();
-        let d: any = {}; try { d = JSON.parse(txt); } catch {}
-        let h: any[] = [];
-        if (Array.isArray(d?.data)) h = d.data;
-        else if (Array.isArray(d?.data?.web)) h = d.data.web;
-        else if (Array.isArray(d?.web?.results)) h = d.web.results;
-        else if (Array.isArray(d?.web)) h = d.web;
-        else if (Array.isArray(d?.results)) h = d.results;
-        return { q, status: r.status, hits: h };
-      } catch (e: any) {
-        console.error("[find-orgs] search error", q, e?.message);
-        return { q, status: 0, hits: [] };
+
+    // ---- Stage 1: search (sequential + backoff — Firecrawl rate-limits bursts) ----
+    const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
+    const searchOnce = async (q: string) => {
+      let last = { q, status: 0, hits: [] as any[] };
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          const r = await fetch("https://api.firecrawl.dev/v2/search", {
+            method: "POST",
+            headers: { Authorization: `Bearer ${FIRECRAWL_API_KEY}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ query: q, limit: 10 }),
+          });
+          const txt = await r.text();
+          if (r.status === 429) { await sleep(2500 * (attempt + 1)); last = { q, status: 429, hits: [] }; continue; }
+          let d: any = {}; try { d = JSON.parse(txt); } catch {}
+          let h: any[] = [];
+          if (Array.isArray(d?.data)) h = d.data;
+          else if (Array.isArray(d?.data?.web)) h = d.data.web;
+          else if (Array.isArray(d?.web?.results)) h = d.web.results;
+          else if (Array.isArray(d?.web)) h = d.web;
+          else if (Array.isArray(d?.results)) h = d.results;
+          if (!r.ok) console.error("[find-orgs] search non-2xx", r.status, q, txt.slice(0, 200));
+          return { q, status: r.status, hits: h };
+        } catch (e: any) {
+          console.error("[find-orgs] search error", q, e?.message);
+          last = { q, status: 0, hits: [] };
+        }
       }
-    }));
+      return last;
+    };
+    const searches: { q: string; status: number; hits: any[] }[] = [];
+    for (const q of variants) {
+      searches.push(await searchOnce(q));
+      await sleep(1200);
+    }
     const rawHits: any[] = searches.flatMap((s) => s.hits);
+    console.log("[find-orgs] raw hits:", rawHits.length, "per query:", searches.map((s) => `${s.status}:${s.hits.length}`).join(","));
+
 
     // ---- Classify hits ----
     const seen = new Set<string>();
@@ -177,26 +241,30 @@ Deno.serve(async (req) => {
 
     console.log("[find-orgs] direct:", directCandidates.length, "articles:", articleSources.length, "dropped:", dropped.length);
 
-    // ---- Stage 2: scrape up to 8 article sources, with retry + outcome capture ----
+    // ---- Stage 2: scrape article sources, throttled (concurrency 2) with 429 backoff ----
     const toScrape = articleSources.slice(0, 8);
     type ScrapeOutcome = { url: string; title: string; http_status: number; markdown_length: number; kept: boolean; attempts: number; error?: string };
     const scrapeOnce = async (url: string, onlyMain: boolean) => {
-      const r = await fetch("https://api.firecrawl.dev/v2/scrape", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${FIRECRAWL_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ url, formats: ["markdown"], onlyMainContent: onlyMain, waitFor: 1500 }),
-      });
-      const txt = await r.text();
-      let d: any = {}; try { d = JSON.parse(txt); } catch {}
-      const md = d?.markdown || d?.data?.markdown || "";
-      if (!r.ok) console.error("[find-orgs] scrape non-2xx", r.status, url, txt.slice(0, 300));
-      return { status: r.status, md: typeof md === "string" ? md : "" };
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const r = await fetch("https://api.firecrawl.dev/v2/scrape", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${FIRECRAWL_API_KEY}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ url, formats: ["markdown"], onlyMainContent: onlyMain, waitFor: 1500 }),
+        });
+        const txt = await r.text();
+        if (r.status === 429) { await sleep(3000 * (attempt + 1)); continue; }
+        let d: any = {}; try { d = JSON.parse(txt); } catch {}
+        const md = d?.markdown || d?.data?.markdown || "";
+        if (!r.ok) console.error("[find-orgs] scrape non-2xx", r.status, url, txt.slice(0, 300));
+        return { status: r.status, md: typeof md === "string" ? md : "" };
+      }
+      return { status: 429, md: "" };
     };
-    const scrapeResults = await Promise.all(toScrape.map(async (a): Promise<{ outcome: ScrapeOutcome; markdown: string }> => {
+    const scrapeOne = async (a: Hit): Promise<{ outcome: ScrapeOutcome; markdown: string }> => {
       try {
         let attempts = 1;
         let { status, md } = await scrapeOnce(a.url, true);
-        if (md.length <= 200) { attempts = 2; const retry = await scrapeOnce(a.url, false); status = retry.status || status; md = retry.md || md; }
+        if (md.length <= 200) { attempts = 2; await sleep(800); const retry = await scrapeOnce(a.url, false); status = retry.status || status; md = retry.md || md; }
         const truncated = md.slice(0, 6000);
         const kept = truncated.length > 200;
         return { outcome: { url: a.url, title: a.title, http_status: status, markdown_length: md.length, kept, attempts }, markdown: kept ? truncated : "" };
@@ -204,7 +272,14 @@ Deno.serve(async (req) => {
         console.error("[find-orgs] scrape error", a.url, e?.message);
         return { outcome: { url: a.url, title: a.title, http_status: 0, markdown_length: 0, kept: false, attempts: 1, error: e?.message || "fetch failed" }, markdown: "" };
       }
-    }));
+    };
+    const scrapeResults: { outcome: ScrapeOutcome; markdown: string }[] = [];
+    for (let i = 0; i < toScrape.length; i += 2) {
+      const batch = await Promise.all(toScrape.slice(i, i + 2).map(scrapeOne));
+      scrapeResults.push(...batch);
+      if (i + 2 < toScrape.length) await sleep(1500);
+    }
+
     const scrapeOutcomes = scrapeResults.map((s) => s.outcome);
     const scrapedArticles = scrapeResults
       .filter((s) => s.outcome.kept)
