@@ -154,29 +154,43 @@ RULES:
     console.log("[find-orgs] campaign:", campaign_id, "variants:", variants);
 
 
-    // ---- Stage 1: search ----
-    const searches = await Promise.all(variants.map(async (q) => {
-      try {
-        const r = await fetch("https://api.firecrawl.dev/v2/search", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${FIRECRAWL_API_KEY}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ query: q, limit: 10 }),
-        });
-        const txt = await r.text();
-        let d: any = {}; try { d = JSON.parse(txt); } catch {}
-        let h: any[] = [];
-        if (Array.isArray(d?.data)) h = d.data;
-        else if (Array.isArray(d?.data?.web)) h = d.data.web;
-        else if (Array.isArray(d?.web?.results)) h = d.web.results;
-        else if (Array.isArray(d?.web)) h = d.web;
-        else if (Array.isArray(d?.results)) h = d.results;
-        return { q, status: r.status, hits: h };
-      } catch (e: any) {
-        console.error("[find-orgs] search error", q, e?.message);
-        return { q, status: 0, hits: [] };
+    // ---- Stage 1: search (sequential + backoff — Firecrawl rate-limits bursts) ----
+    const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
+    const searchOnce = async (q: string) => {
+      let last = { q, status: 0, hits: [] as any[] };
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          const r = await fetch("https://api.firecrawl.dev/v2/search", {
+            method: "POST",
+            headers: { Authorization: `Bearer ${FIRECRAWL_API_KEY}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ query: q, limit: 10 }),
+          });
+          const txt = await r.text();
+          if (r.status === 429) { await sleep(2500 * (attempt + 1)); last = { q, status: 429, hits: [] }; continue; }
+          let d: any = {}; try { d = JSON.parse(txt); } catch {}
+          let h: any[] = [];
+          if (Array.isArray(d?.data)) h = d.data;
+          else if (Array.isArray(d?.data?.web)) h = d.data.web;
+          else if (Array.isArray(d?.web?.results)) h = d.web.results;
+          else if (Array.isArray(d?.web)) h = d.web;
+          else if (Array.isArray(d?.results)) h = d.results;
+          if (!r.ok) console.error("[find-orgs] search non-2xx", r.status, q, txt.slice(0, 200));
+          return { q, status: r.status, hits: h };
+        } catch (e: any) {
+          console.error("[find-orgs] search error", q, e?.message);
+          last = { q, status: 0, hits: [] };
+        }
       }
-    }));
+      return last;
+    };
+    const searches: { q: string; status: number; hits: any[] }[] = [];
+    for (const q of variants) {
+      searches.push(await searchOnce(q));
+      await sleep(1200);
+    }
     const rawHits: any[] = searches.flatMap((s) => s.hits);
+    console.log("[find-orgs] raw hits:", rawHits.length, "per query:", searches.map((s) => `${s.status}:${s.hits.length}`).join(","));
+
 
     // ---- Classify hits ----
     const seen = new Set<string>();
