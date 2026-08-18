@@ -596,7 +596,8 @@ Deno.serve(async (req) => {
 
     // Update wizard session
     await supabase.from("wizard_sessions").update({
-      messages, draft_output: updatedDraft, status: isComplete ? "complete" : "in_progress",
+      // Session stays in_progress until the brand voice is saved/finalised by the client.
+      messages, draft_output: updatedDraft, status: "in_progress",
     }).eq("id", sessionId);
 
     // Upsert brand_voices record
