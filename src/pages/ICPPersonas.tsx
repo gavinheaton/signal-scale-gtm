@@ -10,8 +10,10 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Label as RLabel } from 'recharts';
-import { Target, Users, Sparkles, ChevronDown, Pencil, Trash2, DownloadCloud, MoreHorizontal, ArrowRightLeft, Copy, FileText } from 'lucide-react';
+import { Target, Users, Sparkles, ChevronDown, Pencil, Trash2, DownloadCloud, MoreHorizontal, ArrowRightLeft, Copy, FileText, Presentation } from 'lucide-react';
 import { downloadPersonaDocx, downloadAllPersonasDocx } from '@/lib/personaDocx';
+import { downloadPersonaPptx, downloadAllPersonasPptx } from '@/lib/personaPptx';
+
 import MovePersonaDialog from '@/components/MovePersonaDialog';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
