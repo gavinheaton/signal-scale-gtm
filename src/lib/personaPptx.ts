@@ -63,7 +63,7 @@ function personaCards(persona: Persona): CardDef[] {
 const LINE_H = 0.245;
 const CARD_PAD_TOP = 0.62;
 const CARD_PAD_BOTTOM = 0.16;
-const CHARS_PER_LINE = Math.floor((COL_W - 0.45) * 13.4);
+const CHARS_PER_LINE = Math.floor((COL_W - 0.45) * 14.5);
 
 function wrappedCount(line: string) {
   return Math.max(1, Math.ceil(line.length / CHARS_PER_LINE));
@@ -230,7 +230,7 @@ function addPersonaSlides(pptx: PptxGenJS, persona: Persona, icp?: ICP, projectN
       let h = cardHeight(card);
 
       if (h > room) {
-        if (room < 1.5) break; // column set is full → next slide
+        if (room < 1.1) break; // column set is full → next slide
         const [head, tail] = splitCard(card, room);
         card = head;
         h = cardHeight(card);
