@@ -15,7 +15,7 @@ const MARGIN = 0.42;
 const GAP = 0.24;
 const COL_W = (SLIDE_W - MARGIN * 2 - GAP * 2) / 3;
 const COLS = [MARGIN, MARGIN + COL_W + GAP, MARGIN + (COL_W + GAP) * 2];
-const BODY_TOP = 1.62;
+const BODY_TOP = 1.68;
 const BODY_BOTTOM = SLIDE_H - 0.5;
 
 const titleCase = (s: string) => s.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
@@ -41,6 +41,7 @@ interface CardDef {
   title: string;
   lines: string[];
   accent?: string;
+  noBullet?: boolean;
 }
 
 function personaCards(persona: Persona): CardDef[] {
@@ -54,7 +55,7 @@ function personaCards(persona: Persona): CardDef[] {
     { title: 'Buying Behaviour', lines: flatten((persona as any).buying_behaviour) },
     { title: 'Where They Get Information', lines: flatten(channels) },
     { title: 'Evidence That Convinces Them', lines: flatten(preferred_evidence) },
-    { title: 'How We Help', lines: flatten(persona.how_we_help) },
+    { title: 'How We Help', lines: flatten(persona.how_we_help), noBullet: true },
   ];
   return defs.filter(d => d.lines.length > 0);
 }
@@ -62,7 +63,7 @@ function personaCards(persona: Persona): CardDef[] {
 const LINE_H = 0.245;
 const CARD_PAD_TOP = 0.62;
 const CARD_PAD_BOTTOM = 0.16;
-const CHARS_PER_LINE = Math.floor(COL_W * 26);
+const CHARS_PER_LINE = Math.floor((COL_W - 0.45) * 13.4);
 
 function wrappedCount(line: string) {
   return Math.max(1, Math.ceil(line.length / CHARS_PER_LINE));
@@ -119,7 +120,12 @@ function addCard(slide: PptxGenJS.Slide, card: CardDef, x: number, y: number, h:
     margin: 0,
   });
   slide.addText(
-    card.lines.map(l => ({ text: l, options: { bullet: { characterCode: '2022' }, breakLine: true } })),
+    card.lines.map(l => ({
+      text: l,
+      options: card.noBullet
+        ? { breakLine: true }
+        : { bullet: { characterCode: '2022', indent: 12 }, breakLine: true },
+    })),
     {
       x: x + 0.18,
       y: y + CARD_PAD_TOP - 0.12,
@@ -136,16 +142,19 @@ function addCard(slide: PptxGenJS.Slide, card: CardDef, x: number, y: number, h:
 }
 
 function addHeader(slide: PptxGenJS.Slide, persona: Persona, icp?: ICP, contPage?: number) {
-  slide.addShape('rect', { x: 0, y: 0, w: SLIDE_W, h: 1.3, fill: { color: NAVY } });
-  slide.addShape('rect', { x: 0, y: 1.3, w: SLIDE_W, h: 0.06, fill: { color: ORANGE } });
+  slide.addShape('rect', { x: 0, y: 0, w: SLIDE_W, h: 1.34, fill: { color: NAVY } });
+  slide.addShape('rect', { x: 0, y: 1.34, w: SLIDE_W, h: 0.06, fill: { color: ORANGE } });
 
-  slide.addText(persona.persona_name + (contPage ? ` (${contPage})` : ''), {
+  const nameText = persona.persona_name + (contPage ? ` (${contPage})` : '');
+  const titleSize = nameText.length > 62 ? 18 : nameText.length > 44 ? 21 : 26;
+  slide.addText(nameText, {
     x: MARGIN,
-    y: 0.24,
+    y: 0.16,
     w: SLIDE_W - MARGIN * 2 - 3.2,
-    h: 0.52,
+    h: 0.66,
     fontFace: 'Poppins',
-    fontSize: 26,
+    fontSize: titleSize,
+    valign: 'middle',
     bold: true,
     color: WHITE,
     margin: 0,
@@ -154,7 +163,7 @@ function addHeader(slide: PptxGenJS.Slide, persona: Persona, icp?: ICP, contPage
   const meta = [titleCase(persona.role_in_buying), icp?.segment_name].filter(Boolean).join('   •   ');
   slide.addText(meta, {
     x: MARGIN,
-    y: 0.8,
+    y: 0.88,
     w: SLIDE_W - MARGIN * 2 - 3.2,
     h: 0.3,
     fontFace: 'Poppins',
