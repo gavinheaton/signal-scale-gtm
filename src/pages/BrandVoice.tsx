@@ -175,6 +175,15 @@ export default function BrandVoice() {
         )}
       </div>
 
+      <UnsavedDraftCard
+        projectId={currentProject.id}
+        sessionType="brand_voice"
+        resumeTo="/project/brand-voice-wizard"
+        label="brand voice"
+      />
+
+
+
 
       {showBanner && (
         <div className="flex items-start gap-3 rounded-lg border border-primary/20 bg-primary/5 p-4">
