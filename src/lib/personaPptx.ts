@@ -240,8 +240,9 @@ function addPersonaSlides(pptx: PptxGenJS, persona: Persona, icp?: ICP, projectN
         queue.shift();
       }
 
-      addCard(slide, card, COLS[colIdx], heights[colIdx], Math.min(h, maxCardH));
-      heights[colIdx] += Math.min(h, maxCardH) + GAP;
+      const drawH = Math.min(h, maxCardH, BODY_BOTTOM - heights[colIdx]);
+      addCard(slide, card, COLS[colIdx], heights[colIdx], drawH);
+      heights[colIdx] += drawH + GAP;
       placedAny = true;
     }
 
