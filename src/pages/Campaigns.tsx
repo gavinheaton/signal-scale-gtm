@@ -20,6 +20,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { format, parseISO } from 'date-fns';
 import { cn } from '@/lib/utils';
+import UnsavedDraftCard from '@/components/wizard/UnsavedDraftCard';
 
 const statusColumns: CampaignStatus[] = ['brief', 'planning', 'active', 'complete'];
 const trackColors = { demand_capture: 'bg-orange-100 text-orange-800', demand_creation: 'bg-purple-100 text-purple-800' };
