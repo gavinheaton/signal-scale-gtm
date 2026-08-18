@@ -90,7 +90,6 @@ function personaCards(persona: Persona): CardDef[] {
     { title: 'Buying Behaviour', lines: flatten((persona as unknown as Record<string, unknown>).buying_behaviour) },
     { title: 'Where They Get Information', lines: flatten(channels) },
     { title: 'Evidence That Convinces Them', lines: flatten(preferred_evidence) },
-    { title: 'How We Help', lines: flatten(persona.how_we_help), noBullet: true },
   ];
 
   return defs.filter(d => d.lines.length > 0).map((d, i) => ({ ...d, index: i + 1 }));
@@ -439,7 +438,7 @@ function addSummarySlide(pptx: PptxGenJS, persona: Persona, icp?: ICP, projectNa
   const goals = flatten(persona.goals);
   const pains = flatten(persona.pain_points);
   const panelW = (SLIDE_W - MARGIN * 2 - GAP) / 2;
-  const panelY = 3.66;
+  const panelY = 3.9;
 
   const panels: { label: string; text: string }[] = [
     { label: 'Primary Goal', text: goals[0] || 'Not captured yet' },
