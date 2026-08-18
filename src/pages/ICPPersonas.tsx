@@ -10,8 +10,10 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Label as RLabel } from 'recharts';
-import { Target, Users, Sparkles, ChevronDown, Pencil, Trash2, DownloadCloud, MoreHorizontal, ArrowRightLeft, Copy, FileText } from 'lucide-react';
+import { Target, Users, Sparkles, ChevronDown, Pencil, Trash2, DownloadCloud, MoreHorizontal, ArrowRightLeft, Copy, FileText, Presentation } from 'lucide-react';
 import { downloadPersonaDocx, downloadAllPersonasDocx } from '@/lib/personaDocx';
+import { downloadPersonaPptx, downloadAllPersonasPptx } from '@/lib/personaPptx';
+
 import MovePersonaDialog from '@/components/MovePersonaDialog';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -100,6 +102,15 @@ export default function ICPPersonas() {
     }
   };
 
+  const handleDownloadPersonaPptx = async (persona: Persona) => {
+    try {
+      await downloadPersonaPptx(persona, icps.find(i => i.id === persona.icp_id), currentProject?.name);
+      toast.success('Slide deck downloaded');
+    } catch (e: any) {
+      toast.error('Failed to generate deck: ' + e.message);
+    }
+  };
+
   const handleDownloadAll = async () => {
     try {
       await downloadAllPersonasDocx(personas, icps, currentProject?.name);
@@ -108,6 +119,16 @@ export default function ICPPersonas() {
       toast.error('Failed to generate document: ' + e.message);
     }
   };
+
+  const handleDownloadAllPptx = async () => {
+    try {
+      await downloadAllPersonasPptx(personas, icps, currentProject?.name);
+      toast.success('Slide deck downloaded');
+    } catch (e: any) {
+      toast.error('Failed to generate deck: ' + e.message);
+    }
+  };
+
 
   if (!currentProject) return <Navigate to="/projects" replace />;
 
@@ -282,9 +303,13 @@ export default function ICPPersonas() {
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold" style={{ color: 'hsl(var(--orange))' }}>Persona Gallery</h2>
             <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline" disabled={personas.length === 0} onClick={handleDownloadAllPptx}>
+              <Presentation className="h-4 w-4 mr-1" /> Download all (Slides)
+            </Button>
             <Button size="sm" variant="outline" disabled={personas.length === 0} onClick={handleDownloadAll}>
               <FileText className="h-4 w-4 mr-1" /> Download all (Word)
             </Button>
+
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button size="sm">
@@ -326,9 +351,13 @@ export default function ICPPersonas() {
                             >
                               <ArrowRightLeft className="h-3.5 w-3.5 mr-2" /> Move to ICP…
                             </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleDownloadPersonaPptx(p)}>
+                              <Presentation className="h-3.5 w-3.5 mr-2" /> Download slides (PPT)
+                            </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => handleDownloadPersona(p)}>
                               <FileText className="h-3.5 w-3.5 mr-2" /> Download Word
                             </DropdownMenuItem>
+
                             <DropdownMenuItem
 
                               disabled={icps.length < 2}
