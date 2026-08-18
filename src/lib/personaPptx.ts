@@ -86,8 +86,8 @@ function personaCards(persona: Persona): CardDef[] {
   const defs: Omit<CardDef, 'index'>[] = [
     { title: 'Goals & Objectives', lines: flatten(persona.goals) },
     { title: 'Biggest Challenges', lines: flatten(persona.pain_points) },
-    { title: 'Organisational Context', lines: flatten((persona as Record<string, unknown>).organisational_context) },
-    { title: 'Buying Behaviour', lines: flatten((persona as Record<string, unknown>).buying_behaviour) },
+    { title: 'Organisational Context', lines: flatten((persona as unknown as Record<string, unknown>).organisational_context) },
+    { title: 'Buying Behaviour', lines: flatten((persona as unknown as Record<string, unknown>).buying_behaviour) },
     { title: 'Where They Get Information', lines: flatten(channels) },
     { title: 'Evidence That Convinces Them', lines: flatten(preferred_evidence) },
     { title: 'How We Help', lines: flatten(persona.how_we_help), noBullet: true },
