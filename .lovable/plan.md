@@ -1,31 +1,30 @@
-## Goal
-Add a **Download** action to persona viewing on `/project/icp-personas` that produces a formatted Word (.docx) file of the persona.
+# Stop wizard drafts from being lost
 
-## What gets built
+## What actually happened
 
-**1. Client-side DOCX generator** (`src/lib/personaDocx.ts`)
-- Uses the `docx` npm package + `file-saver` style blob download (no backend, no edge function).
-- Takes a `Persona` + its parent `ICP` and emits a styled document:
-  - Title: persona name; subtitle line with role-in-buying and parent ICP segment
-  - AI Readiness score rendered as `4 / 5`
-  - One heading + body block per section, matching the modal's order:
-    Goals · Pain Points · Organisational Context · Buying Behaviour · Channel Preferences · Preferred Evidence · How We Help
-  - A shared renderer converts the jsonb shapes the modal already handles (string, array, nested object) into paragraphs, bullet lists, and sub-headings. Empty sections print "Not captured yet" in muted italics.
-  - Brand styling: navy `#0f284c` headings, orange `#e33e23` sub-headings, purple `#8833ff` accents, Poppins-with-Arial fallback, US Letter page size, footer with "Signal + Scale".
-- Filename: `<Persona Name> - Persona.docx` (slugified).
+The ERI ICP was never lost from the database — it was hidden. The wizard's backend marks a session as **complete** the moment the AI decides the ICP is finished, before anyone presses Save. Confirmed in the data: the ERI session was flagged complete at 02:59 with a full draft, while no ICP record existed.
 
-**2. UI wiring**
-- `PersonaDetailModal.tsx`: add a **Download** button next to Edit in the header (and a "Download Word" item in the ⋯ menu for consistency).
-- `ICPPersonas.tsx`: add "Download Word" to the per-card ⋯ overflow menu so it works without opening the modal.
-- Both show a toast on success/failure.
+When you returned to the wizard, it only looks for sessions marked **in progress**, found none, and started a brand new blank conversation. The finished draft was still sitting in the database, invisible from the app.
 
-**3. Bulk option**
-- On the Personas tab header, a "Download all personas" button that emits a single .docx containing every persona in the project, one per page, grouped under their ICP segment, with a table of contents.
+The same "complete before save" pattern exists in the Persona, Campaign and Brand Voice wizards, so the same silent loss can happen there.
 
-## Not in this change
-The PPTX deck. Once the Word export is settled I'd build that as a separate step using `pptxgenjs` with a branded 1-slide-per-persona layout (photo/avatar block, role badge, goals vs pains two-column, readiness meter) — worth doing after we see how the Word output reads.
+## Fixes
 
-## Technical notes
-- New dependency: `docx` (~pure JS, works in the browser via Vite).
-- No schema changes, no edge functions, no RLS impact — the data is already loaded in the page.
-- The section-rendering logic in `PersonaDetailModal` (`renderContent`) is mirrored, not shared, since one outputs React and one outputs docx elements; both read the same field list so they stay in sync visually.
+1. **A session is only "complete" once the record is saved.** The AI finishing the draft no longer changes session status — it stays in progress until the ICP/persona/campaign/brand voice row is actually written. Apply to all four wizards.
+
+2. **Resume finished drafts.** The wizard's resume lookup picks up the latest unsaved session regardless of the AI's completion flag, so reopening the wizard restores the finished draft with its Save button ready instead of starting over.
+
+3. **Unsaved drafts panel.** On ICP & Personas (and the equivalent Campaigns / Brand Voice pages), show a small "Unsaved draft" card when a wizard session exists with content but no saved record. Two actions: Resume, or Discard. This makes any future orphaned draft visible and recoverable without database access.
+
+4. **Local safety copy.** The wizard keeps a copy of the current draft in browser storage keyed by session, restored if a page refresh or crash happens before the server round-trip lands.
+
+5. **Save failure is loud and non-destructive.** If the save insert fails, the draft, the session and the chat stay exactly as they were and the error explains it wasn't saved — no status change, no navigation away.
+
+## Technical detail
+
+- `supabase/functions/{icp,persona,campaign,brand-voice}-wizard/index.ts`: drop `status: isComplete ? 'complete' : 'in_progress'` from the session update; always keep `in_progress`. Brand Voice keeps writing its own `brand_voices.status` as it does today — only the wizard session status changes.
+- Session status becomes `complete` only in the client save handlers (`ICPWizard.saveICP` and equivalents) after a successful insert, which they already do.
+- Resume queries change from `.eq('status','in_progress')` to `.in('status',['in_progress'])` plus removal of the assumption that a complete-flagged draft is saved; existing stale/diff-mode logic is untouched.
+- New shared component for the unsaved-draft card, querying `wizard_sessions` filtered by project and type where `status = 'in_progress'` and `draft_output` has more than `_meta`.
+- Browser storage key: `wizard-draft:<session_id>`, cleared on successful save or discard.
+- No schema changes needed.
