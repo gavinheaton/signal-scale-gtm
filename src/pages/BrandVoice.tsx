@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Mic, Sparkles, Eye, Download, ArrowRight, Info, X, Upload, Loader2, DownloadCloud } from 'lucide-react';
 import { toast } from 'sonner';
 import NotionImportDialog from '@/components/notion/NotionImportDialog';
+import UnsavedDraftCard from '@/components/wizard/UnsavedDraftCard';
 
 
 interface BrandVoiceRecord {
