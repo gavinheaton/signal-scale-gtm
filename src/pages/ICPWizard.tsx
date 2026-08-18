@@ -320,6 +320,7 @@ export default function ICPWizard() {
           .eq('status', 'in_progress');
       } catch {}
     }
+    clearLocalDraft(sessionId);
     setMessages([]);
     setDraft({});
     setPrevDraft({});
