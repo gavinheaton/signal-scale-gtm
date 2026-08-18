@@ -155,14 +155,21 @@ export default function ICPWizard() {
 
         setSessionId(session.id);
         const sessionMessages = session.messages as Array<{ role: string; content: string }>;
-        setMessages(
-          sessionMessages.map(m => ({
-            role: m.role as 'user' | 'assistant',
-            content: m.role === 'assistant' ? stripDraft(m.content) : m.content,
-          }))
-        );
-        if (session.draft_output && Object.keys(session.draft_output as object).length > 0) {
-          setDraft(session.draft_output as DraftOutput);
+        const serverMessages: ChatMessage[] = sessionMessages.map(m => ({
+          role: m.role as 'user' | 'assistant',
+          content: m.role === 'assistant' ? stripDraft(m.content) : m.content,
+        }));
+        const serverDraft = (session.draft_output as DraftOutput) || {};
+
+        // Prefer the local safety copy only if it holds more completed sections
+        const local = readLocalDraft(session.id);
+        if (local?.draft && countSections(local.draft) > countSections(serverDraft)) {
+          setMessages(local.messages?.length ? local.messages : serverMessages);
+          setDraft(local.draft);
+          toast.info('Restored an unsaved draft from this browser');
+        } else {
+          setMessages(serverMessages);
+          if (Object.keys(serverDraft).length > 0) setDraft(serverDraft);
         }
         setStaleResume(false);
         // Re-surface diff chips if this is an ongoing diff session
