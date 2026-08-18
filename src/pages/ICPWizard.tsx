@@ -43,6 +43,36 @@ export default function ICPWizard() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const ICP_CONTEXT_VERSION = 'company_context_v2';
 
+  const draftKey = (id: string) => `wizard-draft:${id}`;
+
+  const countSections = (d: DraftOutput) => (d?.sections_complete?.length || 0);
+
+  // Local safety copy — survives a refresh or crash before the server round-trip lands
+  useEffect(() => {
+    if (!sessionId) return;
+    const hasContent = Object.keys(draft || {}).some(k => k !== '_meta');
+    if (!hasContent) return;
+    try {
+      localStorage.setItem(draftKey(sessionId), JSON.stringify({ draft, messages }));
+    } catch {}
+  }, [sessionId, draft, messages]);
+
+  const clearLocalDraft = (id: string | null) => {
+    if (!id) return;
+    try {
+      localStorage.removeItem(draftKey(id));
+    } catch {}
+  };
+
+  const readLocalDraft = (id: string): { draft: DraftOutput; messages: ChatMessage[] } | null => {
+    try {
+      const raw = localStorage.getItem(draftKey(id));
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  };
+
   // Detect newly completed sections for inline celebrations
   useEffect(() => {
     if (!draft.sections_complete || !prevDraft.sections_complete) return;
