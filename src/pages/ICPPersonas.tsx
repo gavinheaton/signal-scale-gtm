@@ -133,6 +133,16 @@ export default function ICPPersonas() {
   if (!loading && icps.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-[60vh] space-y-6">
+        {currentProject && (
+          <div className="w-full max-w-xl">
+            <UnsavedDraftCard
+              projectId={currentProject.id}
+              sessionType="icp"
+              resumeTo="/project/icp-wizard"
+              label="ICP"
+            />
+          </div>
+        )}
         <div className="text-center space-y-2">
           <Sparkles className="h-12 w-12 mx-auto" style={{ color: 'hsl(var(--orange))' }} />
           <h1 className="text-2xl font-bold text-foreground">No ICP segments yet</h1>
@@ -148,6 +158,22 @@ export default function ICPPersonas() {
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-foreground">ICP & Personas</h1>
+      {currentProject && (
+        <>
+          <UnsavedDraftCard
+            projectId={currentProject.id}
+            sessionType="icp"
+            resumeTo="/project/icp-wizard"
+            label="ICP"
+          />
+          <UnsavedDraftCard
+            projectId={currentProject.id}
+            sessionType="persona"
+            resumeTo="/project/persona-wizard"
+            label="persona"
+          />
+        </>
+      )}
       <Tabs defaultValue="icps">
         <TabsList>
           <TabsTrigger value="icps" className="gap-1"><Target className="h-4 w-4" /> ICPs</TabsTrigger>
