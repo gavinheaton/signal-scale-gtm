@@ -210,10 +210,10 @@ function readinessDial(slide: PptxGenJS.Slide, persona: Persona, cx: number, cy:
     valign: 'middle',
     margin: 0,
   });
-  slide.addText('AI READINESS  ·  OF 5', {
-    x: cx - 1.9,
+  slide.addText('AI READINESS', {
+    x: cx - 2.1,
     y: cy - 0.14,
-    w: 1.55,
+    w: 1.4,
     h: 0.28,
     fontFace: SANS,
     fontSize: 8,
@@ -440,12 +440,17 @@ function addSummarySlide(pptx: PptxGenJS, persona: Persona, icp?: ICP, projectNa
   const pains = flatten(persona.pain_points);
   const panelW = (SLIDE_W - MARGIN * 2 - GAP) / 2;
   const panelY = 3.66;
-  const panelH = 1.72;
 
   const panels: { label: string; text: string }[] = [
     { label: 'Primary Goal', text: goals[0] || 'Not captured yet' },
     { label: 'Primary Challenge', text: pains[0] || 'Not captured yet' },
   ];
+
+  const panelChars = Math.floor((panelW - 0.6) * 15);
+  const panelRows = Math.max(
+    ...panels.map(p => Math.max(1, Math.ceil(p.text.length / panelChars))),
+  );
+  const panelH = Math.min(2.1, 0.96 + panelRows * 0.26);
 
   panels.forEach((panel, i) => {
     const x = MARGIN + i * (panelW + GAP);
