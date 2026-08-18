@@ -60,9 +60,9 @@ function personaCards(persona: Persona): CardDef[] {
   return defs.filter(d => d.lines.length > 0);
 }
 
-const LINE_H = 0.245;
+const LINE_H = 0.20;
 const CARD_PAD_TOP = 0.62;
-const CARD_PAD_BOTTOM = 0.16;
+const CARD_PAD_BOTTOM = 0.22;
 const CHARS_PER_LINE = Math.floor((COL_W - 0.45) * 14.5);
 
 function wrappedCount(line: string) {
