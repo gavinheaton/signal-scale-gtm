@@ -246,7 +246,7 @@ function slugify(s: string) {
 
 function newDeck() {
   const pptx = new PptxGenJS();
-  pptx.layout = 'LAYOUT_16x9';
+  pptx.layout = 'LAYOUT_WIDE';
   pptx.author = 'Signal + Scale';
   pptx.company = 'Signal + Scale';
   return pptx;
