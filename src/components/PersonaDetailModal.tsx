@@ -2,8 +2,10 @@ import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Pencil, Trash2, Target, Zap, Building2, ShoppingCart, Radio, FileCheck, Handshake, Brain, RefreshCw, Loader2, ArrowRightLeft, Copy, MoreHorizontal, FileText } from 'lucide-react';
+import { Pencil, Trash2, Target, Zap, Building2, ShoppingCart, Radio, FileCheck, Handshake, Brain, RefreshCw, Loader2, ArrowRightLeft, Copy, MoreHorizontal, FileText, Presentation } from 'lucide-react';
 import { downloadPersonaDocx } from '@/lib/personaDocx';
+import { downloadPersonaPptx } from '@/lib/personaPptx';
+
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
