@@ -287,12 +287,16 @@ export default function ICPWizard() {
         .eq('status', 'in_progress');
 
       toast.success('ICP saved to platform!');
+      clearLocalDraft(sessionId);
       setSavedIcpId(insertedData.id);
       triggerStrategySync(currentProject.id, (currentProject as any).notion_strategy_page_id);
       setSaving(false);
 
     } catch (err: any) {
-      toast.error('Failed to save: ' + err.message);
+      // Non-destructive: draft, session and chat are all left intact so you can retry
+      toast.error('Not saved — your draft is safe, try again: ' + (err.message || 'Unknown error'), {
+        duration: 8000,
+      });
       setSaving(false);
     }
   };
