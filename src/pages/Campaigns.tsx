@@ -395,6 +395,17 @@ export default function Campaigns() {
         <Button onClick={() => navigate('/project/campaign-wizard')}><Plus className="h-4 w-4 mr-1" /> New Campaign</Button>
       </div>
 
+      {currentProject && (
+        <UnsavedDraftCard
+          projectId={currentProject.id}
+          sessionType="campaign"
+          resumeTo="/project/campaign-wizard"
+          label="campaign"
+        />
+      )}
+
+
+
       {total > 0 && (
         <Card>
           <CardContent className="pt-6">
