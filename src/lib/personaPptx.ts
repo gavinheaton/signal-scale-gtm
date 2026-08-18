@@ -92,6 +92,11 @@ function personaCards(persona: Persona): CardDef[] {
     { title: 'Evidence That Convinces Them', lines: flatten(preferred_evidence) },
   ];
 
+  // "How we help" leads the overview slide; only repeat it here when there is
+  // more than the single line that slide can show.
+  const help = flatten(persona.how_we_help);
+  if (help.length > 1) defs.push({ title: 'How We Help', lines: help, noBullet: false });
+
   return defs.filter(d => d.lines.length > 0).map((d, i) => ({ ...d, index: i + 1 }));
 }
 
