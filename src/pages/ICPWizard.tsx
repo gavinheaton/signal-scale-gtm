@@ -43,6 +43,36 @@ export default function ICPWizard() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const ICP_CONTEXT_VERSION = 'company_context_v2';
 
+  const draftKey = (id: string) => `wizard-draft:${id}`;
+
+  const countSections = (d: DraftOutput) => (d?.sections_complete?.length || 0);
+
+  // Local safety copy — survives a refresh or crash before the server round-trip lands
+  useEffect(() => {
+    if (!sessionId) return;
+    const hasContent = Object.keys(draft || {}).some(k => k !== '_meta');
+    if (!hasContent) return;
+    try {
+      localStorage.setItem(draftKey(sessionId), JSON.stringify({ draft, messages }));
+    } catch {}
+  }, [sessionId, draft, messages]);
+
+  const clearLocalDraft = (id: string | null) => {
+    if (!id) return;
+    try {
+      localStorage.removeItem(draftKey(id));
+    } catch {}
+  };
+
+  const readLocalDraft = (id: string): { draft: DraftOutput; messages: ChatMessage[] } | null => {
+    try {
+      const raw = localStorage.getItem(draftKey(id));
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  };
+
   // Detect newly completed sections for inline celebrations
   useEffect(() => {
     if (!draft.sections_complete || !prevDraft.sections_complete) return;
@@ -125,14 +155,21 @@ export default function ICPWizard() {
 
         setSessionId(session.id);
         const sessionMessages = session.messages as Array<{ role: string; content: string }>;
-        setMessages(
-          sessionMessages.map(m => ({
-            role: m.role as 'user' | 'assistant',
-            content: m.role === 'assistant' ? stripDraft(m.content) : m.content,
-          }))
-        );
-        if (session.draft_output && Object.keys(session.draft_output as object).length > 0) {
-          setDraft(session.draft_output as DraftOutput);
+        const serverMessages: ChatMessage[] = sessionMessages.map(m => ({
+          role: m.role as 'user' | 'assistant',
+          content: m.role === 'assistant' ? stripDraft(m.content) : m.content,
+        }));
+        const serverDraft = (session.draft_output as DraftOutput) || {};
+
+        // Prefer the local safety copy only if it holds more completed sections
+        const local = readLocalDraft(session.id);
+        if (local?.draft && countSections(local.draft) > countSections(serverDraft)) {
+          setMessages(local.messages?.length ? local.messages : serverMessages);
+          setDraft(local.draft);
+          toast.info('Restored an unsaved draft from this browser');
+        } else {
+          setMessages(serverMessages);
+          if (Object.keys(serverDraft).length > 0) setDraft(serverDraft);
         }
         setStaleResume(false);
         // Re-surface diff chips if this is an ongoing diff session
@@ -250,12 +287,16 @@ export default function ICPWizard() {
         .eq('status', 'in_progress');
 
       toast.success('ICP saved to platform!');
+      clearLocalDraft(sessionId);
       setSavedIcpId(insertedData.id);
       triggerStrategySync(currentProject.id, (currentProject as any).notion_strategy_page_id);
       setSaving(false);
 
     } catch (err: any) {
-      toast.error('Failed to save: ' + err.message);
+      // Non-destructive: draft, session and chat are all left intact so you can retry
+      toast.error('Not saved — your draft is safe, try again: ' + (err.message || 'Unknown error'), {
+        duration: 8000,
+      });
       setSaving(false);
     }
   };
@@ -279,6 +320,7 @@ export default function ICPWizard() {
           .eq('status', 'in_progress');
       } catch {}
     }
+    clearLocalDraft(sessionId);
     setMessages([]);
     setDraft({});
     setPrevDraft({});

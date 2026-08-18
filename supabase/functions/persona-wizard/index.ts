@@ -339,7 +339,8 @@ Deno.serve(async (req) => {
       .update({
         messages,
         draft_output: updatedDraft,
-        status: isComplete ? "complete" : "in_progress",
+        // Session stays in_progress until the persona row is actually saved by the client.
+        status: "in_progress",
       })
       .eq("id", sessionId);
 

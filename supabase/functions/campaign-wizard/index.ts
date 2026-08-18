@@ -325,7 +325,8 @@ Deno.serve(async (req) => {
       .update({
         messages,
         draft_output: updatedDraft,
-        status: isComplete ? "complete" : "in_progress",
+        // Session stays in_progress until the campaign row is actually saved by the client.
+        status: "in_progress",
         ...(notionUrl ? { notion_url: notionUrl } : {}),
       })
       .eq("id", sessionId);

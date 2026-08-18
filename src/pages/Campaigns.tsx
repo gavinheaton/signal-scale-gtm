@@ -20,6 +20,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { format, parseISO } from 'date-fns';
 import { cn } from '@/lib/utils';
+import UnsavedDraftCard from '@/components/wizard/UnsavedDraftCard';
 
 const statusColumns: CampaignStatus[] = ['brief', 'planning', 'active', 'complete'];
 const trackColors = { demand_capture: 'bg-orange-100 text-orange-800', demand_creation: 'bg-purple-100 text-purple-800' };
@@ -394,6 +395,17 @@ export default function Campaigns() {
         <h1 className="text-2xl font-bold text-foreground">Campaigns</h1>
         <Button onClick={() => navigate('/project/campaign-wizard')}><Plus className="h-4 w-4 mr-1" /> New Campaign</Button>
       </div>
+
+      {currentProject && (
+        <UnsavedDraftCard
+          projectId={currentProject.id}
+          sessionType="campaign"
+          resumeTo="/project/campaign-wizard"
+          label="campaign"
+        />
+      )}
+
+
 
       {total > 0 && (
         <Card>
