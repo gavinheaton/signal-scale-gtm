@@ -17,6 +17,7 @@ import { Navigate, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import NotionImportDialog from '@/components/notion/NotionImportDialog';
+import UnsavedDraftCard from '@/components/wizard/UnsavedDraftCard';
 
 
 const matrixColors: Record<MatrixCategory, string> = {
