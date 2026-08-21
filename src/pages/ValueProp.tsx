@@ -215,9 +215,50 @@ export default function ValueProp() {
 
   const suggestVariations = async () => {
     const res = await callAI('variations');
-    if (!res?.variations) return;
-    setVariations(res.variations);
+    if (!res?.variations?.length || !selected) return;
+    const rows = res.variations.map((v: any) => ({
+      project_id: currentProject.id,
+      value_prop_id: selected.id,
+      icp_id: selected.icp_id,
+      persona_id: selected.persona_id,
+      label: v.label || null,
+      angle: v.angle || null,
+      statement: v.statement || '',
+    })).filter((r: any) => r.statement);
+    const { data, error } = await (supabase.from('value_prop_variations' as any).insert(rows).select('*') as any);
+    if (error) {
+      // Don't lose the generated text — keep it on screen
+      setVariations([...(rows as Variation[]), ...variations]);
+      toast.error(`Generated but not saved: ${error.message}`);
+      return;
+    }
+    setVariations([...(data || []), ...variations]);
+    toast.success(`Saved ${rows.length} variations`);
   };
+
+  const useVariation = async (v: Variation) => {
+    if (!selected) return;
+    updateSelected({ statement: v.statement });
+    if (!v.id) return;
+    await (supabase.from('value_prop_variations' as any).update({ is_selected: false }).eq('value_prop_id', selected.id) as any);
+    await (supabase.from('value_prop_variations' as any).update({ is_selected: true }).eq('id', v.id) as any);
+    setVariations((prev) => prev.map((x) => ({ ...x, is_selected: x.id === v.id })));
+    toast.success('Applied — remember to Save the statement');
+  };
+
+  const updateVariationText = async (id: string, statement: string) => {
+    setVariations((prev) => prev.map((x) => (x.id === id ? { ...x, statement } : x)));
+    const { error } = await (supabase.from('value_prop_variations' as any).update({ statement }).eq('id', id) as any);
+    if (error) toast.error(error.message);
+  };
+
+  const deleteVariation = async (id?: string) => {
+    if (!id) return;
+    const { error } = await (supabase.from('value_prop_variations' as any).delete().eq('id', id) as any);
+    if (error) { toast.error(error.message); return; }
+    setVariations((prev) => prev.filter((x) => x.id !== id));
+  };
+
 
   const toggleProblemChar = async (p: Problem, key: keyof Problem) => {
     if (!p.id) return;
