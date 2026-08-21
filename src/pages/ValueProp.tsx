@@ -70,7 +70,10 @@ export default function ValueProp() {
   const [saving, setSaving] = useState(false);
   const [aiBusy, setAiBusy] = useState<string | null>(null);
   const [problems, setProblems] = useState<Problem[]>([]);
-  const [variations, setVariations] = useState<{ label: string; statement: string; angle: string }[]>([]);
+  const [variations, setVariations] = useState<Variation[]>([]);
+  const [editingVariationId, setEditingVariationId] = useState<string | null>(null);
+  const [variationDraft, setVariationDraft] = useState('');
+
   const [editingProblemId, setEditingProblemId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState('');
 
