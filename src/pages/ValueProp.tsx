@@ -33,6 +33,15 @@ interface ValueProp {
   updated_at: string;
 }
 
+interface Variation {
+  id?: string;
+  label: string | null;
+  angle: string | null;
+  statement: string;
+  is_selected?: boolean;
+  created_at?: string;
+}
+
 interface Problem {
   id?: string;
   problem: string;
@@ -43,6 +52,7 @@ interface Problem {
   worth_solving_score: number;
   source?: string;
 }
+
 
 const MEMORY_DART_FIELDS = [
   { key: 'i_am', label: "I'm", placeholder: 'Your name / business' },
