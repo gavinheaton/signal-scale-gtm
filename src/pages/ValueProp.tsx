@@ -108,10 +108,13 @@ export default function ValueProp() {
   }, [currentProject]);
 
   useEffect(() => {
-    if (!selectedId) { setProblems([]); return; }
+    if (!selectedId) { setProblems([]); setVariations([]); return; }
     (supabase.from('value_prop_problems' as any).select('*').eq('value_prop_id', selectedId).order('worth_solving_score', { ascending: false }) as any)
       .then(({ data }: any) => setProblems(data || []));
+    (supabase.from('value_prop_variations' as any).select('*').eq('value_prop_id', selectedId).order('created_at', { ascending: false }) as any)
+      .then(({ data }: any) => setVariations(data || []));
   }, [selectedId]);
+
 
   if (!currentProject) return <Navigate to="/projects" replace />;
 
