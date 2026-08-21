@@ -555,7 +555,12 @@ export default function ValueProp() {
                             <SelectItem value="archived">Archived</SelectItem>
                           </SelectContent>
                         </Select>
-                        <Button size="sm" variant="outline" onClick={suggestVariations} disabled={aiBusy === 'variations'}>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={suggestVariations}
+                          disabled={aiBusy === 'variations' || (!selected.statement && !Object.values(selected.fields || {}).some(Boolean))}
+                        >
                           {aiBusy === 'variations' ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Sparkles className="h-4 w-4 mr-1" />}
                           3 variations
                         </Button>
@@ -572,18 +577,62 @@ export default function ValueProp() {
 
                     {variations.length > 0 && (
                       <div className="space-y-2">
-                        <p className="text-xs font-semibold uppercase text-muted-foreground">AI Variations</p>
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs font-semibold uppercase text-muted-foreground">
+                            Saved variations ({variations.length})
+                          </p>
+                          {selected.persona_id && (
+                            <span className="text-xs text-muted-foreground">
+                              {personas.find((p) => p.id === selected.persona_id)?.persona_name}
+                            </span>
+                          )}
+                        </div>
                         {variations.map((v, i) => (
-                          <div key={i} className="border rounded-md p-3 space-y-2">
-                            <div className="flex items-center justify-between">
-                              <Badge variant="outline">{v.label || v.angle}</Badge>
-                              <Button size="sm" variant="ghost" onClick={() => updateSelected({ statement: v.statement })}>Use this</Button>
+                          <div key={v.id || i} className={`border rounded-md p-3 space-y-2 ${v.is_selected ? 'border-primary' : ''}`}>
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-2">
+                                <Badge variant="outline">{v.label || v.angle || 'Variation'}</Badge>
+                                {v.is_selected && <Badge>In use</Badge>}
+                                {v.created_at && (
+                                  <span className="text-xs text-muted-foreground">
+                                    {new Date(v.created_at).toLocaleDateString()}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <Button size="sm" variant="ghost" onClick={() => useVariation(v)}>Use this</Button>
+                                {v.id && editingVariationId !== v.id && (
+                                  <Button size="icon" variant="ghost" onClick={() => { setEditingVariationId(v.id!); setVariationDraft(v.statement); }}>
+                                    <Pencil className="h-3.5 w-3.5" />
+                                  </Button>
+                                )}
+                                {v.id && (
+                                  <Button size="icon" variant="ghost" onClick={() => deleteVariation(v.id)}>
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </Button>
+                                )}
+                              </div>
                             </div>
-                            <p className="text-sm">{v.statement}</p>
+                            {editingVariationId === v.id ? (
+                              <div className="space-y-2">
+                                <Textarea rows={3} value={variationDraft} onChange={(e) => setVariationDraft(e.target.value)} />
+                                <div className="flex gap-2">
+                                  <Button size="sm" onClick={async () => { await updateVariationText(v.id!, variationDraft); setEditingVariationId(null); }}>
+                                    <Check className="h-3.5 w-3.5 mr-1" /> Save
+                                  </Button>
+                                  <Button size="sm" variant="ghost" onClick={() => setEditingVariationId(null)}>
+                                    <X className="h-3.5 w-3.5 mr-1" /> Cancel
+                                  </Button>
+                                </div>
+                              </div>
+                            ) : (
+                              <p className="text-sm">{v.statement}</p>
+                            )}
                           </div>
                         ))}
                       </div>
                     )}
+
                   </CardContent>
                 </Card>
               </TabsContent>
