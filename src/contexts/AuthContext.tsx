@@ -96,16 +96,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let mounted = true;
+    const loadedForUser = { current: null as string | null };
 
     const bootstrap = async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      console.log('[Auth] bootstrap session:', !!session);
       if (!mounted) return;
 
       setSession(session);
       setUser(session?.user ?? null);
 
       if (session?.user) {
+        loadedForUser.current = session.user.id;
         await fetchOrgData(session.user.id);
       }
 
@@ -117,27 +118,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
-        console.log('[Auth] onAuthStateChange:', event, !!session);
         if (!mounted) return;
 
-        setSession(session);
-        setUser(session?.user ?? null);
+        // Token refreshes / focus-triggered re-validation must never reset the
+        // app into a loading state — that unmounts the tree and loses in-progress work.
+        if (event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
+          setSession(session);
+          setUser(session?.user ?? null);
+          return;
+        }
 
-        if (session?.user) {
-          setLoading(true);
-          setTimeout(async () => {
-            if (!mounted) return;
-            await fetchOrgData(session.user.id);
-            if (mounted) {
-              bootstrapped.current = true;
-              setLoading(false);
-            }
-          }, 0);
-        } else {
+        if (event === 'SIGNED_OUT' || !session?.user) {
+          setSession(null);
+          setUser(null);
           setMemberships([]);
           setOrganisations([]);
-          if (mounted && bootstrapped.current) setLoading(false);
+          loadedForUser.current = null;
+          if (bootstrapped.current) setLoading(false);
+          return;
         }
+
+        setSession(session);
+        setUser(session.user);
+
+        // Same user re-emitting SIGNED_IN (e.g. tab regains focus): keep state as-is.
+        if (loadedForUser.current === session.user.id) return;
+
+        loadedForUser.current = session.user.id;
+        const showLoading = !bootstrapped.current;
+        if (showLoading) setLoading(true);
+        setTimeout(async () => {
+          if (!mounted) return;
+          await fetchOrgData(session.user.id);
+          if (mounted) {
+            bootstrapped.current = true;
+            setLoading(false);
+          }
+        }, 0);
       }
     );
 
@@ -148,6 +165,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       subscription.unsubscribe();
     };
   }, []);
+
 
   const signOut = async () => {
     await supabase.auth.signOut();
