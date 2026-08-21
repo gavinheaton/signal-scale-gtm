@@ -1851,6 +1851,77 @@ export type Database = {
           },
         ]
       }
+      value_prop_variations: {
+        Row: {
+          angle: string | null
+          created_at: string
+          icp_id: string | null
+          id: string
+          is_selected: boolean
+          label: string | null
+          persona_id: string | null
+          project_id: string
+          statement: string
+          updated_at: string
+          value_prop_id: string
+        }
+        Insert: {
+          angle?: string | null
+          created_at?: string
+          icp_id?: string | null
+          id?: string
+          is_selected?: boolean
+          label?: string | null
+          persona_id?: string | null
+          project_id: string
+          statement: string
+          updated_at?: string
+          value_prop_id: string
+        }
+        Update: {
+          angle?: string | null
+          created_at?: string
+          icp_id?: string | null
+          id?: string
+          is_selected?: boolean
+          label?: string | null
+          persona_id?: string | null
+          project_id?: string
+          statement?: string
+          updated_at?: string
+          value_prop_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "value_prop_variations_icp_id_fkey"
+            columns: ["icp_id"]
+            isOneToOne: false
+            referencedRelation: "icps"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "value_prop_variations_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "value_prop_variations_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "value_prop_variations_value_prop_id_fkey"
+            columns: ["value_prop_id"]
+            isOneToOne: false
+            referencedRelation: "value_propositions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       value_propositions: {
         Row: {
           ai_model: string | null
