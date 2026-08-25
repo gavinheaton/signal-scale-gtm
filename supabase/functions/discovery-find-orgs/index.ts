@@ -250,8 +250,9 @@ RULES:
 
     console.log("[find-orgs] direct:", directCandidates.length, "articles:", articleSources.length, "dropped:", dropped.length);
 
-    // ---- Stage 2: scrape article sources, throttled (concurrency 2) with 429 backoff ----
-    const toScrape = articleSources.slice(0, 8);
+    // ---- Stage 2: scrape article sources, throttled (concurrency 3) with 429 backoff ----
+    const toScrape = articleSources.slice(0, 6);
+
     type ScrapeOutcome = { url: string; title: string; http_status: number; markdown_length: number; kept: boolean; attempts: number; error?: string };
     const scrapeOnce = async (url: string, onlyMain: boolean) => {
       for (let attempt = 0; attempt < 3; attempt++) {
