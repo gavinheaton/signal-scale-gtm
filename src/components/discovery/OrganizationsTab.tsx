@@ -400,7 +400,10 @@ function SearchPanel({ campaign, onAdded, onClose }: { campaign: DiscoveryCampai
   const [hasRun, setHasRun] = useState(false);
   const [savedCount, setSavedCount] = useState<number | null>(null);
   const [skippedCount, setSkippedCount] = useState<number>(0);
+  const [pendingRun, setPendingRun] = useState<{ id: string; count: number } | null>(null);
+  const [importing, setImporting] = useState(false);
   const cancelledRef = useRef(false);
+
 
 
 
