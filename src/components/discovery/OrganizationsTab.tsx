@@ -549,11 +549,17 @@ function SearchPanel({ campaign, onAdded, onClose }: { campaign: DiscoveryCampai
             {running ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Sparkles className="h-4 w-4 mr-1" />}
             {running ? 'Searching…' : hasRun ? 'Run another search' : 'Run search'}
           </Button>
-          {savedCount !== null && (
+          {running && (
+            <span className="text-xs text-muted-foreground">
+              Searching the web for organisations — this can take a couple of minutes. You can leave this open.
+            </span>
+          )}
+          {!running && savedCount !== null && (
             <span className="text-xs text-muted-foreground">
               Saved {savedCount}{skippedCount > 0 ? ` · skipped ${skippedCount} duplicate${skippedCount === 1 ? '' : 's'}` : ''}
             </span>
           )}
+
         </div>
 
         {saved.length > 0 && (
