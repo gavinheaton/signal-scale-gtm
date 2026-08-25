@@ -401,8 +401,9 @@ HARD RULES:
     };
 
     if (merged.length === 0) {
-      return json({ candidates: [], debug: baseDebug });
+      return { candidates: [], debug: baseDebug };
     }
+
 
     // ---- Stage 3: AI scoring against ICP (loose: default-include) ----
     const ai2 = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
