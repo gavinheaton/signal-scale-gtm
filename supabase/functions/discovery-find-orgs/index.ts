@@ -284,11 +284,11 @@ RULES:
       }
     };
     const scrapeResults: { outcome: ScrapeOutcome; markdown: string }[] = [];
-    for (let i = 0; i < toScrape.length; i += 2) {
-      const batch = await Promise.all(toScrape.slice(i, i + 2).map(scrapeOne));
+    for (let i = 0; i < toScrape.length; i += 3) {
+      const batch = await Promise.all(toScrape.slice(i, i + 3).map(scrapeOne));
       scrapeResults.push(...batch);
-      if (i + 2 < toScrape.length) await sleep(1500);
     }
+
 
     const scrapeOutcomes = scrapeResults.map((s) => s.outcome);
     const scrapedArticles = scrapeResults
