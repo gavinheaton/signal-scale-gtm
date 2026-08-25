@@ -404,56 +404,98 @@ function SearchPanel({ campaign, onAdded, onClose }: { campaign: DiscoveryCampai
 
 
 
-  const handleResult = async (cands: FindCandidate[], dbg: any) => {
-    setDebug(dbg || null);
-    if (cands.length === 0) return;
-
-    // Dedupe against existing orgs on this campaign (by lower(domain) or lower(name))
-    const { data: existing } = await (supabase as any)
+  // Candidates are saved server-side by the background job. Here we just show what landed.
+  const showSavedRows = async (cands: FindCandidate[]) => {
+    if (!Array.isArray(cands) || cands.length === 0) { setSaved([]); return; }
+    const { data: orgs } = await (supabase as any)
       .from('discovery_organizations')
-      .select('name, domain')
+      .select('id, name, domain')
       .eq('campaign_id', campaign.id);
-    const existingKeys = new Set<string>(
-      (existing || []).map((o: any) => (o.domain || o.name || '').toLowerCase()).filter(Boolean)
+    const byKey = new Map<string, string>(
+      (orgs || []).map((o: any) => [(o.domain || o.name || '').toLowerCase(), o.id as string]),
     );
-    const fresh: FindCandidate[] = [];
-    let skipped = 0;
-    for (const c of cands) {
-      const key = (c.domain || c.name || '').toLowerCase();
-      if (!key || existingKeys.has(key)) { skipped++; continue; }
-      existingKeys.add(key);
-      fresh.push(c);
-    }
-    setSkippedCount(skipped);
+    setSaved(
+      cands
+        .map((c) => ({ ...c, _rowId: byKey.get((c.domain || c.name || '').toLowerCase()) || '' }))
+        .filter((c) => c._rowId),
+    );
+  };
 
-    if (fresh.length === 0) {
-      setSavedCount(0);
-      await onAdded();
-      return;
-    }
-
-    const rows = fresh.map((c) => ({
-      campaign_id: campaign.id,
-      name: c.name,
-      domain: c.domain,
-      tier: c.suggested_tier,
-      signals_matched: c.matched_signals,
-      fit_notes: c.rationale,
-      source: 'firecrawl',
-      source_url: c.source_url,
-      leadership: Array.isArray(c.leadership) ? c.leadership : [],
-      confidence: c.confidence || null,
-    }));
-    const { data: inserted, error: insErr } = await (supabase as any)
-      .from('discovery_organizations').insert(rows).select('id, name, domain');
-    if (insErr) {
-      toast.error(`Saved 0 organisations: ${insErr.message}`);
-      return;
-    }
-    setSavedCount(inserted?.length || rows.length);
-    setSaved(fresh.map((c, i) => ({ ...c, _rowId: inserted?.[i]?.id || '' })));
-    toast.success(`Saved ${inserted?.length || rows.length} organisation${(inserted?.length || rows.length) === 1 ? '' : 's'}`);
+  const handleComplete = async (row: any) => {
+    const cands = (row?.candidates || []) as FindCandidate[];
+    setDebug(row?.debug || null);
+    setSavedCount(typeof row?.saved_count === 'number' ? row.saved_count : 0);
+    setSkippedCount(typeof row?.skipped_count === 'number' ? row.skipped_count : 0);
+    if (row?.error) toast.error(row.error);
+    setPendingRun(
+      typeof row?.saved_count === 'number' || cands.length === 0
+        ? null
+        : { id: row.id as string, count: cands.length },
+    );
+    await showSavedRows(cands);
     await onAdded();
+  };
+
+  // Import a completed run whose candidates were never persisted (legacy runs).
+  const importRun = async (runId: string) => {
+    setImporting(true);
+    try {
+      const { data: row } = await (supabase as any)
+        .from('discovery_search_runs')
+        .select('id, candidates')
+        .eq('id', runId)
+        .maybeSingle();
+      const cands = (row?.candidates || []) as FindCandidate[];
+      if (cands.length === 0) { toast.error('This run has no candidates to import'); return; }
+
+      const { data: existing } = await (supabase as any)
+        .from('discovery_organizations')
+        .select('name, domain')
+        .eq('campaign_id', campaign.id);
+      const keys = new Set<string>(
+        (existing || []).map((o: any) => (o.domain || o.name || '').toLowerCase()).filter(Boolean),
+      );
+      const fresh: FindCandidate[] = [];
+      let skipped = 0;
+      for (const c of cands) {
+        const key = (c.domain || c.name || '').toLowerCase();
+        if (!key || keys.has(key)) { skipped++; continue; }
+        keys.add(key);
+        fresh.push(c);
+      }
+      let savedN = 0;
+      if (fresh.length > 0) {
+        const rows = fresh.map((c) => ({
+          campaign_id: campaign.id,
+          name: c.name,
+          domain: c.domain || null,
+          tier: c.suggested_tier,
+          signals_matched: c.matched_signals,
+          fit_notes: c.rationale,
+          source: 'firecrawl',
+          source_url: c.source_url,
+          leadership: Array.isArray(c.leadership) ? c.leadership : [],
+          confidence: c.confidence || null,
+        }));
+        const { data: inserted, error: insErr } = await (supabase as any)
+          .from('discovery_organizations').insert(rows).select('id');
+        if (insErr) { toast.error(insErr.message); return; }
+        savedN = inserted?.length || rows.length;
+      }
+      await (supabase as any)
+        .from('discovery_search_runs')
+        .update({ saved_count: savedN, skipped_count: skipped })
+        .eq('id', runId);
+      setSavedCount(savedN);
+      setSkippedCount(skipped);
+      setPendingRun(null);
+      setHasRun(true);
+      await showSavedRows(cands);
+      await onAdded();
+      toast.success(`Imported ${savedN} organisation${savedN === 1 ? '' : 's'}`);
+    } finally {
+      setImporting(false);
+    }
   };
 
   // Poll a background search run until it completes (or errors / times out).
@@ -463,13 +505,13 @@ function SearchPanel({ campaign, onAdded, onClose }: { campaign: DiscoveryCampai
     while (!cancelledRef.current && Date.now() - started < 6 * 60 * 1000) {
       const { data: row } = await (supabase as any)
         .from('discovery_search_runs')
-        .select('status, candidates, debug, error')
+        .select('id, status, candidates, debug, error, saved_count, skipped_count')
         .eq('id', runId)
         .maybeSingle();
       if (row?.status === 'complete') {
         setRunning(false);
         setHasRun(true);
-        await handleResult((row.candidates || []) as FindCandidate[], row.debug);
+        await handleComplete(row);
         return;
       }
       if (row?.status === 'error') {
@@ -486,23 +528,29 @@ function SearchPanel({ campaign, onAdded, onClose }: { campaign: DiscoveryCampai
       setHasRun(true);
       toast.error('Search is taking longer than expected — reopen this panel shortly to see results.');
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [campaign.id]);
 
-  // Re-attach to an in-flight run (e.g. after navigating away and back).
+  // Re-attach to the newest run for this campaign — in-flight or recently finished.
   useEffect(() => {
     cancelledRef.current = false;
     (async () => {
       const { data: row } = await (supabase as any)
         .from('discovery_search_runs')
-        .select('id, status')
+        .select('id, status, candidates, debug, error, saved_count, skipped_count')
         .eq('campaign_id', campaign.id)
-        .eq('status', 'running')
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
-      if (row?.id && !cancelledRef.current) pollRun(row.id);
+      if (!row || cancelledRef.current) return;
+      if (row.status === 'running') { pollRun(row.id); return; }
+      if (row.status === 'complete') {
+        setHasRun(true);
+        await handleComplete(row);
+      }
     })();
     return () => { cancelledRef.current = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [campaign.id, pollRun]);
 
   const run = async () => {
@@ -511,6 +559,7 @@ function SearchPanel({ campaign, onAdded, onClose }: { campaign: DiscoveryCampai
     setDebug(null);
     setSavedCount(null);
     setSkippedCount(0);
+    setPendingRun(null);
 
     const { data, error } = await supabase.functions.invoke('discovery-find-orgs', { body: { campaign_id: campaign.id } });
     if (error || !(data as any)?.run_id) {
@@ -523,6 +572,7 @@ function SearchPanel({ campaign, onAdded, onClose }: { campaign: DiscoveryCampai
     }
     await pollRun((data as any).run_id as string);
   };
+
 
 
   const removeOne = async (rowId: string) => {
