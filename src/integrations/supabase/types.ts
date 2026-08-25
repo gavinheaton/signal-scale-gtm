@@ -1136,6 +1136,8 @@ export type Database = {
           debug: Json | null
           error: string | null
           id: string
+          saved_count: number | null
+          skipped_count: number | null
           status: string
           updated_at: string
         }
@@ -1147,6 +1149,8 @@ export type Database = {
           debug?: Json | null
           error?: string | null
           id?: string
+          saved_count?: number | null
+          skipped_count?: number | null
           status?: string
           updated_at?: string
         }
@@ -1158,6 +1162,8 @@ export type Database = {
           debug?: Json | null
           error?: string | null
           id?: string
+          saved_count?: number | null
+          skipped_count?: number | null
           status?: string
           updated_at?: string
         }
