@@ -615,6 +615,19 @@ function SearchPanel({ campaign, onAdded, onClose }: { campaign: DiscoveryCampai
 
         </div>
 
+        {pendingRun && !running && (
+          <div className="rounded border border-amber-300 bg-amber-50 p-3 text-xs flex items-center justify-between gap-3">
+            <span>
+              A previous search found <strong>{pendingRun.count}</strong> organisation{pendingRun.count === 1 ? '' : 's'} that were never saved.
+            </span>
+            <Button size="sm" variant="outline" disabled={importing} onClick={() => importRun(pendingRun.id)}>
+              {importing ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : null}
+              Import results
+            </Button>
+          </div>
+        )}
+
+
         {saved.length > 0 && (
           <div className="space-y-2 max-h-[55vh] overflow-y-auto border rounded p-2">
             {saved.map((c) => (
