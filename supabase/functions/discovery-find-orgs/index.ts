@@ -478,13 +478,56 @@ RULES — default to INCLUDE, not exclude:
       };
     };
 
+    // Persist candidates server-side so results are never lost if nobody is watching.
+    const saveCandidates = async (cands: any[]) => {
+      if (!Array.isArray(cands) || cands.length === 0) return { saved: 0, skipped: 0 };
+      const { data: existing } = await sb
+        .from("discovery_organizations")
+        .select("name, domain")
+        .eq("campaign_id", campaign_id);
+      const keys = new Set<string>(
+        (existing || []).map((o: any) => (o.domain || o.name || "").toLowerCase()).filter(Boolean),
+      );
+      const rows: any[] = [];
+      let skipped = 0;
+      for (const c of cands) {
+        const key = (c.domain || c.name || "").toLowerCase();
+        if (!key || keys.has(key)) { skipped++; continue; }
+        keys.add(key);
+        rows.push({
+          campaign_id,
+          name: c.name,
+          domain: c.domain || null,
+          tier: c.suggested_tier || null,
+          signals_matched: Array.isArray(c.matched_signals) ? c.matched_signals : [],
+          fit_notes: c.rationale || null,
+          source: "firecrawl",
+          source_url: c.source_url || null,
+          leadership: Array.isArray(c.leadership) ? c.leadership : [],
+          confidence: c.confidence || null,
+        });
+      }
+      if (rows.length === 0) return { saved: 0, skipped };
+      const { data: inserted, error: insErr } = await sb
+        .from("discovery_organizations").insert(rows).select("id");
+      if (insErr) {
+        console.error("[find-orgs] insert failed", insErr.message);
+        return { saved: 0, skipped, error: insErr.message };
+      }
+      return { saved: inserted?.length || rows.length, skipped };
+    };
+
     const background = (async () => {
       try {
         const result = await pipeline();
+        const { saved, skipped, error: saveErr } = await saveCandidates(result.candidates);
         await sb.from("discovery_search_runs").update({
           status: "complete",
           candidates: result.candidates,
           debug: result.debug,
+          saved_count: saved,
+          skipped_count: skipped,
+          error: saveErr || null,
         }).eq("id", runId);
       } catch (e: any) {
         console.error("[find-orgs] pipeline failed", e?.message);
@@ -495,6 +538,7 @@ RULES — default to INCLUDE, not exclude:
         }).eq("id", runId);
       }
     })();
+
 
     // Keep the worker alive after the response is returned.
     const rt = (globalThis as any).EdgeRuntime;
