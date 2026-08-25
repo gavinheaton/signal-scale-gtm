@@ -400,6 +400,9 @@ function SearchPanel({ campaign, onAdded, onClose }: { campaign: DiscoveryCampai
   const [hasRun, setHasRun] = useState(false);
   const [savedCount, setSavedCount] = useState<number | null>(null);
   const [skippedCount, setSkippedCount] = useState<number>(0);
+  const cancelledRef = useRef(false);
+
+
 
   const handleResult = async (cands: FindCandidate[], dbg: any) => {
     setDebug(dbg || null);
