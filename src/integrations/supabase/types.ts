@@ -1127,6 +1127,50 @@ export type Database = {
           },
         ]
       }
+      discovery_search_runs: {
+        Row: {
+          campaign_id: string
+          candidates: Json
+          created_at: string
+          created_by: string | null
+          debug: Json | null
+          error: string | null
+          id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          campaign_id: string
+          candidates?: Json
+          created_at?: string
+          created_by?: string | null
+          debug?: Json | null
+          error?: string | null
+          id?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          campaign_id?: string
+          candidates?: Json
+          created_at?: string
+          created_by?: string | null
+          debug?: Json | null
+          error?: string | null
+          id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "discovery_search_runs_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "discovery_campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       discovery_themes: {
         Row: {
           campaign_id: string

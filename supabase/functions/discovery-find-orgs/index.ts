@@ -92,7 +92,18 @@ Deno.serve(async (req) => {
     catch (e: any) { return json({ error: e?.message || "Forbidden" }, 403); }
     if (!FIRECRAWL_API_KEY) return json({ error: "FIRECRAWL_API_KEY not configured" }, 500);
 
+    // Create the run row up front, answer immediately, then work in the background.
+    const { data: run, error: runErr } = await sb
+      .from("discovery_search_runs")
+      .insert({ campaign_id, status: "running", created_by: user.id })
+      .select("id")
+      .single();
+    if (runErr || !run) return json({ error: runErr?.message || "Could not start search run" }, 500);
+    const runId = run.id as string;
+
+    const pipeline = async () => {
     const allSignals: string[] = Array.isArray(campaign.qualifying_signals) ? campaign.qualifying_signals : [];
+
     const firmographic = allSignals.filter(isFirmographic).slice(0, 3);
     const segment = (campaign.target_segment || "").trim();
     const baseSegment = segment || firmographic.join(" ");
@@ -183,11 +194,9 @@ RULES:
       }
       return last;
     };
-    const searches: { q: string; status: number; hits: any[] }[] = [];
-    for (const q of variants) {
-      searches.push(await searchOnce(q));
-      await sleep(1200);
-    }
+    // Run the query variants concurrently — per-query 429 backoff still applies.
+    const searches: { q: string; status: number; hits: any[] }[] = await Promise.all(variants.map(searchOnce));
+
     const rawHits: any[] = searches.flatMap((s) => s.hits);
     console.log("[find-orgs] raw hits:", rawHits.length, "per query:", searches.map((s) => `${s.status}:${s.hits.length}`).join(","));
 
@@ -241,8 +250,9 @@ RULES:
 
     console.log("[find-orgs] direct:", directCandidates.length, "articles:", articleSources.length, "dropped:", dropped.length);
 
-    // ---- Stage 2: scrape article sources, throttled (concurrency 2) with 429 backoff ----
-    const toScrape = articleSources.slice(0, 8);
+    // ---- Stage 2: scrape article sources, throttled (concurrency 3) with 429 backoff ----
+    const toScrape = articleSources.slice(0, 6);
+
     type ScrapeOutcome = { url: string; title: string; http_status: number; markdown_length: number; kept: boolean; attempts: number; error?: string };
     const scrapeOnce = async (url: string, onlyMain: boolean) => {
       for (let attempt = 0; attempt < 3; attempt++) {
@@ -274,11 +284,11 @@ RULES:
       }
     };
     const scrapeResults: { outcome: ScrapeOutcome; markdown: string }[] = [];
-    for (let i = 0; i < toScrape.length; i += 2) {
-      const batch = await Promise.all(toScrape.slice(i, i + 2).map(scrapeOne));
+    for (let i = 0; i < toScrape.length; i += 3) {
+      const batch = await Promise.all(toScrape.slice(i, i + 3).map(scrapeOne));
       scrapeResults.push(...batch);
-      if (i + 2 < toScrape.length) await sleep(1500);
     }
+
 
     const scrapeOutcomes = scrapeResults.map((s) => s.outcome);
     const scrapedArticles = scrapeResults
@@ -390,8 +400,9 @@ HARD RULES:
     };
 
     if (merged.length === 0) {
-      return json({ candidates: [], debug: baseDebug });
+      return { candidates: [], debug: baseDebug };
     }
+
 
     // ---- Stage 3: AI scoring against ICP (loose: default-include) ----
     const ai2 = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
@@ -433,7 +444,7 @@ RULES — default to INCLUDE, not exclude:
     if (!ai2.ok) {
       const t = await ai2.text();
       console.error("[find-orgs] scoring AI failed", ai2.status, t.slice(0, 400));
-      return json({ error: `AI scoring failed: ${ai2.status}`, debug: baseDebug }, 502);
+      throw Object.assign(new Error(`AI scoring failed: ${ai2.status}`), { debug: baseDebug });
     }
     const aiData = await ai2.json();
     const text = aiData?.choices?.[0]?.message?.content as string;
@@ -456,20 +467,46 @@ RULES — default to INCLUDE, not exclude:
         confidence: ["high", "medium", "low"].includes(c.confidence) ? c.confidence : "medium",
       }));
 
-    return json({
-      candidates: validated,
-      debug: {
-        ...baseDebug,
-        ai_returned: raw.length,
-        ai_note: parsed.note || null,
-        ai_dropped: aiDropped,
-      },
-    });
+      return {
+        candidates: validated,
+        debug: {
+          ...baseDebug,
+          ai_returned: raw.length,
+          ai_note: parsed.note || null,
+          ai_dropped: aiDropped,
+        },
+      };
+    };
+
+    const background = (async () => {
+      try {
+        const result = await pipeline();
+        await sb.from("discovery_search_runs").update({
+          status: "complete",
+          candidates: result.candidates,
+          debug: result.debug,
+        }).eq("id", runId);
+      } catch (e: any) {
+        console.error("[find-orgs] pipeline failed", e?.message);
+        await sb.from("discovery_search_runs").update({
+          status: "error",
+          error: e?.message || "Search failed",
+          debug: e?.debug ?? null,
+        }).eq("id", runId);
+      }
+    })();
+
+    // Keep the worker alive after the response is returned.
+    const rt = (globalThis as any).EdgeRuntime;
+    if (rt?.waitUntil) rt.waitUntil(background);
+
+    return json({ run_id: runId, status: "running" }, 202);
   } catch (e: any) {
     console.error(e);
     return json({ error: e?.message || "Internal error" }, 500);
   }
 });
+
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });

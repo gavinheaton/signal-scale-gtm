@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -400,25 +400,12 @@ function SearchPanel({ campaign, onAdded, onClose }: { campaign: DiscoveryCampai
   const [hasRun, setHasRun] = useState(false);
   const [savedCount, setSavedCount] = useState<number | null>(null);
   const [skippedCount, setSkippedCount] = useState<number>(0);
+  const cancelledRef = useRef(false);
 
-  const run = async () => {
-    setRunning(true);
-    setSaved([]);
-    setDebug(null);
-    setSavedCount(null);
-    setSkippedCount(0);
 
-    const { data, error } = await supabase.functions.invoke('discovery-find-orgs', { body: { campaign_id: campaign.id } });
-    setRunning(false);
-    setHasRun(true);
-    if (error) {
-      const detail = (data as any)?.error || (data as any)?.detail;
-      toast.error(detail ? `${error.message}: ${detail}` : (error.message || 'Failed to find organisations'));
-      console.error('[find-orgs] error', error, data);
-      return;
-    }
-    const cands = (data?.candidates || []) as FindCandidate[];
-    setDebug((data as any)?.debug || null);
+
+  const handleResult = async (cands: FindCandidate[], dbg: any) => {
+    setDebug(dbg || null);
     if (cands.length === 0) return;
 
     // Dedupe against existing orgs on this campaign (by lower(domain) or lower(name))
@@ -469,6 +456,75 @@ function SearchPanel({ campaign, onAdded, onClose }: { campaign: DiscoveryCampai
     await onAdded();
   };
 
+  // Poll a background search run until it completes (or errors / times out).
+  const pollRun = useCallback(async (runId: string) => {
+    const started = Date.now();
+    setRunning(true);
+    while (!cancelledRef.current && Date.now() - started < 6 * 60 * 1000) {
+      const { data: row } = await (supabase as any)
+        .from('discovery_search_runs')
+        .select('status, candidates, debug, error')
+        .eq('id', runId)
+        .maybeSingle();
+      if (row?.status === 'complete') {
+        setRunning(false);
+        setHasRun(true);
+        await handleResult((row.candidates || []) as FindCandidate[], row.debug);
+        return;
+      }
+      if (row?.status === 'error') {
+        setRunning(false);
+        setHasRun(true);
+        setDebug(row.debug || null);
+        toast.error(row.error || 'Search failed');
+        return;
+      }
+      await new Promise((r) => setTimeout(r, 3000));
+    }
+    if (!cancelledRef.current) {
+      setRunning(false);
+      setHasRun(true);
+      toast.error('Search is taking longer than expected — reopen this panel shortly to see results.');
+    }
+  }, [campaign.id]);
+
+  // Re-attach to an in-flight run (e.g. after navigating away and back).
+  useEffect(() => {
+    cancelledRef.current = false;
+    (async () => {
+      const { data: row } = await (supabase as any)
+        .from('discovery_search_runs')
+        .select('id, status')
+        .eq('campaign_id', campaign.id)
+        .eq('status', 'running')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (row?.id && !cancelledRef.current) pollRun(row.id);
+    })();
+    return () => { cancelledRef.current = true; };
+  }, [campaign.id, pollRun]);
+
+  const run = async () => {
+    setRunning(true);
+    setSaved([]);
+    setDebug(null);
+    setSavedCount(null);
+    setSkippedCount(0);
+
+    const { data, error } = await supabase.functions.invoke('discovery-find-orgs', { body: { campaign_id: campaign.id } });
+    if (error || !(data as any)?.run_id) {
+      setRunning(false);
+      setHasRun(true);
+      const detail = (data as any)?.error || (data as any)?.detail;
+      toast.error(detail ? `${error?.message || 'Search failed'}: ${detail}` : (error?.message || 'Failed to start search'));
+      console.error('[find-orgs] error', error, data);
+      return;
+    }
+    await pollRun((data as any).run_id as string);
+  };
+
+
   const removeOne = async (rowId: string) => {
     if (!rowId) return;
     const { error } = await (supabase as any).from('discovery_organizations').delete().eq('id', rowId);
@@ -493,11 +549,17 @@ function SearchPanel({ campaign, onAdded, onClose }: { campaign: DiscoveryCampai
             {running ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Sparkles className="h-4 w-4 mr-1" />}
             {running ? 'Searching…' : hasRun ? 'Run another search' : 'Run search'}
           </Button>
-          {savedCount !== null && (
+          {running && (
+            <span className="text-xs text-muted-foreground">
+              Searching the web for organisations — this can take a couple of minutes. You can leave this open.
+            </span>
+          )}
+          {!running && savedCount !== null && (
             <span className="text-xs text-muted-foreground">
               Saved {savedCount}{skippedCount > 0 ? ` · skipped ${skippedCount} duplicate${skippedCount === 1 ? '' : 's'}` : ''}
             </span>
           )}
+
         </div>
 
         {saved.length > 0 && (
