@@ -66,7 +66,7 @@ export default function Home() {
     });
 
     // Additional queries for methodology progress
-    supabase.from('brand_voices').select('status').eq('project_id', pid).limit(1).single()
+    supabase.from('brand_voices').select('status').eq('project_id', pid).limit(1).maybeSingle()
       .then(({ data }) => setBrandVoiceStatus(data?.status || null));
 
     supabase.from('wizard_sessions').select('status')
