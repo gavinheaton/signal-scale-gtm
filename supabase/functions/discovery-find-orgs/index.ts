@@ -194,11 +194,9 @@ RULES:
       }
       return last;
     };
-    const searches: { q: string; status: number; hits: any[] }[] = [];
-    for (const q of variants) {
-      searches.push(await searchOnce(q));
-      await sleep(1200);
-    }
+    // Run the query variants concurrently — per-query 429 backoff still applies.
+    const searches: { q: string; status: number; hits: any[] }[] = await Promise.all(variants.map(searchOnce));
+
     const rawHits: any[] = searches.flatMap((s) => s.hits);
     console.log("[find-orgs] raw hits:", rawHits.length, "per query:", searches.map((s) => `${s.status}:${s.hits.length}`).join(","));
 
