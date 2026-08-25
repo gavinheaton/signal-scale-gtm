@@ -445,7 +445,7 @@ RULES — default to INCLUDE, not exclude:
     if (!ai2.ok) {
       const t = await ai2.text();
       console.error("[find-orgs] scoring AI failed", ai2.status, t.slice(0, 400));
-      return json({ error: `AI scoring failed: ${ai2.status}`, debug: baseDebug }, 502);
+      throw Object.assign(new Error(`AI scoring failed: ${ai2.status}`), { debug: baseDebug });
     }
     const aiData = await ai2.json();
     const text = aiData?.choices?.[0]?.message?.content as string;
@@ -468,20 +468,46 @@ RULES — default to INCLUDE, not exclude:
         confidence: ["high", "medium", "low"].includes(c.confidence) ? c.confidence : "medium",
       }));
 
-    return json({
-      candidates: validated,
-      debug: {
-        ...baseDebug,
-        ai_returned: raw.length,
-        ai_note: parsed.note || null,
-        ai_dropped: aiDropped,
-      },
-    });
+      return {
+        candidates: validated,
+        debug: {
+          ...baseDebug,
+          ai_returned: raw.length,
+          ai_note: parsed.note || null,
+          ai_dropped: aiDropped,
+        },
+      };
+    };
+
+    const background = (async () => {
+      try {
+        const result = await pipeline();
+        await sb.from("discovery_search_runs").update({
+          status: "complete",
+          candidates: result.candidates,
+          debug: result.debug,
+        }).eq("id", runId);
+      } catch (e: any) {
+        console.error("[find-orgs] pipeline failed", e?.message);
+        await sb.from("discovery_search_runs").update({
+          status: "error",
+          error: e?.message || "Search failed",
+          debug: e?.debug ?? null,
+        }).eq("id", runId);
+      }
+    })();
+
+    // Keep the worker alive after the response is returned.
+    const rt = (globalThis as any).EdgeRuntime;
+    if (rt?.waitUntil) rt.waitUntil(background);
+
+    return json({ run_id: runId, status: "running" }, 202);
   } catch (e: any) {
     console.error(e);
     return json({ error: e?.message || "Internal error" }, 500);
   }
 });
+
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
