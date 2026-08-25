@@ -92,7 +92,18 @@ Deno.serve(async (req) => {
     catch (e: any) { return json({ error: e?.message || "Forbidden" }, 403); }
     if (!FIRECRAWL_API_KEY) return json({ error: "FIRECRAWL_API_KEY not configured" }, 500);
 
+    // Create the run row up front, answer immediately, then work in the background.
+    const { data: run, error: runErr } = await sb
+      .from("discovery_search_runs")
+      .insert({ campaign_id, status: "running", created_by: user.id })
+      .select("id")
+      .single();
+    if (runErr || !run) return json({ error: runErr?.message || "Could not start search run" }, 500);
+    const runId = run.id as string;
+
+    const pipeline = async () => {
     const allSignals: string[] = Array.isArray(campaign.qualifying_signals) ? campaign.qualifying_signals : [];
+
     const firmographic = allSignals.filter(isFirmographic).slice(0, 3);
     const segment = (campaign.target_segment || "").trim();
     const baseSegment = segment || firmographic.join(" ");
