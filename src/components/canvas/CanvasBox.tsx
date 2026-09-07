@@ -1,12 +1,14 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { CanvasEntry, CanvasEntryStatus, STATUS_COLOR } from './types';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Sparkles, Plus, Trash2, Check, Loader2, Link as LinkIcon, Pencil, RefreshCw, CheckCheck } from 'lucide-react';
+import { Sparkles, Plus, Trash2, Check, Loader2, Link as LinkIcon, Pencil, RefreshCw, CheckCheck, X } from 'lucide-react';
 import { toast } from 'sonner';
+
+interface Suggestion { id: string; content: string }
 
 interface Props {
   canvasId: string;
@@ -25,10 +27,37 @@ export function CanvasBox({ canvasId, boxKey, label, hint, entries, onChange }: 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState('');
   const [suggesting, setSuggesting] = useState(false);
-  const [suggestions, setSuggestions] = useState<string[]>([]);
-  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
   const [addingAll, setAddingAll] = useState(false);
   const [addingSelected, setAddingSelected] = useState(false);
+
+  const loadSuggestions = useCallback(async () => {
+    const { data, error } = await (supabase as any)
+      .from('canvas_suggestions')
+      .select('id, content')
+      .eq('canvas_id', canvasId)
+      .eq('box', boxKey)
+      .eq('status', 'pending')
+      .order('created_at');
+    if (error) return;
+    setSuggestions((data || []) as Suggestion[]);
+  }, [canvasId, boxKey]);
+
+  useEffect(() => { loadSuggestions(); }, [loadSuggestions]);
+
+  async function resolveSuggestions(ids: string[], status: 'accepted' | 'dismissed') {
+    if (!ids.length) return;
+    const { error } = await (supabase as any)
+      .from('canvas_suggestions').update({ status }).in('id', ids);
+    if (error) toast.error(error.message);
+    setSuggestions((prev) => prev.filter((s) => !ids.includes(s.id)));
+    setSelected((prev) => {
+      const next = new Set(prev);
+      ids.forEach((id) => next.delete(id));
+      return next;
+    });
+  }
 
   async function addEntry(content: string, source: 'user' | 'ai_suggestion' = 'user') {
     if (!content.trim()) return;
@@ -39,14 +68,15 @@ export function CanvasBox({ canvasId, boxKey, label, hint, entries, onChange }: 
     setText(''); setAdding(false); onChange();
   }
 
-  async function addManyAiEntries(contents: string[]) {
-    const rows = contents
-      .map((c) => c.trim())
-      .filter(Boolean)
-      .map((c) => ({ canvas_id: canvasId, box: boxKey, content: c, source: 'ai_suggestion', status: 'assumption' }));
+  async function acceptSuggestions(items: Suggestion[]) {
+    const rows = items
+      .map((s) => ({ ...s, content: s.content.trim() }))
+      .filter((s) => s.content)
+      .map((s) => ({ canvas_id: canvasId, box: boxKey, content: s.content, source: 'ai_suggestion', status: 'assumption' }));
     if (!rows.length) return;
     const { error } = await (supabase as any).from('canvas_entries').insert(rows);
     if (error) return toast.error(error.message);
+    await resolveSuggestions(items.map((s) => s.id), 'accepted');
     onChange();
   }
 
@@ -70,14 +100,25 @@ export function CanvasBox({ canvasId, boxKey, label, hint, entries, onChange }: 
 
   async function suggest(append = false) {
     setSuggesting(true);
-    if (!append) { setSuggestions([]); setSelected(new Set()); }
     try {
+      if (!append && suggestions.length) {
+        await resolveSuggestions(suggestions.map((s) => s.id), 'dismissed');
+      }
       const { data, error } = await supabase.functions.invoke('canvas-suggest', {
         body: { canvas_id: canvasId, box: boxKey, count: 5 },
       });
       if (error) throw error;
-      const next = (data as any)?.suggestions || [];
-      setSuggestions((prev) => (append ? [...prev, ...next] : next));
+      const next: string[] = ((data as any)?.suggestions || [])
+        .map((s: any) => (typeof s === 'string' ? s : s?.content || ''))
+        .map((s: string) => s.trim())
+        .filter(Boolean);
+      if (!next.length) return;
+      const { data: inserted, error: insErr } = await (supabase as any)
+        .from('canvas_suggestions')
+        .insert(next.map((content) => ({ canvas_id: canvasId, box: boxKey, content })))
+        .select('id, content');
+      if (insErr) throw insErr;
+      setSuggestions((prev) => [...prev, ...((inserted || []) as Suggestion[])]);
     } catch (e: any) {
       toast.error(`Suggest failed: ${e.message || e}`);
     } finally {
@@ -88,18 +129,16 @@ export function CanvasBox({ canvasId, boxKey, label, hint, entries, onChange }: 
   async function addAllSuggestions() {
     setAddingAll(true);
     try {
-      await addManyAiEntries(suggestions);
-      setSuggestions([]);
-      setSelected(new Set());
+      await acceptSuggestions(suggestions);
     } finally {
       setAddingAll(false);
     }
   }
 
-  function toggleSelected(i: number) {
+  function toggleSelected(id: string) {
     setSelected((prev) => {
       const next = new Set(prev);
-      if (next.has(i)) next.delete(i); else next.add(i);
+      if (next.has(id)) next.delete(id); else next.add(id);
       return next;
     });
   }
@@ -108,13 +147,14 @@ export function CanvasBox({ canvasId, boxKey, label, hint, entries, onChange }: 
     if (!selected.size) return;
     setAddingSelected(true);
     try {
-      const picked = suggestions.filter((_, i) => selected.has(i));
-      await addManyAiEntries(picked);
-      setSuggestions((prev) => prev.filter((_, i) => !selected.has(i)));
-      setSelected(new Set());
+      await acceptSuggestions(suggestions.filter((s) => selected.has(s.id)));
     } finally {
       setAddingSelected(false);
     }
+  }
+
+  async function dismissSuggestions(ids: string[]) {
+    await resolveSuggestions(ids, 'dismissed');
   }
 
   return (
@@ -187,7 +227,7 @@ export function CanvasBox({ canvasId, boxKey, label, hint, entries, onChange }: 
                 <button
                   className="text-[9px] uppercase text-muted-foreground underline hover:text-foreground"
                   onClick={() =>
-                    setSelected(selected.size === suggestions.length ? new Set() : new Set(suggestions.map((_, i) => i)))
+                    setSelected(selected.size === suggestions.length ? new Set() : new Set(suggestions.map((s) => s.id)))
                   }
                 >
                   {selected.size === suggestions.length ? 'clear' : 'all'}
@@ -203,18 +243,24 @@ export function CanvasBox({ canvasId, boxKey, label, hint, entries, onChange }: 
                 <Button size="sm" variant="ghost" className="h-5 text-[10px] px-1.5" onClick={() => suggest(true)} disabled={suggesting} title="More suggestions">
                   {suggesting ? <Loader2 className="h-3 w-3 animate-spin" /> : <><RefreshCw className="h-3 w-3 mr-0.5" />More</>}
                 </Button>
+                <Button size="sm" variant="ghost" className="h-5 text-[10px] px-1.5" onClick={() => dismissSuggestions(suggestions.map((s) => s.id))} title="Dismiss all suggestions">
+                  <X className="h-3 w-3 mr-0.5" />Dismiss
+                </Button>
               </div>
             </div>
-            {suggestions.map((s, i) => (
-              <div key={i} className="text-xs flex items-start gap-1 bg-purple-50 p-1.5 rounded">
+            {suggestions.map((s) => (
+              <div key={s.id} className="text-xs flex items-start gap-1 bg-purple-50 p-1.5 rounded">
                 <Checkbox
-                  checked={selected.has(i)}
-                  onCheckedChange={() => toggleSelected(i)}
+                  checked={selected.has(s.id)}
+                  onCheckedChange={() => toggleSelected(s.id)}
                   className="mt-0.5 h-3.5 w-3.5"
                 />
-                <span className="flex-1 cursor-pointer" onClick={() => toggleSelected(i)}>{s}</span>
-                <Button size="icon" variant="ghost" className="h-5 w-5" onClick={() => { addEntry(s, 'ai_suggestion'); setSuggestions(suggestions.filter((_, j) => j !== i)); setSelected((prev) => { const n = new Set<number>(); prev.forEach((x) => { if (x < i) n.add(x); else if (x > i) n.add(x - 1); }); return n; }); }} title="Add just this">
+                <span className="flex-1 cursor-pointer" onClick={() => toggleSelected(s.id)}>{s.content}</span>
+                <Button size="icon" variant="ghost" className="h-5 w-5" onClick={() => acceptSuggestions([s])} title="Add just this">
                   <Check className="h-3 w-3" />
+                </Button>
+                <Button size="icon" variant="ghost" className="h-5 w-5" onClick={() => dismissSuggestions([s.id])} title="Dismiss">
+                  <X className="h-3 w-3" />
                 </Button>
               </div>
             ))}

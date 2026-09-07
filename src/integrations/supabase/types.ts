@@ -655,6 +655,44 @@ export type Database = {
           },
         ]
       }
+      canvas_suggestions: {
+        Row: {
+          box: string
+          canvas_id: string
+          content: string
+          created_at: string
+          id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          box: string
+          canvas_id: string
+          content: string
+          created_at?: string
+          id?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          box?: string
+          canvas_id?: string
+          content?: string
+          created_at?: string
+          id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "canvas_suggestions_canvas_id_fkey"
+            columns: ["canvas_id"]
+            isOneToOne: false
+            referencedRelation: "canvases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       canvas_validations: {
         Row: {
           conversation_id: string | null
