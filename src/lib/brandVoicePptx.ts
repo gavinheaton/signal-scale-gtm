@@ -791,8 +791,15 @@ function addSampleSlides(pptx: PptxGenJS, theme: Theme, bv: BrandVoiceLike) {
 
   const avail = BODY_BOTTOM - BODY_TOP - 0.1;
 
+  /** Samples contain blank-line paragraph breaks — measure each line separately. */
+  const sampleRows = (text: string) =>
+    text.split('\n').reduce(
+      (a, para) => a + (para.trim() ? rowsFor(para, CONTENT_W - 1.1, 12.5) : 0.55),
+      0,
+    );
+
   const measure = (s: { type: string; text: string }) =>
-    Math.min(avail, 1.1 + rowsFor(s.text, CONTENT_W - 1.1, 12.5) * 0.26);
+    Math.min(avail, 1.15 + sampleRows(s.text) * 0.265);
 
   const queue = [...samples];
   let page = 0;
