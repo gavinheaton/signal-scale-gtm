@@ -27,10 +27,37 @@ export function CanvasBox({ canvasId, boxKey, label, hint, entries, onChange }: 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState('');
   const [suggesting, setSuggesting] = useState(false);
-  const [suggestions, setSuggestions] = useState<string[]>([]);
-  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
   const [addingAll, setAddingAll] = useState(false);
   const [addingSelected, setAddingSelected] = useState(false);
+
+  const loadSuggestions = useCallback(async () => {
+    const { data, error } = await (supabase as any)
+      .from('canvas_suggestions')
+      .select('id, content')
+      .eq('canvas_id', canvasId)
+      .eq('box', boxKey)
+      .eq('status', 'pending')
+      .order('created_at');
+    if (error) return;
+    setSuggestions((data || []) as Suggestion[]);
+  }, [canvasId, boxKey]);
+
+  useEffect(() => { loadSuggestions(); }, [loadSuggestions]);
+
+  async function resolveSuggestions(ids: string[], status: 'accepted' | 'dismissed') {
+    if (!ids.length) return;
+    const { error } = await (supabase as any)
+      .from('canvas_suggestions').update({ status }).in('id', ids);
+    if (error) toast.error(error.message);
+    setSuggestions((prev) => prev.filter((s) => !ids.includes(s.id)));
+    setSelected((prev) => {
+      const next = new Set(prev);
+      ids.forEach((id) => next.delete(id));
+      return next;
+    });
+  }
 
   async function addEntry(content: string, source: 'user' | 'ai_suggestion' = 'user') {
     if (!content.trim()) return;
