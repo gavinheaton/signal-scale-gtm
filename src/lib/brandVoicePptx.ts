@@ -196,11 +196,13 @@ function addCard(
     fontFace: SANS, fontSize: 9, bold: true, color: theme.accent,
     charSpacing: 0.6, valign: 'middle', margin: 0,
   });
+  const tRows = titleRows(card);
   slide.addText(card.title.toUpperCase(), {
-    x: x + 0.64, y: y + 0.18, w: COL_W - 0.86, h: 0.26,
+    x: x + 0.64, y: y + 0.18, w: COL_W - 0.9, h: tRows * TITLE_LINE_H + 0.06,
     fontFace: SANS, fontSize: 9.5, bold: true, color: INK,
-    charSpacing: 1.1, valign: 'middle', margin: 0,
+    charSpacing: 1.1, lineSpacingMultiple: 1.1, valign: 'top', margin: 0,
   });
+  const bodyY = y + CARD_PAD_TOP - 0.14 + (tRows - 1) * TITLE_LINE_H;
   slide.addText(
     card.lines.map(l => ({
       text: l,
@@ -209,8 +211,8 @@ function addCard(
         : { bullet: { characterCode: '2013', indent: 12 }, breakLine: true },
     })),
     {
-      x: x + 0.24, y: y + CARD_PAD_TOP - 0.14, w: COL_W - 0.46,
-      h: h - CARD_PAD_TOP - CARD_PAD_BOTTOM + 0.14,
+      x: x + 0.24, y: bodyY, w: COL_W - 0.46,
+      h: Math.max(0.3, y + h - CARD_PAD_BOTTOM - bodyY + 0.14),
       fontFace: SANS, fontSize: 10, color: BODY,
       lineSpacingMultiple: 1.12, valign: 'top', margin: 0,
     },
