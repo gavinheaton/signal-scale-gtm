@@ -1,4 +1,4 @@
-import { Home, Users, Mic, Megaphone, FileText, BarChart3, Settings, LogOut, FolderOpen, Shield, HelpCircle, Gauge, MessagesSquare } from 'lucide-react';
+import { Home, Users, Mic, Megaphone, FileText, BarChart3, Settings, LogOut, FolderOpen, Shield, HelpCircle, Gauge, MessagesSquare, Network, Sparkles, LayoutGrid } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -20,7 +20,10 @@ import {
 const navItems = [
   { title: 'Home', url: '/project/home', icon: Home },
   { title: 'ICP & Personas', url: '/project/icp-personas', icon: Users },
+  { title: 'Value Prop', url: '/project/value-prop', icon: Sparkles },
   { title: 'Discovery', url: '/project/discovery', icon: MessagesSquare },
+  { title: 'Ecosystem', url: '/project/ecosystem', icon: Network },
+  { title: 'Canvas', url: '/project/canvas', icon: LayoutGrid },
   { title: 'Brand Voice', url: '/project/brand-voice', icon: Mic },
   { title: 'Brand Audit', url: '/project/brand-audit', icon: Gauge },
   { title: 'Campaigns', url: '/project/campaigns', icon: Megaphone },
@@ -34,8 +37,9 @@ export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === 'collapsed';
   const location = useLocation();
-  const { signOut, organisation, isSuperAdmin } = useAuth();
+  const { signOut, organisation, isSuperAdmin, memberships, organisations, setActiveOrg } = useAuth();
   const { currentProject } = useProject();
+  const multiOrg = memberships.length > 1;
 
   return (
     <Sidebar collapsible="icon" className="border-r-0">
@@ -45,8 +49,20 @@ export function AppSidebar() {
             <h1 className="text-lg font-bold tracking-tight text-sidebar-foreground">
               Signal + Scale
             </h1>
-            {organisation && (
+            {organisation && !multiOrg && (
               <p className="text-xs text-sidebar-foreground/60 mt-0.5">{organisation.name}</p>
+            )}
+            {multiOrg && (
+              <select
+                value={organisation?.id ?? ''}
+                onChange={(e) => setActiveOrg(e.target.value)}
+                className="mt-1 w-full bg-transparent text-xs text-sidebar-foreground/70 border border-sidebar-foreground/20 rounded px-1.5 py-0.5 focus:outline-none focus:border-sidebar-foreground/40"
+              >
+                {memberships.map(m => {
+                  const name = organisations.find(o => o.id === m.org_id)?.name ?? '—';
+                  return <option key={m.org_id} value={m.org_id} className="text-foreground">{name}</option>;
+                })}
+              </select>
             )}
           </div>
         )}
@@ -54,6 +70,7 @@ export function AppSidebar() {
           <span className="text-sidebar-foreground font-bold text-lg">S</span>
         )}
       </SidebarHeader>
+
 
       <SidebarContent>
         {currentProject && (

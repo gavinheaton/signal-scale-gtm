@@ -4,7 +4,7 @@ export type DiscoveryCampaignStatus = 'active' | 'paused' | 'archived';
 export type DiscoveryOrgSource = 'firecrawl' | 'manual';
 export type DiscoveryOrgStatus = 'researching' | 'targeted' | 'in_conversation' | 'validated' | 'disqualified';
 export type DiscoveryRoleStatus = 'identified' | 'enriched' | 'skipped';
-export type DiscoveryEnrichmentSource = 'apollo' | 'manual';
+export type DiscoveryEnrichmentSource = 'apollo' | 'manual' | 'firecrawl';
 export type DiscoveryOutreachStatus =
   | 'not_started'
   | 'connection_sent'
@@ -59,6 +59,8 @@ export interface DiscoveryCampaign {
 export interface DiscoveryLeader {
   name: string;
   role?: string | null;
+  linkedin_url?: string | null;
+  source_url?: string | null;
 }
 
 export interface DiscoveryOrganization {
@@ -75,8 +77,27 @@ export interface DiscoveryOrganization {
   status: DiscoveryOrgStatus;
   leadership: DiscoveryLeader[];
   confidence?: 'high' | 'medium' | 'low' | null;
+  enrichment?: DiscoveryEnrichment | null;
+  enriched_at?: string | null;
+  linkedin_url?: string | null;
+  website_verified?: boolean;
   created_at: string;
   updated_at: string;
+}
+
+export interface DiscoveryEnrichment {
+  description?: string;
+  industry?: string | null;
+  hq_location?: string | null;
+  employee_range?: string | null;
+  founded_year?: number | null;
+  products?: string[];
+  tech_focus?: string[];
+  leadership?: { name: string; role?: string | null; source_url?: string | null }[];
+  matched_signals?: string[];
+  fit_rationale?: string;
+  confidence?: 'high' | 'medium' | 'low';
+  sources?: string[];
 }
 
 export interface DiscoveryOrgRole {

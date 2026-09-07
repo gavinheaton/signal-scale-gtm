@@ -10,11 +10,16 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Label as RLabel } from 'recharts';
-import { Target, Users, Sparkles, ChevronDown, Pencil, Trash2, DownloadCloud } from 'lucide-react';
+import { Target, Users, Sparkles, ChevronDown, Pencil, Trash2, DownloadCloud, MoreHorizontal, ArrowRightLeft, Copy, FileText, Presentation } from 'lucide-react';
+import { downloadPersonaDocx, downloadAllPersonasDocx } from '@/lib/personaDocx';
+import { downloadPersonaPptx, downloadAllPersonasPptx } from '@/lib/personaPptx';
+
+import MovePersonaDialog from '@/components/MovePersonaDialog';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import NotionImportDialog from '@/components/notion/NotionImportDialog';
+import UnsavedDraftCard from '@/components/wizard/UnsavedDraftCard';
 
 
 const matrixColors: Record<MatrixCategory, string> = {
@@ -57,6 +62,7 @@ export default function ICPPersonas() {
   const [deleteTarget, setDeleteTarget] = useState<Persona | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [moveDialog, setMoveDialog] = useState<{ mode: 'move' | 'duplicate'; persona: Persona } | null>(null);
   const notionStrategyPageId = (currentProject as any)?.notion_strategy_page_id;
 
 
@@ -87,6 +93,43 @@ export default function ICPPersonas() {
     setDeleteTarget(null);
   };
 
+  const handleDownloadPersona = async (persona: Persona) => {
+    try {
+      await downloadPersonaDocx(persona, icps.find(i => i.id === persona.icp_id));
+      toast.success('Word document downloaded');
+    } catch (e: any) {
+      toast.error('Failed to generate document: ' + e.message);
+    }
+  };
+
+  const handleDownloadPersonaPptx = async (persona: Persona) => {
+    try {
+      await downloadPersonaPptx(persona, icps.find(i => i.id === persona.icp_id), currentProject?.name);
+      toast.success('Slide deck downloaded');
+    } catch (e: any) {
+      toast.error('Failed to generate deck: ' + e.message);
+    }
+  };
+
+  const handleDownloadAll = async () => {
+    try {
+      await downloadAllPersonasDocx(personas, icps, currentProject?.name);
+      toast.success('Word document downloaded');
+    } catch (e: any) {
+      toast.error('Failed to generate document: ' + e.message);
+    }
+  };
+
+  const handleDownloadAllPptx = async () => {
+    try {
+      await downloadAllPersonasPptx(personas, icps, currentProject?.name);
+      toast.success('Slide deck downloaded');
+    } catch (e: any) {
+      toast.error('Failed to generate deck: ' + e.message);
+    }
+  };
+
+
   if (!currentProject) return <Navigate to="/projects" replace />;
 
   const scatterData = icps.map(icp => ({
@@ -112,6 +155,16 @@ export default function ICPPersonas() {
   if (!loading && icps.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-[60vh] space-y-6">
+        {currentProject && (
+          <div className="w-full max-w-xl">
+            <UnsavedDraftCard
+              projectId={currentProject.id}
+              sessionType="icp"
+              resumeTo="/project/icp-wizard"
+              label="ICP"
+            />
+          </div>
+        )}
         <div className="text-center space-y-2">
           <Sparkles className="h-12 w-12 mx-auto" style={{ color: 'hsl(var(--orange))' }} />
           <h1 className="text-2xl font-bold text-foreground">No ICP segments yet</h1>
@@ -127,6 +180,22 @@ export default function ICPPersonas() {
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-foreground">ICP & Personas</h1>
+      {currentProject && (
+        <>
+          <UnsavedDraftCard
+            projectId={currentProject.id}
+            sessionType="icp"
+            resumeTo="/project/icp-wizard"
+            label="ICP"
+          />
+          <UnsavedDraftCard
+            projectId={currentProject.id}
+            sessionType="persona"
+            resumeTo="/project/persona-wizard"
+            label="persona"
+          />
+        </>
+      )}
       <Tabs defaultValue="icps">
         <TabsList>
           <TabsTrigger value="icps" className="gap-1"><Target className="h-4 w-4" /> ICPs</TabsTrigger>
@@ -233,6 +302,14 @@ export default function ICPPersonas() {
 
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold" style={{ color: 'hsl(var(--orange))' }}>Persona Gallery</h2>
+            <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline" disabled={personas.length === 0} onClick={handleDownloadAllPptx}>
+              <Presentation className="h-4 w-4 mr-1" /> Download all (Slides)
+            </Button>
+            <Button size="sm" variant="outline" disabled={personas.length === 0} onClick={handleDownloadAll}>
+              <FileText className="h-4 w-4 mr-1" /> Download all (Word)
+            </Button>
+
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button size="sm">
@@ -248,6 +325,7 @@ export default function ICPPersonas() {
                 ))}
               </DropdownMenuContent>
             </DropdownMenu>
+            </div>
           </div>
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {personas.map(p => {
@@ -258,8 +336,43 @@ export default function ICPPersonas() {
                   <CardHeader className="pb-2">
                     <div className="flex items-center justify-between">
                       <CardTitle className="text-base">{p.persona_name}</CardTitle>
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
                         <Badge className={roleColors[p.role_in_buying]}>{p.role_in_buying.replace('_', ' ')}</Badge>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-6 w-6">
+                              <MoreHorizontal className="h-3.5 w-3.5" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              disabled={icps.length < 2}
+                              onClick={() => setMoveDialog({ mode: 'move', persona: p })}
+                            >
+                              <ArrowRightLeft className="h-3.5 w-3.5 mr-2" /> Move to ICP…
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleDownloadPersonaPptx(p)}>
+                              <Presentation className="h-3.5 w-3.5 mr-2" /> Download slides (PPT)
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleDownloadPersona(p)}>
+                              <FileText className="h-3.5 w-3.5 mr-2" /> Download Word
+                            </DropdownMenuItem>
+
+                            <DropdownMenuItem
+
+                              disabled={icps.length < 2}
+                              onClick={() => setMoveDialog({ mode: 'duplicate', persona: p })}
+                            >
+                              <Copy className="h-3.5 w-3.5 mr-2" /> Duplicate to ICP…
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              className="text-destructive focus:text-destructive"
+                              onClick={() => setDeleteTarget(p)}
+                            >
+                              <Trash2 className="h-3.5 w-3.5 mr-2" /> Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
                     </div>
                     {icp && <p className="text-xs text-muted-foreground mt-1">{icp.segment_name}</p>}
@@ -293,11 +406,23 @@ export default function ICPPersonas() {
         onOpenChange={(open) => !open && setSelectedPersona(null)}
         onEdit={(p) => navigate(`/project/persona-wizard?icp_id=${p.icp_id}&edit_persona_id=${p.id}`)}
         onDelete={(p) => setDeleteTarget(p)}
+        onMove={(p) => setMoveDialog({ mode: 'move', persona: p })}
+        onDuplicate={(p) => setMoveDialog({ mode: 'duplicate', persona: p })}
         onRefreshed={(updated) => {
           setSelectedPersona(updated);
           setPersonas(prev => prev.map(p => p.id === updated.id ? updated : p));
         }}
       />
+
+      <MovePersonaDialog
+        open={!!moveDialog}
+        onOpenChange={(o) => !o && setMoveDialog(null)}
+        mode={moveDialog?.mode ?? 'move'}
+        persona={moveDialog?.persona ?? null}
+        icps={icps}
+        onDone={fetchData}
+      />
+
 
       <Dialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <DialogContent>

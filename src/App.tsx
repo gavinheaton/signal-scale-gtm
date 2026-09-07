@@ -27,6 +27,10 @@ import Analytics from "@/pages/Analytics";
 import SettingsPage from "@/pages/Settings";
 import IntegrationHelp from "@/pages/IntegrationHelp";
 import AdminDashboard from "@/pages/AdminDashboard";
+import Ecosystem from "@/pages/Ecosystem";
+import ValueProp from "@/pages/ValueProp";
+import CanvasPage from "@/pages/Canvas";
+import CanvasPrint from "@/pages/CanvasPrint";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -42,6 +46,7 @@ const App = () => (
             <Routes>
               <Route path="/auth" element={<Auth />} />
               <Route path="/auth/callback" element={<AuthCallback />} />
+              <Route path="/project/canvas/print" element={<CanvasPrint />} />
               <Route path="/" element={<Navigate to="/projects" replace />} />
               <Route element={<AppLayout />}>
                 <Route path="/projects" element={<Projects />} />
@@ -61,6 +66,9 @@ const App = () => (
                 <Route path="/project/discovery/:id/edit" element={<DiscoveryCampaignForm />} />
                 <Route path="/project/content" element={<ContentPipeline />} />
                 <Route path="/project/analytics" element={<Analytics />} />
+                <Route path="/project/ecosystem" element={<Ecosystem />} />
+                <Route path="/project/value-prop" element={<ValueProp />} />
+                <Route path="/project/canvas" element={<CanvasPage />} />
                 <Route path="/project/settings" element={<SettingsPage />} />
                 <Route path="/project/help" element={<IntegrationHelp />} />
                 <Route path="/admin" element={<AdminDashboard />} />

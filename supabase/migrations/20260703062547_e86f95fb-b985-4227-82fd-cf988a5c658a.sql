@@ -1,0 +1,1 @@
+ALTER TYPE public.canvas_variant ADD VALUE IF NOT EXISTS 'business_model';

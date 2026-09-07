@@ -10,10 +10,83 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.4"
+    PostgrestVersion: "14.5"
   }
   public: {
     Tables: {
+      ai_prompt_template_versions: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          prompt_text: string
+          template_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          prompt_text: string
+          template_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          prompt_text?: string
+          template_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_prompt_template_versions_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "ai_prompt_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_prompt_templates: {
+        Row: {
+          created_at: string
+          current_version_id: string | null
+          description: string | null
+          id: string
+          key: string
+          label: string
+          sample_input_json: Json | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          current_version_id?: string | null
+          description?: string | null
+          id?: string
+          key: string
+          label: string
+          sample_input_json?: Json | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          current_version_id?: string | null
+          description?: string | null
+          id?: string
+          key?: string
+          label?: string
+          sample_input_json?: Json | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_prompt_templates_current_version_fkey"
+            columns: ["current_version_id"]
+            isOneToOne: false
+            referencedRelation: "ai_prompt_template_versions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       api_keys: {
         Row: {
           created_at: string | null
@@ -529,6 +602,186 @@ export type Database = {
           },
         ]
       }
+      canvas_entries: {
+        Row: {
+          ai_confidence: number | null
+          box: string
+          canvas_id: string
+          content: string
+          created_at: string
+          id: string
+          is_stale: boolean
+          position: number
+          source: Database["public"]["Enums"]["canvas_entry_source"]
+          source_ref: Json | null
+          status: Database["public"]["Enums"]["canvas_entry_status"]
+          updated_at: string
+        }
+        Insert: {
+          ai_confidence?: number | null
+          box: string
+          canvas_id: string
+          content?: string
+          created_at?: string
+          id?: string
+          is_stale?: boolean
+          position?: number
+          source?: Database["public"]["Enums"]["canvas_entry_source"]
+          source_ref?: Json | null
+          status?: Database["public"]["Enums"]["canvas_entry_status"]
+          updated_at?: string
+        }
+        Update: {
+          ai_confidence?: number | null
+          box?: string
+          canvas_id?: string
+          content?: string
+          created_at?: string
+          id?: string
+          is_stale?: boolean
+          position?: number
+          source?: Database["public"]["Enums"]["canvas_entry_source"]
+          source_ref?: Json | null
+          status?: Database["public"]["Enums"]["canvas_entry_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "canvas_entries_canvas_id_fkey"
+            columns: ["canvas_id"]
+            isOneToOne: false
+            referencedRelation: "canvases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      canvas_suggestions: {
+        Row: {
+          box: string
+          canvas_id: string
+          content: string
+          created_at: string
+          id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          box: string
+          canvas_id: string
+          content: string
+          created_at?: string
+          id?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          box?: string
+          canvas_id?: string
+          content?: string
+          created_at?: string
+          id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "canvas_suggestions_canvas_id_fkey"
+            columns: ["canvas_id"]
+            isOneToOne: false
+            referencedRelation: "canvases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      canvas_validations: {
+        Row: {
+          conversation_id: string | null
+          created_at: string
+          entry_id: string
+          id: string
+          note: string | null
+          outcome: Database["public"]["Enums"]["canvas_validation_outcome"]
+        }
+        Insert: {
+          conversation_id?: string | null
+          created_at?: string
+          entry_id: string
+          id?: string
+          note?: string | null
+          outcome?: Database["public"]["Enums"]["canvas_validation_outcome"]
+        }
+        Update: {
+          conversation_id?: string | null
+          created_at?: string
+          entry_id?: string
+          id?: string
+          note?: string | null
+          outcome?: Database["public"]["Enums"]["canvas_validation_outcome"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "canvas_validations_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "discovery_conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "canvas_validations_entry_id_fkey"
+            columns: ["entry_id"]
+            isOneToOne: false
+            referencedRelation: "canvas_entries"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      canvases: {
+        Row: {
+          completion: Json
+          created_at: string
+          critique: Json | null
+          critique_generated_at: string | null
+          id: string
+          narrative_generated_at: string | null
+          narrative_md: string | null
+          project_id: string
+          updated_at: string
+          variant: Database["public"]["Enums"]["canvas_variant"]
+        }
+        Insert: {
+          completion?: Json
+          created_at?: string
+          critique?: Json | null
+          critique_generated_at?: string | null
+          id?: string
+          narrative_generated_at?: string | null
+          narrative_md?: string | null
+          project_id: string
+          updated_at?: string
+          variant?: Database["public"]["Enums"]["canvas_variant"]
+        }
+        Update: {
+          completion?: Json
+          created_at?: string
+          critique?: Json | null
+          critique_generated_at?: string | null
+          id?: string
+          narrative_generated_at?: string | null
+          narrative_md?: string | null
+          project_id?: string
+          updated_at?: string
+          variant?: Database["public"]["Enums"]["canvas_variant"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "canvases_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: true
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       discovery_campaigns: {
         Row: {
           created_at: string
@@ -844,9 +1097,12 @@ export type Database = {
           confidence: string | null
           created_at: string
           domain: string | null
+          enriched_at: string | null
+          enrichment: Json | null
           fit_notes: string | null
           id: string
           leadership: Json
+          linkedin_url: string | null
           name: string
           segment: string | null
           signals_matched: string[]
@@ -855,15 +1111,19 @@ export type Database = {
           status: Database["public"]["Enums"]["discovery_org_status"]
           tier: string | null
           updated_at: string
+          website_verified: boolean
         }
         Insert: {
           campaign_id: string
           confidence?: string | null
           created_at?: string
           domain?: string | null
+          enriched_at?: string | null
+          enrichment?: Json | null
           fit_notes?: string | null
           id?: string
           leadership?: Json
+          linkedin_url?: string | null
           name: string
           segment?: string | null
           signals_matched?: string[]
@@ -872,15 +1132,19 @@ export type Database = {
           status?: Database["public"]["Enums"]["discovery_org_status"]
           tier?: string | null
           updated_at?: string
+          website_verified?: boolean
         }
         Update: {
           campaign_id?: string
           confidence?: string | null
           created_at?: string
           domain?: string | null
+          enriched_at?: string | null
+          enrichment?: Json | null
           fit_notes?: string | null
           id?: string
           leadership?: Json
+          linkedin_url?: string | null
           name?: string
           segment?: string | null
           signals_matched?: string[]
@@ -889,10 +1153,61 @@ export type Database = {
           status?: Database["public"]["Enums"]["discovery_org_status"]
           tier?: string | null
           updated_at?: string
+          website_verified?: boolean
         }
         Relationships: [
           {
             foreignKeyName: "discovery_organizations_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "discovery_campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      discovery_search_runs: {
+        Row: {
+          campaign_id: string
+          candidates: Json
+          created_at: string
+          created_by: string | null
+          debug: Json | null
+          error: string | null
+          id: string
+          saved_count: number | null
+          skipped_count: number | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          campaign_id: string
+          candidates?: Json
+          created_at?: string
+          created_by?: string | null
+          debug?: Json | null
+          error?: string | null
+          id?: string
+          saved_count?: number | null
+          skipped_count?: number | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          campaign_id?: string
+          candidates?: Json
+          created_at?: string
+          created_by?: string | null
+          debug?: Json | null
+          error?: string | null
+          id?: string
+          saved_count?: number | null
+          skipped_count?: number | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "discovery_search_runs_campaign_id_fkey"
             columns: ["campaign_id"]
             isOneToOne: false
             referencedRelation: "discovery_campaigns"
@@ -934,6 +1249,196 @@ export type Database = {
             columns: ["campaign_id"]
             isOneToOne: false
             referencedRelation: "discovery_campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ecosystem_edges: {
+        Row: {
+          created_at: string
+          id: string
+          kind: Database["public"]["Enums"]["ecosystem_edge_kind"]
+          map_id: string
+          meta: Json
+          note: string | null
+          project_id: string
+          source_node_id: string
+          target_node_id: string
+          updated_at: string
+          weight: number | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          kind?: Database["public"]["Enums"]["ecosystem_edge_kind"]
+          map_id: string
+          meta?: Json
+          note?: string | null
+          project_id: string
+          source_node_id: string
+          target_node_id: string
+          updated_at?: string
+          weight?: number | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          kind?: Database["public"]["Enums"]["ecosystem_edge_kind"]
+          map_id?: string
+          meta?: Json
+          note?: string | null
+          project_id?: string
+          source_node_id?: string
+          target_node_id?: string
+          updated_at?: string
+          weight?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ecosystem_edges_map_id_fkey"
+            columns: ["map_id"]
+            isOneToOne: false
+            referencedRelation: "ecosystem_maps"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ecosystem_edges_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ecosystem_edges_source_node_id_fkey"
+            columns: ["source_node_id"]
+            isOneToOne: false
+            referencedRelation: "ecosystem_nodes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ecosystem_edges_target_node_id_fkey"
+            columns: ["target_node_id"]
+            isOneToOne: false
+            referencedRelation: "ecosystem_nodes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ecosystem_maps: {
+        Row: {
+          created_at: string
+          id: string
+          layout_mode: Database["public"]["Enums"]["ecosystem_layout_mode"]
+          meta: Json
+          name: string
+          project_id: string
+          updated_at: string
+          viewport: Json
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          layout_mode?: Database["public"]["Enums"]["ecosystem_layout_mode"]
+          meta?: Json
+          name?: string
+          project_id: string
+          updated_at?: string
+          viewport?: Json
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          layout_mode?: Database["public"]["Enums"]["ecosystem_layout_mode"]
+          meta?: Json
+          name?: string
+          project_id?: string
+          updated_at?: string
+          viewport?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ecosystem_maps_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ecosystem_nodes: {
+        Row: {
+          cluster: string | null
+          created_at: string
+          hidden: boolean
+          id: string
+          kind: Database["public"]["Enums"]["ecosystem_node_kind"]
+          label: string
+          map_id: string
+          meta: Json
+          project_id: string
+          readiness_score: number | null
+          ref_id: string | null
+          ref_table: string | null
+          ring: number | null
+          stale: boolean
+          subtitle: string | null
+          updated_at: string
+          x: number
+          y: number
+        }
+        Insert: {
+          cluster?: string | null
+          created_at?: string
+          hidden?: boolean
+          id?: string
+          kind: Database["public"]["Enums"]["ecosystem_node_kind"]
+          label: string
+          map_id: string
+          meta?: Json
+          project_id: string
+          readiness_score?: number | null
+          ref_id?: string | null
+          ref_table?: string | null
+          ring?: number | null
+          stale?: boolean
+          subtitle?: string | null
+          updated_at?: string
+          x?: number
+          y?: number
+        }
+        Update: {
+          cluster?: string | null
+          created_at?: string
+          hidden?: boolean
+          id?: string
+          kind?: Database["public"]["Enums"]["ecosystem_node_kind"]
+          label?: string
+          map_id?: string
+          meta?: Json
+          project_id?: string
+          readiness_score?: number | null
+          ref_id?: string | null
+          ref_table?: string | null
+          ring?: number | null
+          stale?: boolean
+          subtitle?: string | null
+          updated_at?: string
+          x?: number
+          y?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ecosystem_nodes_map_id_fkey"
+            columns: ["map_id"]
+            isOneToOne: false
+            referencedRelation: "ecosystem_maps"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ecosystem_nodes_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
             referencedColumns: ["id"]
           },
         ]
@@ -1351,6 +1856,236 @@ export type Database = {
           },
         ]
       }
+      value_prop_problems: {
+        Row: {
+          broader_impact: boolean
+          created_at: string
+          has_owner: boolean
+          icp_id: string | null
+          id: string
+          notes: string | null
+          persona_id: string | null
+          problem: string
+          project_id: string
+          saves_or_makes_money: boolean
+          source: Database["public"]["Enums"]["problem_source"]
+          tried_and_failed: boolean
+          updated_at: string
+          value_prop_id: string | null
+          worth_solving_score: number
+        }
+        Insert: {
+          broader_impact?: boolean
+          created_at?: string
+          has_owner?: boolean
+          icp_id?: string | null
+          id?: string
+          notes?: string | null
+          persona_id?: string | null
+          problem: string
+          project_id: string
+          saves_or_makes_money?: boolean
+          source?: Database["public"]["Enums"]["problem_source"]
+          tried_and_failed?: boolean
+          updated_at?: string
+          value_prop_id?: string | null
+          worth_solving_score?: number
+        }
+        Update: {
+          broader_impact?: boolean
+          created_at?: string
+          has_owner?: boolean
+          icp_id?: string | null
+          id?: string
+          notes?: string | null
+          persona_id?: string | null
+          problem?: string
+          project_id?: string
+          saves_or_makes_money?: boolean
+          source?: Database["public"]["Enums"]["problem_source"]
+          tried_and_failed?: boolean
+          updated_at?: string
+          value_prop_id?: string | null
+          worth_solving_score?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "value_prop_problems_icp_id_fkey"
+            columns: ["icp_id"]
+            isOneToOne: false
+            referencedRelation: "icps"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "value_prop_problems_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "value_prop_problems_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "value_prop_problems_value_prop_id_fkey"
+            columns: ["value_prop_id"]
+            isOneToOne: false
+            referencedRelation: "value_propositions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      value_prop_variations: {
+        Row: {
+          angle: string | null
+          created_at: string
+          icp_id: string | null
+          id: string
+          is_selected: boolean
+          label: string | null
+          persona_id: string | null
+          project_id: string
+          statement: string
+          updated_at: string
+          value_prop_id: string
+        }
+        Insert: {
+          angle?: string | null
+          created_at?: string
+          icp_id?: string | null
+          id?: string
+          is_selected?: boolean
+          label?: string | null
+          persona_id?: string | null
+          project_id: string
+          statement: string
+          updated_at?: string
+          value_prop_id: string
+        }
+        Update: {
+          angle?: string | null
+          created_at?: string
+          icp_id?: string | null
+          id?: string
+          is_selected?: boolean
+          label?: string | null
+          persona_id?: string | null
+          project_id?: string
+          statement?: string
+          updated_at?: string
+          value_prop_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "value_prop_variations_icp_id_fkey"
+            columns: ["icp_id"]
+            isOneToOne: false
+            referencedRelation: "icps"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "value_prop_variations_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "value_prop_variations_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "value_prop_variations_value_prop_id_fkey"
+            columns: ["value_prop_id"]
+            isOneToOne: false
+            referencedRelation: "value_propositions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      value_propositions: {
+        Row: {
+          ai_model: string | null
+          ai_rationale: string | null
+          created_at: string
+          created_by: string | null
+          fields: Json
+          format: Database["public"]["Enums"]["value_prop_format"]
+          icp_id: string | null
+          id: string
+          is_primary: boolean
+          persona_id: string | null
+          project_id: string
+          segment_label: string | null
+          statement: string | null
+          status: Database["public"]["Enums"]["value_prop_status"]
+          updated_at: string
+        }
+        Insert: {
+          ai_model?: string | null
+          ai_rationale?: string | null
+          created_at?: string
+          created_by?: string | null
+          fields?: Json
+          format?: Database["public"]["Enums"]["value_prop_format"]
+          icp_id?: string | null
+          id?: string
+          is_primary?: boolean
+          persona_id?: string | null
+          project_id: string
+          segment_label?: string | null
+          statement?: string | null
+          status?: Database["public"]["Enums"]["value_prop_status"]
+          updated_at?: string
+        }
+        Update: {
+          ai_model?: string | null
+          ai_rationale?: string | null
+          created_at?: string
+          created_by?: string | null
+          fields?: Json
+          format?: Database["public"]["Enums"]["value_prop_format"]
+          icp_id?: string | null
+          id?: string
+          is_primary?: boolean
+          persona_id?: string | null
+          project_id?: string
+          segment_label?: string | null
+          statement?: string | null
+          status?: Database["public"]["Enums"]["value_prop_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "value_propositions_icp_id_fkey"
+            columns: ["icp_id"]
+            isOneToOne: false
+            referencedRelation: "icps"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "value_propositions_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "value_propositions_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       wizard_sessions: {
         Row: {
           context: Json | null
@@ -1455,8 +2190,12 @@ export type Database = {
       brand_audit_status: "queued" | "running" | "completed" | "failed"
       campaign_status: "brief" | "planning" | "active" | "complete"
       campaign_track: "demand_capture" | "demand_creation"
+      canvas_entry_source: "user" | "auto" | "ai_suggestion"
+      canvas_entry_status: "assumption" | "hypothesis" | "validated"
+      canvas_validation_outcome: "supports" | "contradicts" | "inconclusive"
+      canvas_variant: "standard" | "shared_value" | "business_model"
       discovery_campaign_status: "active" | "paused" | "archived"
-      discovery_enrichment_source: "apollo" | "manual"
+      discovery_enrichment_source: "apollo" | "manual" | "firecrawl"
       discovery_insight_kind: "observation" | "interpretation"
       discovery_org_source: "firecrawl" | "manual"
       discovery_org_status:
@@ -1475,6 +2214,32 @@ export type Database = {
         | "closed_no_response"
       discovery_role_status: "identified" | "enriched" | "skipped"
       discovery_theme_status: "emerging" | "confirmed" | "discarded"
+      ecosystem_edge_kind:
+        | "serves"
+        | "buys_from"
+        | "partners_with"
+        | "regulates"
+        | "competes_with"
+        | "influences"
+        | "belongs_to"
+        | "evidences"
+        | "custom"
+      ecosystem_layout_mode: "concentric" | "freeform"
+      ecosystem_node_kind:
+        | "project"
+        | "segment"
+        | "company"
+        | "role"
+        | "person"
+        | "partner"
+        | "regulator"
+        | "competitor"
+        | "channel"
+        | "influencer"
+        | "community"
+        | "theme"
+        | "insight"
+        | "custom"
       matrix_category:
         | "now_account"
         | "strategic_nurture"
@@ -1488,6 +2253,7 @@ export type Database = {
         | "analyst"
         | "client"
       org_type: "disruptors_own" | "disruptors_client" | "independent"
+      problem_source: "manual" | "ai" | "conversation"
       project_status: "setup" | "active" | "review" | "complete" | "archived"
       role_in_buying:
         | "champion"
@@ -1495,6 +2261,8 @@ export type Database = {
         | "influencer"
         | "end_user"
         | "blocker"
+      value_prop_format: "memory_dart" | "elevator_pitch"
+      value_prop_status: "draft" | "active" | "archived"
       wizard_session_status: "in_progress" | "complete" | "cancelled"
       wizard_session_type:
         | "icp"
@@ -1518,12 +2286,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1547,11 +2315,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1572,11 +2340,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1597,11 +2365,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1614,11 +2382,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1646,8 +2414,12 @@ export const Constants = {
       brand_audit_status: ["queued", "running", "completed", "failed"],
       campaign_status: ["brief", "planning", "active", "complete"],
       campaign_track: ["demand_capture", "demand_creation"],
+      canvas_entry_source: ["user", "auto", "ai_suggestion"],
+      canvas_entry_status: ["assumption", "hypothesis", "validated"],
+      canvas_validation_outcome: ["supports", "contradicts", "inconclusive"],
+      canvas_variant: ["standard", "shared_value", "business_model"],
       discovery_campaign_status: ["active", "paused", "archived"],
-      discovery_enrichment_source: ["apollo", "manual"],
+      discovery_enrichment_source: ["apollo", "manual", "firecrawl"],
       discovery_insight_kind: ["observation", "interpretation"],
       discovery_org_source: ["firecrawl", "manual"],
       discovery_org_status: [
@@ -1668,6 +2440,34 @@ export const Constants = {
       ],
       discovery_role_status: ["identified", "enriched", "skipped"],
       discovery_theme_status: ["emerging", "confirmed", "discarded"],
+      ecosystem_edge_kind: [
+        "serves",
+        "buys_from",
+        "partners_with",
+        "regulates",
+        "competes_with",
+        "influences",
+        "belongs_to",
+        "evidences",
+        "custom",
+      ],
+      ecosystem_layout_mode: ["concentric", "freeform"],
+      ecosystem_node_kind: [
+        "project",
+        "segment",
+        "company",
+        "role",
+        "person",
+        "partner",
+        "regulator",
+        "competitor",
+        "channel",
+        "influencer",
+        "community",
+        "theme",
+        "insight",
+        "custom",
+      ],
       matrix_category: [
         "now_account",
         "strategic_nurture",
@@ -1683,6 +2483,7 @@ export const Constants = {
         "client",
       ],
       org_type: ["disruptors_own", "disruptors_client", "independent"],
+      problem_source: ["manual", "ai", "conversation"],
       project_status: ["setup", "active", "review", "complete", "archived"],
       role_in_buying: [
         "champion",
@@ -1691,6 +2492,8 @@ export const Constants = {
         "end_user",
         "blocker",
       ],
+      value_prop_format: ["memory_dart", "elevator_pitch"],
+      value_prop_status: ["draft", "active", "archived"],
       wizard_session_status: ["in_progress", "complete", "cancelled"],
       wizard_session_type: [
         "icp",

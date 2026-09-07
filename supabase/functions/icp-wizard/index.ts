@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { getActivePrompt } from "../_shared/promptTemplates.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -9,59 +10,52 @@ const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY")!;
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-const ICP_SYSTEM_PROMPT = `You are an expert B2B go-to-market strategist specialising in Ideal Customer Profile (ICP) development for deep-tech and B2B SaaS companies. You follow the DH26 ICP framework with 6 core elements.
-
-Your job is to guide the user through building a comprehensive ICP by having a structured conversation. You must fill in ALL 6 sections of the ICP:
-
-1. **Firmographics** — Industry/vertical, company size (employees & revenue), geography, growth stage, tech stack indicators
-2. **Psychographics** — Organisational values, risk tolerance, innovation appetite, buying culture (consensus vs top-down), budget philosophy
-3. **Operational Readiness** — Current tech maturity, team structure, existing solutions/tools, integration requirements, change management capacity
-4. **Alignment & Urgency** — Strategic priorities aligning with our solution, regulatory/compliance drivers, competitive pressure, timeline pressures, budget cycle timing
-5. **Key Buyer Roles & Behaviour** — Decision makers (titles/roles), buying committee structure, champion profile, evaluation criteria, typical sales cycle length
-6. **Anti-ICP Signals** — Red flags indicating poor fit: wrong stage, misaligned expectations, budget mismatch, cultural mismatch, technical incompatibility
-
-IMPORTANT CONTEXT — SAVING & PERSISTENCE:
-- Your draft JSON output is AUTOMATICALLY saved to the database after every single exchange. The user can see it updating live in the right-hand preview panel.
-- You DO have the ability to save — every response you give persists the draft data automatically.
-- When all 6 sections have substantive content, set is_complete to true. The user will then see a "Save to Platform" button light up on the right panel. Tell them: "Your ICP is ready — click **Save to Platform** on the right panel to save it."
-- The user can also save partial progress at any time using the "Save Draft" button.
-
-INSTRUCTIONS:
-- When a website URL is provided, the page content will be fetched and included in your context. Analyse it thoroughly and map every finding to the relevant ICP section before asking questions.
-- Ask ONE focused question at a time to fill gaps in each element.
-- After each exchange, mentally track which sections are filled and which need more information.
-- When you have enough information for a section, summarise what you've captured for that section.
-- Be conversational and consultative, not robotic.
-
-After EVERY response, you MUST output a JSON block at the very end of your message wrapped in <draft> tags like this:
-<draft>
-{
-  "firmographics": { ... },
-  "psychographics": { ... },
-  "operational_readiness": { ... },
-  "alignment_urgency": { ... },
-  "buyer_roles_behaviour": { ... },
-  "anti_icp_signals": { ... },
-  "segment_name": "suggested name or empty string",
-  "fit_score": null or 1-10,
-  "access_score": null or 1-10,
-  "matrix_category": null or "now_account"|"strategic_nurture"|"trap_account"|"no_go",
-  "sections_complete": ["firmographics", ...list of sections with substantive content...],
-  "is_complete": false
-}
-</draft>
-
-CRITICAL JSON RULES:
-- Output valid JSON only inside <draft> tags. No trailing commas, no comments, no JavaScript syntax.
-- Always include ALL 6 section keys even if empty (use {} for empty sections).
-- Set is_complete to true ONLY when all 6 sections have substantive, actionable content.
-- When marking complete, also fill in segment_name, fit_score, access_score, and matrix_category.
-
-The user sees the draft card update in real-time, so keep the JSON accurate and progressive.`;
+export { ICP_SYSTEM_PROMPT } from "../_shared/defaultPrompts.ts";
+import { ICP_SYSTEM_PROMPT } from "../_shared/defaultPrompts.ts";
 
 const INITIAL_MESSAGE_NO_CONTEXT = "Let's build your ICP. I'll start by researching your company — what's your website URL? If you have existing customers, personas, or messaging you'd like me to work from, you can share those too.";
 
 const INITIAL_MESSAGE_WITH_CONTEXT = "I already have context on your brand from a previous session. Let's define a new ICP segment — what market, vertical, or customer type are you targeting with this one?";
+
+const ICP_CONTEXT_VERSION = "company_context_v2";
+
+function buildKnownCompanyFactsBlock(
+  projectInfo: Record<string, any>,
+  brandContext: Record<string, any>,
+  brandVoiceContext: Record<string, any> | null,
+  existingIcps: any[],
+): string {
+  const facts = {
+    project: {
+      name: projectInfo?.name || null,
+      website_url: projectInfo?.website_url || brandContext?.website_url || null,
+    },
+    completed_brand_voice: brandVoiceContext ? {
+      brand_identity: brandVoiceContext.brand_identity,
+      tone_description: brandVoiceContext.tone_description,
+      personality_adjectives: brandVoiceContext.personality_adjectives,
+      target_audiences: brandVoiceContext.target_audiences,
+    } : null,
+    existing_icps_as_company_context: existingIcps.map((icp: any) => ({
+      id: icp.id,
+      segment_name: icp.segment_name,
+      matrix_category: icp.matrix_category,
+      fit_score: icp.fit_score,
+      access_score: icp.access_score,
+      firmographics: icp.firmographics,
+      psychographics: icp.psychographics,
+      buyer_roles: icp.buyer_roles,
+      anti_icp_signals: icp.anti_icp_signals,
+    })),
+  };
+
+  return `\n\n<known_company_facts>\nThese facts are already established for this project. Treat them as authoritative company/project context. Infer the company's base offer, audience, market assumptions, buying-culture patterns, and anti-fit patterns from the existing ICPs and brand voice. Do NOT ask the user to re-provide website, company, product, positioning, target-market basics, buyer roles, or shared anti-ICP patterns already visible here. Reuse them silently unless you need to confirm a genuine ambiguity.\n${JSON.stringify(facts, null, 2)}\n</known_company_facts>`;
+}
+
+function buildRuntimeDiffRules(existingIcps: any[]): string {
+  const segmentNames = existingIcps.map((i: any) => i.segment_name).filter(Boolean).join(", ");
+  return `\n\n<runtime_icp_diff_rules>\nThese runtime rules override any older admin-managed ICP prompt text.\n1. If <known_company_facts> or <existing_icps> is present, never start by asking for company basics, website URL, product description, positioning, broad target market, known buyer roles, or known anti-ICP patterns.\n2. For a new ICP when existing ICPs are present${segmentNames ? ` (${segmentNames})` : ""}, open with one short acknowledgement of what is already known, then ask only whether the new ICP is a variation of an existing segment or a genuinely different segment.\n3. If the user says "Variation of X", prefill the draft by inheriting reusable firmographics, psychographics, buyer_roles_behaviour, operational_readiness, alignment_urgency, and anti_icp_signals from X where applicable. Add inherited_sections mapping inherited section keys to X's ICP id. Ask only about deltas.\n4. If the user says "Different segment", still inherit company-wide facts, buying-culture norms, known buyer-role patterns, and anti-ICP patterns. Ask only for what distinguishes this segment.\n5. Every response must continue producing the <draft> JSON block.\n</runtime_icp_diff_rules>`;
+}
 
 /** Deep-merge two objects (shallow per top-level key) */
 function mergeDrafts(existing: Record<string, any>, incoming: Record<string, any>): Record<string, any> {
@@ -173,30 +167,71 @@ Deno.serve(async (req) => {
     let sessionId = session_id;
     let messages: Array<{ role: string; content: string; timestamp: string }> = [];
     let existingDraft: Record<string, any> = {};
+    let syntheticInitialPrompt: string | null = null;
 
     // Load brand context from the project
     let brandContext: Record<string, any> = {};
+    let projectInfo: Record<string, any> = {};
     if (project_id) {
       const { data: project } = await supabase
         .from("projects")
-        .select("brand_context")
+        .select("name, website_url, brand_context")
         .eq("id", project_id)
         .single();
+      projectInfo = project || {};
       if (project?.brand_context && Object.keys(project.brand_context).length > 0) {
         brandContext = project.brand_context as Record<string, any>;
       }
     }
 
     const hasBrandContext = brandContext.crawled_content && brandContext.crawled_content.length > 0;
-    const initialMessage = hasBrandContext ? INITIAL_MESSAGE_WITH_CONTEXT : INITIAL_MESSAGE_NO_CONTEXT;
+
+    let brandVoiceContext: Record<string, any> | null = null;
+    if (project_id) {
+      const { data: brandVoices } = await supabase
+        .from("brand_voices")
+        .select("brand_identity, tone_description, personality_adjectives, target_audiences")
+        .eq("project_id", project_id)
+        .eq("status", "complete")
+        .order("created_at", { ascending: false })
+        .limit(1);
+      brandVoiceContext = brandVoices?.[0] || null;
+    }
+
+    // Fetch existing ICPs so the AI can reuse them rather than re-asking (diff mode)
+    let existingIcps: any[] = [];
+    if (project_id) {
+      const { data: icps, error: icpsError } = await supabase
+        .from("icps")
+        .select("id, segment_name, matrix_category, fit_score, access_score, firmographics, psychographics, buyer_roles, anti_icp_signals")
+        .eq("project_id", project_id);
+
+      if (icpsError) {
+        console.error("Failed to load existing ICPs for diff mode:", icpsError);
+        return new Response(
+          JSON.stringify({ error: "Failed to load existing ICPs", details: icpsError.message }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+
+      existingIcps = icps || [];
+    }
+    const hasPriorIcps = existingIcps.length > 0;
+
+    const initialMessage = hasPriorIcps
+      ? `I can see you've already defined ${existingIcps.length} ICP${existingIcps.length > 1 ? 's' : ''} for this project (${existingIcps.map((i: any) => i.segment_name).join(', ')}). Is this new segment a variation of one of those, or a different segment entirely?`
+      : hasBrandContext ? INITIAL_MESSAGE_WITH_CONTEXT : INITIAL_MESSAGE_NO_CONTEXT;
 
     if (!sessionId) {
-      const initialMsg = {
-        role: "assistant",
-        content: initialMessage,
-        timestamp: new Date().toISOString(),
-      };
-      messages = [initialMsg];
+      messages = [];
+
+      if (!hasPriorIcps || message) {
+        messages.push({
+          role: "assistant",
+          content: initialMessage,
+          timestamp: new Date().toISOString(),
+        });
+      }
 
       if (message) {
         messages.push({
@@ -204,8 +239,11 @@ Deno.serve(async (req) => {
           content: message,
           timestamp: new Date().toISOString(),
         });
+      } else if (hasPriorIcps) {
+        syntheticInitialPrompt = "Start a new ICP in diff mode. Use the existing ICPs and known company facts as base company context. Open by briefly acknowledging what we already know, then ask one question: is this new ICP a variation of an existing segment or a genuinely different segment? Do not ask for website, company, product, positioning, or other basics already known.";
       }
 
+      const initialDraftOutput = { _meta: { mode: hasPriorIcps ? "diff" : "first", context_version: ICP_CONTEXT_VERSION } } as Record<string, any>;
       const { data: session, error: insertError } = await supabase
         .from("wizard_sessions")
         .insert({
@@ -213,6 +251,7 @@ Deno.serve(async (req) => {
           session_type: "icp",
           messages,
           status: "in_progress",
+          draft_output: initialDraftOutput,
         })
         .select("id")
         .single();
@@ -225,13 +264,24 @@ Deno.serve(async (req) => {
       }
 
       sessionId = session.id;
+      existingDraft = initialDraftOutput;
 
-      if (!message) {
+      if (!message && !hasPriorIcps) {
+        const initialSuggestedReplies = hasPriorIcps
+          ? [
+              ...existingIcps.slice(0, 3).map((i: any) => `Variation of ${i.segment_name}`),
+              "Different segment",
+              "Ask me everything",
+            ]
+          : [];
         return new Response(
           JSON.stringify({
             reply: initialMessage,
-            updated_draft: {},
+            updated_draft: initialDraftOutput,
             session_id: sessionId,
+            suggested_replies: initialSuggestedReplies,
+            existing_icp_count: existingIcps.length,
+            mode: hasPriorIcps ? "diff" : "first",
           }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
@@ -261,9 +311,9 @@ Deno.serve(async (req) => {
 
     // Detect URLs and fetch content (trimmed to 4000 chars)
     const lastUserMsg = messages[messages.length - 1];
-    let enrichedContent = lastUserMsg.content;
+    let enrichedContent = lastUserMsg?.content || "";
     const urlRegex = /https?:\/\/[^\s<>"{}|\\^`\[\]]+/gi;
-    const urls = lastUserMsg.role === "user" ? lastUserMsg.content.match(urlRegex) : null;
+    const urls = lastUserMsg?.role === "user" ? lastUserMsg.content.match(urlRegex) : null;
     let newlyCrawledContent: { url: string; content: string } | null = null;
 
     if (urls && urls.length > 0) {
@@ -296,7 +346,9 @@ Deno.serve(async (req) => {
           enrichedContent += `\n\n[Failed to fetch ${url}: ${fetchErr instanceof Error ? fetchErr.message : "unknown error"}]`;
         }
       }
-      messages[messages.length - 1] = { ...lastUserMsg, content: enrichedContent };
+      if (lastUserMsg) {
+        messages[messages.length - 1] = { ...lastUserMsg, content: enrichedContent };
+      }
     }
 
     // Save brand context to project if this is the first crawl
@@ -315,13 +367,28 @@ Deno.serve(async (req) => {
     }
 
     // Build system prompt with brand context if available
-    let systemPrompt = ICP_SYSTEM_PROMPT;
+    let systemPrompt: string;
+    try {
+      systemPrompt = await getActivePrompt(supabase, "icp_wizard", "ANTHROPIC_ICP_SYSTEM_PROMPT");
+    } catch {
+      systemPrompt = ICP_SYSTEM_PROMPT;
+    }
     if (hasBrandContext) {
       systemPrompt += `\n\nBRAND CONTEXT (from previous analysis of ${brandContext.website_url || "company website"}):\n${brandContext.crawled_content}\n\nUse this to inform your ICP questions. Do NOT ask for the website URL again — you already have the brand context.`;
     }
+    if (hasPriorIcps || brandVoiceContext || Object.keys(brandContext).length > 0 || projectInfo?.name || projectInfo?.website_url) {
+      systemPrompt += buildKnownCompanyFactsBlock(projectInfo, brandContext, brandVoiceContext, existingIcps);
+    }
+    if (hasPriorIcps) {
+      systemPrompt += `\n\n<existing_icps>\nThis project already has the following ICPs. Reuse their firmographics/psychographics/buyer_roles/anti-ICP signals rather than re-asking. Ask only about deltas for the new segment.\n${JSON.stringify(existingIcps, null, 2)}\n</existing_icps>`;
+      systemPrompt += buildRuntimeDiffRules(existingIcps);
+    }
 
     // Build Anthropic messages — strip draft tags from prior assistant messages to save tokens
-    const anthropicMessages = messages.map((m) => ({
+    const anthropicMessages = (syntheticInitialPrompt
+      ? [{ role: "user", content: syntheticInitialPrompt, timestamp: new Date().toISOString() }]
+      : messages
+    ).map((m) => ({
       role: m.role as "user" | "assistant",
       content: m.role === "assistant"
         ? m.content.replace(/<draft>[\s\S]*?<\/draft>/g, "").trim()
@@ -393,9 +460,20 @@ Deno.serve(async (req) => {
       .update({
         messages,
         draft_output: updatedDraft,
-        status: isComplete ? "complete" : "in_progress",
+        // Session stays in_progress until the ICP row is actually saved by the client.
+        status: "in_progress",
       })
       .eq("id", sessionId);
+
+    const suggestedReplies = hasPriorIcps
+      ? [
+          ...existingIcps.slice(0, 3).map((i: any) => `Variation of ${i.segment_name}`),
+          "Different segment",
+          "Ask me everything",
+        ]
+      : [];
+
+    const sessionMode = (existingDraft?._meta?.mode as string) || (hasPriorIcps ? "diff" : "first");
 
     return new Response(
       JSON.stringify({
@@ -403,6 +481,9 @@ Deno.serve(async (req) => {
         updated_draft: updatedDraft,
         session_id: sessionId,
         draft_warning: draftWarning,
+        suggested_replies: suggestedReplies,
+        existing_icp_count: existingIcps.length,
+        mode: sessionMode,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );

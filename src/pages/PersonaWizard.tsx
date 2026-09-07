@@ -63,7 +63,9 @@ export default function PersonaWizard() {
   const [saving, setSaving] = useState(false);
   const [savedPersonaId, setSavedPersonaId] = useState<string | null>(null);
   const [initStage, setInitStage] = useState<string | null>(null);
+  const [suggestedReplies, setSuggestedReplies] = useState<string[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
 
   const currentPhase = PERSONA_SECTIONS.find(s => getSectionStatus(draft, s.key) !== 'complete');
   const completedCount = PERSONA_SECTIONS.filter(s => getSectionStatus(draft, s.key) === 'complete').length;
@@ -147,6 +149,8 @@ export default function PersonaWizard() {
       setSessionId(data.session_id);
       setMessages([{ role: 'assistant', content: data.reply }]);
       if (data.updated_draft) setDraft(data.updated_draft);
+      setSuggestedReplies(Array.isArray(data.suggested_replies) ? data.suggested_replies : []);
+
     } catch (err: any) {
       toast.error('Failed to start wizard: ' + (err.message || 'Unknown error'));
     } finally {
@@ -160,8 +164,10 @@ export default function PersonaWizard() {
     if (!input.trim() || loading || !sessionId) return;
     const userMsg = input.trim();
     setInput('');
+    setSuggestedReplies([]);
     setMessages(prev => [...prev, { role: 'user', content: userMsg }]);
     setLoading(true);
+
 
     try {
       const res = await supabase.functions.invoke('persona-wizard', {
@@ -360,6 +366,21 @@ export default function PersonaWizard() {
             <div ref={messagesEndRef} />
           </div>
 
+          {suggestedReplies.length > 0 && !loading && (
+            <div className="border-t px-3 pt-3 flex flex-wrap gap-2">
+              {suggestedReplies.map((chip) => (
+                <Button
+                  key={chip}
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={() => { setInput(chip); setSuggestedReplies([]); }}
+                >
+                  {chip}
+                </Button>
+              ))}
+            </div>
+          )}
           <div className="border-t p-3 flex gap-2">
             <Textarea
               value={input}
@@ -374,6 +395,7 @@ export default function PersonaWizard() {
               <Send className="h-4 w-4" />
             </Button>
           </div>
+
         </div>
 
         {/* Right: Preview */}

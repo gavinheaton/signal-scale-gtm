@@ -6,7 +6,18 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
-import { ArrowLeft, Send, Sparkles, Loader2 } from 'lucide-react';
+import { ArrowLeft, Send, Sparkles, Loader2, RotateCcw } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import ReactMarkdown from 'react-markdown';
 import { ICPPreviewPanel } from '@/components/icp-wizard/ICPPreviewPanel';
 import { ICP_SECTIONS, getSectionStatus, type DraftOutput, type ChatMessage } from '@/components/icp-wizard/types';
@@ -26,7 +37,41 @@ export default function ICPWizard() {
   const [saving, setSaving] = useState(false);
   const [prevDraft, setPrevDraft] = useState<DraftOutput>({});
   const [savedIcpId, setSavedIcpId] = useState<string | null>(null);
+  const [suggestedReplies, setSuggestedReplies] = useState<string[]>([]);
+  const [existingIcpCount, setExistingIcpCount] = useState(0);
+  const [staleResume, setStaleResume] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const ICP_CONTEXT_VERSION = 'company_context_v2';
+
+  const draftKey = (id: string) => `wizard-draft:${id}`;
+
+  const countSections = (d: DraftOutput) => (d?.sections_complete?.length || 0);
+
+  // Local safety copy — survives a refresh or crash before the server round-trip lands
+  useEffect(() => {
+    if (!sessionId) return;
+    const hasContent = Object.keys(draft || {}).some(k => k !== '_meta');
+    if (!hasContent) return;
+    try {
+      localStorage.setItem(draftKey(sessionId), JSON.stringify({ draft, messages }));
+    } catch {}
+  }, [sessionId, draft, messages]);
+
+  const clearLocalDraft = (id: string | null) => {
+    if (!id) return;
+    try {
+      localStorage.removeItem(draftKey(id));
+    } catch {}
+  };
+
+  const readLocalDraft = (id: string): { draft: DraftOutput; messages: ChatMessage[] } | null => {
+    try {
+      const raw = localStorage.getItem(draftKey(id));
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  };
 
   // Detect newly completed sections for inline celebrations
   useEffect(() => {
@@ -54,6 +99,17 @@ export default function ICPWizard() {
   const initSession = async () => {
     setLoading(true);
     try {
+      // Check current ICP count first — drives diff-mode logic
+      const { count: icpCount, error: icpCountError } = await supabase
+        .from('icps')
+        .select('id', { count: 'exact', head: true })
+        .eq('project_id', currentProject!.id);
+
+      if (icpCountError) throw icpCountError;
+
+      const priorIcps = icpCount || 0;
+      setExistingIcpCount(priorIcps);
+
       const { data: existingSessions } = await supabase
         .from('wizard_sessions')
         .select('*')
@@ -65,16 +121,60 @@ export default function ICPWizard() {
 
       if (existingSessions && existingSessions.length > 0) {
         const session = existingSessions[0];
+        const draftOut = (session.draft_output as any) || {};
+        const sessionMode = draftOut?._meta?.mode as string | undefined;
+        const contextVersion = draftOut?._meta?.context_version as string | undefined;
+        // If the project now has ICPs but the session predates company-context diff mode, flag as stale
+        const isStale = priorIcps > 0 && (sessionMode !== 'diff' || contextVersion !== ICP_CONTEXT_VERSION);
+
+        if (isStale) {
+          await supabase
+            .from('wizard_sessions')
+            .update({ status: 'cancelled' })
+            .eq('id', session.id);
+
+          setMessages([]);
+          setDraft({});
+          setPrevDraft({});
+          setSessionId(null);
+
+          const res = await supabase.functions.invoke('icp-wizard', {
+            body: { project_id: currentProject!.id },
+          });
+          if (res.error) throw res.error;
+          const data = res.data;
+          setSessionId(data.session_id);
+          setMessages([{ role: 'assistant', content: data.reply }]);
+          if (data.updated_draft) setDraft(data.updated_draft);
+          setSuggestedReplies(Array.isArray(data.suggested_replies) ? data.suggested_replies : []);
+          if (typeof data.existing_icp_count === 'number') setExistingIcpCount(data.existing_icp_count);
+          setStaleResume(false);
+          toast.info('Started a fresh ICP using saved company context');
+          return;
+        }
+
         setSessionId(session.id);
         const sessionMessages = session.messages as Array<{ role: string; content: string }>;
-        setMessages(
-          sessionMessages.map(m => ({
-            role: m.role as 'user' | 'assistant',
-            content: m.role === 'assistant' ? stripDraft(m.content) : m.content,
-          }))
-        );
-        if (session.draft_output && Object.keys(session.draft_output as object).length > 0) {
-          setDraft(session.draft_output as DraftOutput);
+        const serverMessages: ChatMessage[] = sessionMessages.map(m => ({
+          role: m.role as 'user' | 'assistant',
+          content: m.role === 'assistant' ? stripDraft(m.content) : m.content,
+        }));
+        const serverDraft = (session.draft_output as DraftOutput) || {};
+
+        // Prefer the local safety copy only if it holds more completed sections
+        const local = readLocalDraft(session.id);
+        if (local?.draft && countSections(local.draft) > countSections(serverDraft)) {
+          setMessages(local.messages?.length ? local.messages : serverMessages);
+          setDraft(local.draft);
+          toast.info('Restored an unsaved draft from this browser');
+        } else {
+          setMessages(serverMessages);
+          if (Object.keys(serverDraft).length > 0) setDraft(serverDraft);
+        }
+        setStaleResume(false);
+        // Re-surface diff chips if this is an ongoing diff session
+        if (sessionMode === 'diff') {
+          setSuggestedReplies(await buildDiffChips(currentProject!.id));
         }
         toast.info('Resumed your previous session');
         return;
@@ -88,6 +188,9 @@ export default function ICPWizard() {
       setSessionId(data.session_id);
       setMessages([{ role: 'assistant', content: data.reply }]);
       if (data.updated_draft) setDraft(data.updated_draft);
+      setSuggestedReplies(Array.isArray(data.suggested_replies) ? data.suggested_replies : []);
+      if (typeof data.existing_icp_count === 'number') setExistingIcpCount(data.existing_icp_count);
+      setStaleResume(false);
     } catch (err: any) {
       toast.error('Failed to start wizard: ' + (err.message || 'Unknown error'));
     } finally {
@@ -95,10 +198,25 @@ export default function ICPWizard() {
     }
   };
 
+  const buildDiffChips = async (projectId: string): Promise<string[]> => {
+    const { data: icps } = await supabase
+      .from('icps')
+      .select('segment_name')
+      .eq('project_id', projectId)
+      .order('segment_name', { ascending: true })
+      .limit(3);
+    return [
+      ...(icps || []).map((i: any) => `Variation of ${i.segment_name}`),
+      'Different segment',
+      'Ask me everything',
+    ];
+  };
+
   const sendMessage = async () => {
     if (!input.trim() || loading || !sessionId) return;
     const userMsg = input.trim();
     setInput('');
+    setSuggestedReplies([]);
     setMessages(prev => [...prev, { role: 'user', content: userMsg }]);
     setLoading(true);
 
@@ -160,32 +278,61 @@ export default function ICPWizard() {
           .update({ status: 'complete' })
           .eq('id', sessionId);
       }
+      // Cancel any other stray in-progress ICP sessions so next visit starts clean
+      await supabase
+        .from('wizard_sessions')
+        .update({ status: 'cancelled' })
+        .eq('project_id', currentProject.id)
+        .eq('session_type', 'icp')
+        .eq('status', 'in_progress');
 
       toast.success('ICP saved to platform!');
+      clearLocalDraft(sessionId);
       setSavedIcpId(insertedData.id);
       triggerStrategySync(currentProject.id, (currentProject as any).notion_strategy_page_id);
       setSaving(false);
 
     } catch (err: any) {
-      toast.error('Failed to save: ' + err.message);
+      // Non-destructive: draft, session and chat are all left intact so you can retry
+      toast.error('Not saved — your draft is safe, try again: ' + (err.message || 'Unknown error'), {
+        duration: 8000,
+      });
       setSaving(false);
     }
   };
 
   const handlePostSaveAction = (action: 'another_icp' | 'personas') => {
     if (action === 'another_icp') {
-      // Reset state and start fresh session
-      setMessages([]);
-      setDraft({});
-      setPrevDraft({});
-      setSessionId(null);
-      setSavedIcpId(null);
-      initSession();
+      restartWizard();
     } else {
-      // Navigate to persona wizard with the saved ICP context
       navigate(`/project/persona-wizard?icp_id=${savedIcpId}`);
     }
   };
+
+  const restartWizard = async () => {
+    if (currentProject) {
+      try {
+        await supabase
+          .from('wizard_sessions')
+          .update({ status: 'cancelled' })
+          .eq('project_id', currentProject.id)
+          .eq('session_type', 'icp')
+          .eq('status', 'in_progress');
+      } catch {}
+    }
+    clearLocalDraft(sessionId);
+    setMessages([]);
+    setDraft({});
+    setPrevDraft({});
+    setSessionId(null);
+    setSavedIcpId(null);
+    setSuggestedReplies([]);
+    setStaleResume(false);
+    setInput('');
+    initSession();
+    toast.success('Started a fresh ICP');
+  };
+
 
   if (!currentProject) {
     navigate('/projects');
@@ -210,6 +357,25 @@ export default function ICPWizard() {
           </h1>
           <p className="text-xs text-muted-foreground">AI-guided ICP builder</p>
         </div>
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button variant="outline" size="sm" disabled={loading}>
+              <RotateCcw className="h-4 w-4 mr-2" /> Start Over
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Start a fresh ICP?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will discard your current in-progress ICP draft and begin a new conversation. Already-saved ICPs are not affected.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={restartWizard}>Start Over</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
 
       <div className="flex-1 flex gap-4 min-h-0">
@@ -220,6 +386,18 @@ export default function ICPWizard() {
               <Badge variant="outline" className="text-[10px] border-primary/30">
                 {currentPhase.icon} {currentPhase.label}
               </Badge>
+            </div>
+          )}
+
+          {staleResume && (
+            <div className="px-4 py-3 border-b bg-orange-50 dark:bg-orange-950/20 flex items-center justify-between gap-3">
+              <div className="text-xs text-foreground">
+                You have <strong>{existingIcpCount}</strong> saved ICP{existingIcpCount === 1 ? '' : 's'}. This draft was started before company-context diff mode — start fresh to reuse what's already known.
+              </div>
+              <div className="flex gap-2 shrink-0">
+                <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setStaleResume(false)}>Continue draft</Button>
+                <Button size="sm" className="h-7 text-xs" onClick={restartWizard}>Start fresh</Button>
+              </div>
             </div>
           )}
 
@@ -253,6 +431,21 @@ export default function ICPWizard() {
             <div ref={messagesEndRef} />
           </div>
 
+          {suggestedReplies.length > 0 && !loading && (
+            <div className="border-t px-3 pt-3 flex flex-wrap gap-2">
+              {suggestedReplies.map((chip) => (
+                <Button
+                  key={chip}
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={() => { setInput(chip); setSuggestedReplies([]); }}
+                >
+                  {chip}
+                </Button>
+              ))}
+            </div>
+          )}
           <div className="border-t p-3 flex gap-2">
             <Textarea
               value={input}

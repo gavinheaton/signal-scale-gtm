@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -15,6 +15,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { FolderOpen, AlertCircle, Plus, MoreVertical, Archive, RotateCcw, Trash2 } from 'lucide-react';
@@ -29,8 +30,8 @@ const statusColors: Record<string, string> = {
 };
 
 export default function Projects() {
-  const { membership, loading: authLoading, signOut, hasMinRole } = useAuth();
-  const canCreateProject = hasMinRole('manager');
+  const { memberships, organisations, membership, loading: authLoading, signOut, hasMinRole } = useAuth();
+  const canCreateProjectAnywhere = hasMinRole('manager');
   const isAdmin = hasMinRole('admin');
   const { setCurrentProject } = useProject();
   const navigate = useNavigate();
@@ -38,32 +39,61 @@ export default function Projects() {
   const [loadingProjects, setLoadingProjects] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [newName, setNewName] = useState('');
+  const [newOrgId, setNewOrgId] = useState<string>('');
   const [creating, setCreating] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
+  const [orgFilter, setOrgFilter] = useState<string>('all');
 
   // Delete confirmation state
   const [deleteTarget, setDeleteTarget] = useState<Project | null>(null);
   const [deleteConfirmName, setDeleteConfirmName] = useState('');
   const [deleting, setDeleting] = useState(false);
 
+  const orgIds = useMemo(() => memberships.map(m => m.org_id), [memberships]);
+  const orgNameById = useMemo(
+    () => Object.fromEntries(organisations.map(o => [o.id, o.name])),
+    [organisations]
+  );
+  const creatableOrgs = useMemo(
+    () => memberships
+      .filter(m => hasMinRole('manager', m.org_id))
+      .map(m => ({ id: m.org_id, name: orgNameById[m.org_id] ?? '—' })),
+    [memberships, orgNameById, hasMinRole]
+  );
+  const multiOrg = memberships.length > 1;
+
   const fetchProjects = async () => {
-    if (!membership) return;
+    if (orgIds.length === 0) {
+      setProjects([]);
+      setLoadingProjects(false);
+      return;
+    }
     const { data } = await supabase
       .from('projects')
       .select('*')
-      .eq('org_id', membership.org_id);
+      .in('org_id', orgIds);
     if (data) setProjects(data as unknown as Project[]);
     setLoadingProjects(false);
   };
 
   useEffect(() => {
     if (authLoading) return;
-    if (!membership) {
+    if (memberships.length === 0) {
       setLoadingProjects(false);
       return;
     }
     fetchProjects();
-  }, [membership, authLoading]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [memberships, authLoading]);
+
+  const openCreateDialog = () => {
+    // Default the org selector to the active org if allowed, else the first creatable org
+    const defaultOrg = creatableOrgs.find(o => o.id === membership?.org_id)?.id
+      ?? creatableOrgs[0]?.id
+      ?? '';
+    setNewOrgId(defaultOrg);
+    setDialogOpen(true);
+  };
 
   const selectProject = (p: Project) => {
     if (p.status === 'archived') return;
@@ -72,11 +102,11 @@ export default function Projects() {
   };
 
   const handleCreate = async () => {
-    if (!newName.trim() || !membership) return;
+    if (!newName.trim() || !newOrgId) return;
     setCreating(true);
     const { error } = await supabase.from('projects').insert({
       name: newName.trim(),
-      org_id: membership.org_id,
+      org_id: newOrgId,
     });
     setCreating(false);
     if (error) {
@@ -132,7 +162,7 @@ export default function Projects() {
     }
   };
 
-  if (authLoading || (membership && loadingProjects)) {
+  if (authLoading || (memberships.length > 0 && loadingProjects)) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
@@ -140,7 +170,7 @@ export default function Projects() {
     );
   }
 
-  if (!membership) {
+  if (memberships.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-64 text-center">
         <AlertCircle className="h-16 w-16 text-muted-foreground/40 mb-4" />
@@ -155,9 +185,12 @@ export default function Projects() {
     );
   }
 
-  const visibleProjects = showArchived
+  const filteredByOrg = orgFilter === 'all'
     ? projects
-    : projects.filter((p) => p.status !== 'archived');
+    : projects.filter(p => p.org_id === orgFilter);
+  const visibleProjects = showArchived
+    ? filteredByOrg
+    : filteredByOrg.filter((p) => p.status !== 'archived');
 
   const newProjectDialog = (
     <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -172,17 +205,33 @@ export default function Projects() {
           }}
           className="space-y-4"
         >
-          <Input
-            placeholder="Project name"
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            autoFocus
-          />
+          {creatableOrgs.length > 1 && (
+            <div className="space-y-1.5">
+              <Label>Organisation</Label>
+              <Select value={newOrgId} onValueChange={setNewOrgId}>
+                <SelectTrigger><SelectValue placeholder="Select organisation" /></SelectTrigger>
+                <SelectContent>
+                  {creatableOrgs.map(o => (
+                    <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          <div className="space-y-1.5">
+            {creatableOrgs.length > 1 && <Label>Project name</Label>}
+            <Input
+              placeholder="Project name"
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              autoFocus
+            />
+          </div>
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={!newName.trim() || creating}>
+            <Button type="submit" disabled={!newName.trim() || !newOrgId || creating}>
               {creating ? 'Creating…' : 'Create'}
             </Button>
           </div>
@@ -236,14 +285,14 @@ export default function Projects() {
     </Dialog>
   );
 
-  if (!visibleProjects.length && !showArchived) {
+  if (!visibleProjects.length && !showArchived && orgFilter === 'all') {
     return (
       <div className="flex flex-col items-center justify-center h-64 text-center">
         <FolderOpen className="h-16 w-16 text-muted-foreground/40 mb-4" />
         <h2 className="text-xl font-semibold text-foreground">No Projects Yet</h2>
         <p className="text-muted-foreground mt-1 mb-4">Create your first project to get started.</p>
-        {canCreateProject && (
-          <Button onClick={() => setDialogOpen(true)}>
+        {canCreateProjectAnywhere && (
+          <Button onClick={openCreateDialog}>
             <Plus className="mr-1 h-4 w-4" /> New Project
           </Button>
         )}
@@ -260,9 +309,22 @@ export default function Projects() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-1">
+      <div className="flex items-center justify-between mb-1 flex-wrap gap-3">
         <h1 className="text-2xl font-bold text-foreground">Your Projects</h1>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
+          {multiOrg && (
+            <Select value={orgFilter} onValueChange={setOrgFilter}>
+              <SelectTrigger className="h-9 w-56"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All organisations</SelectItem>
+                {memberships.map(m => (
+                  <SelectItem key={m.org_id} value={m.org_id}>
+                    {orgNameById[m.org_id] ?? '—'}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
           {isAdmin && projects.some((p) => p.status === 'archived') && (
             <div className="flex items-center gap-2">
               <Switch
@@ -275,8 +337,8 @@ export default function Projects() {
               </Label>
             </div>
           )}
-          {canCreateProject && (
-            <Button onClick={() => setDialogOpen(true)} size="sm">
+          {canCreateProjectAnywhere && (
+            <Button onClick={openCreateDialog} size="sm">
               <Plus className="mr-1 h-4 w-4" /> New Project
             </Button>
           )}
@@ -323,7 +385,14 @@ export default function Projects() {
                   )}
                 </div>
               </div>
-              <CardDescription>Created {new Date(p.created_at).toLocaleDateString()}</CardDescription>
+              <CardDescription className="flex items-center gap-2">
+                {multiOrg && (
+                  <Badge variant="outline" className="text-[10px] font-normal">
+                    {orgNameById[p.org_id] ?? '—'}
+                  </Badge>
+                )}
+                <span>Created {new Date(p.created_at).toLocaleDateString()}</span>
+              </CardDescription>
             </CardHeader>
           </Card>
         ))}

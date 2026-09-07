@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,7 +10,13 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sh
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Plus, Sparkles, Loader2, Building2, ExternalLink, Users, Trash2, X } from 'lucide-react';
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  Plus, Sparkles, Loader2, Building2, ExternalLink, Users, Trash2, X, Pencil,
+  ChevronDown, ChevronRight, MoreHorizontal, Linkedin, CheckCircle2, AlertCircle,
+} from 'lucide-react';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -21,6 +27,7 @@ import {
   DiscoveryOrganization,
   DiscoveryOrgRole,
   DiscoveryOrgStatus,
+  DiscoveryEnrichment,
 } from '@/types/discovery';
 import { Persona } from '@/types/database';
 
@@ -51,8 +58,37 @@ export default function OrganizationsTab({ campaign, personas }: { campaign: Dis
   const [searchOpen, setSearchOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [rolesFor, setRolesFor] = useState<DiscoveryOrganization | null>(null);
+  const [editing, setEditing] = useState<DiscoveryOrganization | null>(null);
+  const [viewing, setViewing] = useState<DiscoveryOrganization | null>(null);
+  const [enrichingId, setEnrichingId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<DiscoveryOrganization | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [statusFilter, setStatusFilter] = useState<DiscoveryOrgStatus | 'all'>('all');
+
+  const enrichOne = async (org: DiscoveryOrganization) => {
+    setEnrichingId(org.id);
+    try {
+      const { data, error } = await supabase.functions.invoke('discovery-enrich-org', {
+        body: { organization_id: org.id },
+      });
+      if (error || (data as any)?.error) {
+        throw new Error((data as any)?.error || error?.message || 'Enrichment failed');
+      }
+      const created = (data as any)?.contacts_created || 0;
+      const verified = (data as any)?.website_verified;
+      toast.success(
+        `Enriched ${org.name}` +
+        (created > 0 ? ` · ${created} contact${created === 1 ? '' : 's'} added` : '') +
+        (verified === false ? ' · website not verified' : ''),
+      );
+      await refresh();
+    } catch (e: any) {
+      toast.error(e?.message || 'Enrichment failed');
+    } finally {
+      setEnrichingId(null);
+    }
+  };
 
   const refresh = async () => {
     setLoading(true);
@@ -73,6 +109,24 @@ export default function OrganizationsTab({ campaign, personas }: { campaign: Dis
 
   useEffect(() => { refresh(); }, [campaign.id]);
 
+  const toggleExpand = (id: string) => {
+    const next = new Set(expanded);
+    next.has(id) ? next.delete(id) : next.add(id);
+    setExpanded(next);
+  };
+
+  const statusCounts = useMemo(() => {
+    const c: Record<string, number> = { all: orgs.length };
+    for (const s of statusOptions) c[s] = 0;
+    for (const o of orgs) c[o.status] = (c[o.status] || 0) + 1;
+    return c;
+  }, [orgs]);
+
+  const filteredOrgs = useMemo(
+    () => (statusFilter === 'all' ? orgs : orgs.filter((o) => o.status === statusFilter)),
+    [orgs, statusFilter],
+  );
+
   return (
     <div className="space-y-3">
       <div className="flex justify-between items-center">
@@ -86,6 +140,23 @@ export default function OrganizationsTab({ campaign, personas }: { campaign: Dis
         </div>
       </div>
 
+      {orgs.length > 0 && (
+        <div className="flex gap-1 flex-wrap">
+          {(['all', ...statusOptions] as const).map((s) => (
+            <Button
+              key={s}
+              size="sm"
+              variant={statusFilter === s ? 'default' : 'outline'}
+              className="h-7 text-xs"
+              onClick={() => setStatusFilter(s)}
+            >
+              {s === 'all' ? 'All' : s.replace(/_/g, ' ')}
+              <Badge variant="secondary" className="ml-1.5 text-[10px] px-1.5 py-0">{statusCounts[s] || 0}</Badge>
+            </Button>
+          ))}
+        </div>
+      )}
+
       {searchOpen && (
         <SearchPanel campaign={campaign} onAdded={refresh} onClose={() => setSearchOpen(false)} />
       )}
@@ -97,62 +168,172 @@ export default function OrganizationsTab({ campaign, personas }: { campaign: Dis
           <Building2 className="h-10 w-10 mx-auto mb-3 opacity-50" />
           No organisations yet. Use <strong>Find organisations</strong> to discover candidates via Firecrawl, or add them manually.
         </CardContent></Card>
+      ) : filteredOrgs.length === 0 ? (
+        <Card><CardContent className="py-8 text-center text-sm text-muted-foreground">
+          No organisations with status "{statusFilter.replace(/_/g, ' ')}".
+        </CardContent></Card>
       ) : (
         <Card><CardContent className="p-0">
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-8"></TableHead>
                 <TableHead>Name</TableHead>
                 <TableHead>Domain</TableHead>
-                <TableHead>Tier</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Signals</TableHead>
-                <TableHead>Leaders</TableHead>
-                <TableHead>Roles</TableHead>
-                <TableHead>Contacts</TableHead>
-                <TableHead></TableHead>
+                <TableHead className="w-24">Tier</TableHead>
+                <TableHead className="w-40">Status</TableHead>
+                <TableHead className="w-24 text-right">Contacts</TableHead>
+                <TableHead className="w-10"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {orgs.map((o) => (
-                <TableRow key={o.id}>
-                  <TableCell className="font-medium">{o.name}</TableCell>
-                  <TableCell className="text-xs">
-                    {o.domain ? <a href={`https://${o.domain}`} target="_blank" rel="noreferrer" className="text-primary hover:underline inline-flex items-center gap-1">{o.domain}<ExternalLink className="h-3 w-3" /></a> : '—'}
-                  </TableCell>
-                  <TableCell><Badge variant="outline">{o.tier || '—'}</Badge></TableCell>
-                  <TableCell>
-                    <Select value={o.status} onValueChange={async (v) => {
-                      await (supabase as any).from('discovery_organizations').update({ status: v }).eq('id', o.id);
-                      refresh();
-                    }}>
-                      <SelectTrigger className="h-7 text-xs w-36"><SelectValue /></SelectTrigger>
-                      <SelectContent>{statusOptions.map((s) => <SelectItem key={s} value={s}>{s.replace(/_/g, ' ')}</SelectItem>)}</SelectContent>
-                    </Select>
-                  </TableCell>
-                  <TableCell className="text-xs">{o.signals_matched.slice(0, 2).join(', ')}{o.signals_matched.length > 2 ? ` +${o.signals_matched.length - 2}` : ''}</TableCell>
-                  <TableCell className="text-xs">
-                    {Array.isArray(o.leadership) && o.leadership.length > 0 ? (
-                      <div className="flex flex-col gap-0.5" title={o.leadership.map((l) => `${l.name}${l.role ? ` · ${l.role}` : ''}`).join('\n')}>
-                        {o.leadership.slice(0, 2).map((l, i) => (
-                          <span key={i}>{l.name}{l.role ? <span className="text-muted-foreground"> · {l.role}</span> : null}</span>
-                        ))}
-                        {o.leadership.length > 2 && <span className="text-muted-foreground">+{o.leadership.length - 2} more</span>}
-                      </div>
-                    ) : '—'}
-                  </TableCell>
-                  <TableCell>{roleCounts[o.id]?.roles || 0}</TableCell>
-                  <TableCell>{roleCounts[o.id]?.contacts || 0}</TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-1">
-                      <Button size="sm" variant="outline" onClick={() => setRolesFor(o)}><Users className="h-3 w-3 mr-1" /> Find roles</Button>
-                      <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => setDeleting(o)} aria-label={`Delete ${o.name}`}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
+              {filteredOrgs.map((o) => {
+                const isOpen = expanded.has(o.id);
+                const e = o.enrichment as DiscoveryEnrichment | null | undefined;
+                return (
+                  <Fragment key={o.id}>
+                    <TableRow className="cursor-pointer" onClick={() => toggleExpand(o.id)}>
+                      <TableCell className="align-top">
+                        <button className="p-0.5 hover:bg-muted rounded" aria-label="Expand">
+                          {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                        </button>
+                      </TableCell>
+                      <TableCell className="font-medium">
+                        <div className="flex items-center gap-2">
+                          <button className="text-left hover:underline" onClick={(ev) => { ev.stopPropagation(); setViewing(o); }}>
+                            {o.name}
+                          </button>
+                          {o.enriched_at && (
+                            <span title="Enriched" className="text-primary"><Sparkles className="h-3 w-3" /></span>
+                          )}
+                          {o.linkedin_url && (
+                            <a href={o.linkedin_url} target="_blank" rel="noreferrer" onClick={(ev) => ev.stopPropagation()} className="text-primary" title="Company LinkedIn">
+                              <Linkedin className="h-3.5 w-3.5" />
+                            </a>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-xs">
+                        {o.domain ? (
+                          <span className="inline-flex items-center gap-1">
+                            <a href={`https://${o.domain}`} target="_blank" rel="noreferrer" onClick={(ev) => ev.stopPropagation()} className="text-primary hover:underline inline-flex items-center gap-1">
+                              {o.domain}<ExternalLink className="h-3 w-3" />
+                            </a>
+                            {o.enriched_at && (
+                              o.website_verified
+                                ? <CheckCircle2 className="h-3 w-3 text-green-600" aria-label="Website verified" />
+                                : <AlertCircle className="h-3 w-3 text-amber-600" aria-label="Website not verified" />
+                            )}
+                          </span>
+                        ) : '—'}
+                      </TableCell>
+                      <TableCell><Badge variant="outline">{o.tier || '—'}</Badge></TableCell>
+                      <TableCell onClick={(ev) => ev.stopPropagation()}>
+                        <Select value={o.status} onValueChange={async (v) => {
+                          await (supabase as any).from('discovery_organizations').update({ status: v }).eq('id', o.id);
+                          refresh();
+                        }}>
+                          <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+                          <SelectContent>{statusOptions.map((s) => <SelectItem key={s} value={s}>{s.replace(/_/g, ' ')}</SelectItem>)}</SelectContent>
+                        </Select>
+                      </TableCell>
+                      <TableCell className="text-right text-xs">
+                        {roleCounts[o.id]?.contacts || 0}
+                        <span className="text-muted-foreground"> / {roleCounts[o.id]?.roles || 0} roles</span>
+                      </TableCell>
+                      <TableCell className="text-right" onClick={(ev) => ev.stopPropagation()}>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button size="icon" variant="ghost" className="h-8 w-8" aria-label={`Actions for ${o.name}`}>
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => enrichOne(o)} disabled={enrichingId === o.id}>
+                              {enrichingId === o.id ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Sparkles className="h-4 w-4 mr-2" />}
+                              {o.enriched_at ? 'Re-enrich' : 'Enrich'}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setRolesFor(o)}>
+                              <Users className="h-4 w-4 mr-2" /> Find roles
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setEditing(o)}>
+                              <Pencil className="h-4 w-4 mr-2" /> Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => setDeleting(o)}>
+                              <Trash2 className="h-4 w-4 mr-2" /> Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                    {isOpen && (
+                      <TableRow key={o.id + '-exp'} className="bg-muted/30 hover:bg-muted/30">
+                        <TableCell></TableCell>
+                        <TableCell colSpan={6} className="py-3">
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                            <div className="space-y-1.5">
+                              <div className="font-medium uppercase tracking-wide text-muted-foreground text-[10px]">Leaders</div>
+                              {Array.isArray(o.leadership) && o.leadership.length > 0 ? (
+                                <ul className="space-y-1">
+                                  {o.leadership.slice(0, 6).map((l, i) => (
+                                    <li key={i} className="flex items-center gap-1.5">
+                                      <span className="truncate">
+                                        <strong>{l.name}</strong>
+                                        {l.role && <span className="text-muted-foreground"> · {l.role}</span>}
+                                      </span>
+                                      {l.linkedin_url && (
+                                        <a href={l.linkedin_url} target="_blank" rel="noreferrer" className="text-primary shrink-0" title="LinkedIn">
+                                          <Linkedin className="h-3 w-3" />
+                                        </a>
+                                      )}
+                                    </li>
+                                  ))}
+                                  {o.leadership.length > 6 && <li className="text-muted-foreground">+{o.leadership.length - 6} more</li>}
+                                </ul>
+                              ) : <div className="text-muted-foreground">No leaders yet. Enrich to discover.</div>}
+                            </div>
+                            <div className="space-y-1.5">
+                              <div className="font-medium uppercase tracking-wide text-muted-foreground text-[10px]">Matched signals</div>
+                              {o.signals_matched?.length ? (
+                                <div className="flex flex-wrap gap-1">
+                                  {o.signals_matched.map((s) => <Badge key={s} variant="secondary" className="text-[10px]">{s}</Badge>)}
+                                </div>
+                              ) : <div className="text-muted-foreground">—</div>}
+                              {o.fit_notes && (
+                                <>
+                                  <div className="font-medium uppercase tracking-wide text-muted-foreground text-[10px] mt-2">Fit notes</div>
+                                  <p className="whitespace-pre-wrap line-clamp-4">{o.fit_notes}</p>
+                                </>
+                              )}
+                            </div>
+                            <div className="space-y-1.5">
+                              <div className="font-medium uppercase tracking-wide text-muted-foreground text-[10px]">Enrichment</div>
+                              {o.enriched_at ? (
+                                <>
+                                  <div>Confidence: <strong>{o.confidence || '—'}</strong></div>
+                                  <div>Website: {o.website_verified
+                                    ? <span className="text-green-700 inline-flex items-center gap-1"><CheckCircle2 className="h-3 w-3" /> verified</span>
+                                    : <span className="text-amber-700 inline-flex items-center gap-1"><AlertCircle className="h-3 w-3" /> unverified</span>}</div>
+                                  {o.linkedin_url && (
+                                    <div><a href={o.linkedin_url} target="_blank" rel="noreferrer" className="text-primary inline-flex items-center gap-1"><Linkedin className="h-3 w-3" /> Company LinkedIn</a></div>
+                                  )}
+                                  {e?.industry && <div>Industry: {e.industry}</div>}
+                                  {e?.hq_location && <div>HQ: {e.hq_location}</div>}
+                                  {e?.employee_range && <div>Employees: {e.employee_range}</div>}
+                                  <div className="text-muted-foreground">Last enriched {new Date(o.enriched_at).toLocaleDateString()}</div>
+                                </>
+                              ) : (
+                                <div className="text-muted-foreground">Not enriched yet. Use the actions menu to run enrichment.</div>
+                              )}
+                            </div>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </Fragment>
+                );
+              })}
             </TableBody>
           </Table>
         </CardContent></Card>
@@ -160,6 +341,8 @@ export default function OrganizationsTab({ campaign, personas }: { campaign: Dis
 
       {addOpen && <AddOrgSheet campaign={campaign} onClose={() => { setAddOpen(false); refresh(); }} />}
       {rolesFor && <FindRolesSheet org={rolesFor} personas={personas} onClose={() => { setRolesFor(null); refresh(); }} />}
+      {editing && <EditOrgSheet org={editing} campaign={campaign} onClose={() => { setEditing(null); refresh(); }} />}
+      {viewing && <OrgDetailSheet org={viewing} onClose={() => setViewing(null)} onEdit={() => { setEditing(viewing); setViewing(null); }} onEnrich={() => { enrichOne(viewing); setViewing(null); }} enriching={enrichingId === viewing.id} />}
 
       <AlertDialog open={!!deleting} onOpenChange={(o) => !o && setDeleting(null)}>
         <AlertDialogContent>
@@ -208,59 +391,198 @@ export default function OrganizationsTab({ campaign, personas }: { campaign: Dis
   );
 }
 
+
+
 function SearchPanel({ campaign, onAdded, onClose }: { campaign: DiscoveryCampaign; onAdded: () => void | Promise<void>; onClose: () => void }) {
   const [running, setRunning] = useState(false);
-  const [candidates, setCandidates] = useState<FindCandidate[]>([]);
-  const [picked, setPicked] = useState<Set<number>>(new Set());
-  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState<(FindCandidate & { _rowId: string })[]>([]);
   const [debug, setDebug] = useState<any | null>(null);
-  const [lastAdded, setLastAdded] = useState<number | null>(null);
   const [hasRun, setHasRun] = useState(false);
+  const [savedCount, setSavedCount] = useState<number | null>(null);
+  const [skippedCount, setSkippedCount] = useState<number>(0);
+  const [pendingRun, setPendingRun] = useState<{ id: string; count: number } | null>(null);
+  const [importing, setImporting] = useState(false);
+  const cancelledRef = useRef(false);
+
+
+
+
+  // Candidates are saved server-side by the background job. Here we just show what landed.
+  const showSavedRows = async (cands: FindCandidate[]) => {
+    if (!Array.isArray(cands) || cands.length === 0) { setSaved([]); return; }
+    const { data: orgs } = await (supabase as any)
+      .from('discovery_organizations')
+      .select('id, name, domain')
+      .eq('campaign_id', campaign.id);
+    const byKey = new Map<string, string>(
+      (orgs || []).map((o: any) => [(o.domain || o.name || '').toLowerCase(), o.id as string]),
+    );
+    setSaved(
+      cands
+        .map((c) => ({ ...c, _rowId: byKey.get((c.domain || c.name || '').toLowerCase()) || '' }))
+        .filter((c) => c._rowId),
+    );
+  };
+
+  const handleComplete = async (row: any) => {
+    const cands = (row?.candidates || []) as FindCandidate[];
+    setDebug(row?.debug || null);
+    setSavedCount(typeof row?.saved_count === 'number' ? row.saved_count : 0);
+    setSkippedCount(typeof row?.skipped_count === 'number' ? row.skipped_count : 0);
+    if (row?.error) toast.error(row.error);
+    setPendingRun(
+      typeof row?.saved_count === 'number' || cands.length === 0
+        ? null
+        : { id: row.id as string, count: cands.length },
+    );
+    await showSavedRows(cands);
+    await onAdded();
+  };
+
+  // Import a completed run whose candidates were never persisted (legacy runs).
+  const importRun = async (runId: string) => {
+    setImporting(true);
+    try {
+      const { data: row } = await (supabase as any)
+        .from('discovery_search_runs')
+        .select('id, candidates')
+        .eq('id', runId)
+        .maybeSingle();
+      const cands = (row?.candidates || []) as FindCandidate[];
+      if (cands.length === 0) { toast.error('This run has no candidates to import'); return; }
+
+      const { data: existing } = await (supabase as any)
+        .from('discovery_organizations')
+        .select('name, domain')
+        .eq('campaign_id', campaign.id);
+      const keys = new Set<string>(
+        (existing || []).map((o: any) => (o.domain || o.name || '').toLowerCase()).filter(Boolean),
+      );
+      const fresh: FindCandidate[] = [];
+      let skipped = 0;
+      for (const c of cands) {
+        const key = (c.domain || c.name || '').toLowerCase();
+        if (!key || keys.has(key)) { skipped++; continue; }
+        keys.add(key);
+        fresh.push(c);
+      }
+      let savedN = 0;
+      if (fresh.length > 0) {
+        const rows = fresh.map((c) => ({
+          campaign_id: campaign.id,
+          name: c.name,
+          domain: c.domain || null,
+          tier: c.suggested_tier,
+          signals_matched: c.matched_signals,
+          fit_notes: c.rationale,
+          source: 'firecrawl',
+          source_url: c.source_url,
+          leadership: Array.isArray(c.leadership) ? c.leadership : [],
+          confidence: c.confidence || null,
+        }));
+        const { data: inserted, error: insErr } = await (supabase as any)
+          .from('discovery_organizations').insert(rows).select('id');
+        if (insErr) { toast.error(insErr.message); return; }
+        savedN = inserted?.length || rows.length;
+      }
+      await (supabase as any)
+        .from('discovery_search_runs')
+        .update({ saved_count: savedN, skipped_count: skipped })
+        .eq('id', runId);
+      setSavedCount(savedN);
+      setSkippedCount(skipped);
+      setPendingRun(null);
+      setHasRun(true);
+      await showSavedRows(cands);
+      await onAdded();
+      toast.success(`Imported ${savedN} organisation${savedN === 1 ? '' : 's'}`);
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  // Poll a background search run until it completes (or errors / times out).
+  const pollRun = useCallback(async (runId: string) => {
+    const started = Date.now();
+    setRunning(true);
+    while (!cancelledRef.current && Date.now() - started < 6 * 60 * 1000) {
+      const { data: row } = await (supabase as any)
+        .from('discovery_search_runs')
+        .select('id, status, candidates, debug, error, saved_count, skipped_count')
+        .eq('id', runId)
+        .maybeSingle();
+      if (row?.status === 'complete') {
+        setRunning(false);
+        setHasRun(true);
+        await handleComplete(row);
+        return;
+      }
+      if (row?.status === 'error') {
+        setRunning(false);
+        setHasRun(true);
+        setDebug(row.debug || null);
+        toast.error(row.error || 'Search failed');
+        return;
+      }
+      await new Promise((r) => setTimeout(r, 3000));
+    }
+    if (!cancelledRef.current) {
+      setRunning(false);
+      setHasRun(true);
+      toast.error('Search is taking longer than expected — reopen this panel shortly to see results.');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [campaign.id]);
+
+  // Re-attach to the newest run for this campaign — in-flight or recently finished.
+  useEffect(() => {
+    cancelledRef.current = false;
+    (async () => {
+      const { data: row } = await (supabase as any)
+        .from('discovery_search_runs')
+        .select('id, status, candidates, debug, error, saved_count, skipped_count')
+        .eq('campaign_id', campaign.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (!row || cancelledRef.current) return;
+      if (row.status === 'running') { pollRun(row.id); return; }
+      if (row.status === 'complete') {
+        setHasRun(true);
+        await handleComplete(row);
+      }
+    })();
+    return () => { cancelledRef.current = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [campaign.id, pollRun]);
 
   const run = async () => {
     setRunning(true);
-    setCandidates([]);
+    setSaved([]);
     setDebug(null);
-    setLastAdded(null);
+    setSavedCount(null);
+    setSkippedCount(0);
+    setPendingRun(null);
+
     const { data, error } = await supabase.functions.invoke('discovery-find-orgs', { body: { campaign_id: campaign.id } });
-    setRunning(false);
-    setHasRun(true);
-    if (error) {
+    if (error || !(data as any)?.run_id) {
+      setRunning(false);
+      setHasRun(true);
       const detail = (data as any)?.error || (data as any)?.detail;
-      toast.error(detail ? `${error.message}: ${detail}` : (error.message || 'Failed to find organisations'));
+      toast.error(detail ? `${error?.message || 'Search failed'}: ${detail}` : (error?.message || 'Failed to start search'));
       console.error('[find-orgs] error', error, data);
       return;
     }
-    const cands = (data?.candidates || []) as FindCandidate[];
-    setCandidates(cands);
-    setPicked(new Set(cands.map((_: any, i: number) => i)));
-    setDebug((data as any)?.debug || null);
+    await pollRun((data as any).run_id as string);
   };
 
-  const save = async () => {
-    if (picked.size === 0) return;
-    setSaving(true);
-    const rows = Array.from(picked).map((i) => candidates[i]).map((c) => ({
-      campaign_id: campaign.id,
-      name: c.name,
-      domain: c.domain,
-      tier: c.suggested_tier,
-      signals_matched: c.matched_signals,
-      fit_notes: c.rationale,
-      source: 'firecrawl',
-      source_url: c.source_url,
-      leadership: Array.isArray(c.leadership) ? c.leadership : [],
-      confidence: c.confidence || null,
-    }));
-    const { error } = await (supabase as any).from('discovery_organizations').insert(rows);
-    setSaving(false);
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
-    setLastAdded(rows.length);
-    setCandidates([]);
-    setPicked(new Set());
+
+
+  const removeOne = async (rowId: string) => {
+    if (!rowId) return;
+    const { error } = await (supabase as any).from('discovery_organizations').delete().eq('id', rowId);
+    if (error) { toast.error(error.message); return; }
+    setSaved((prev) => prev.filter((r) => r._rowId !== rowId));
     await onAdded();
   };
 
@@ -270,76 +592,83 @@ function SearchPanel({ campaign, onAdded, onClose }: { campaign: DiscoveryCampai
         <div className="flex items-start justify-between gap-3">
           <div>
             <h3 className="text-sm font-semibold">Find organisations</h3>
-            <p className="text-xs text-muted-foreground">Searches the web for orgs matching this campaign's target segment, ICP signals, and tier criteria. Review candidates before adding.</p>
+            <p className="text-xs text-muted-foreground">Searches the web for real prospective customers matching this campaign's target segment. Results are saved automatically — remove any you don't want.</p>
           </div>
           <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onClose} aria-label="Close search"><X className="h-4 w-4" /></Button>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <Button onClick={run} disabled={running} size="sm">
             {running ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Sparkles className="h-4 w-4 mr-1" />}
             {running ? 'Searching…' : hasRun ? 'Run another search' : 'Run search'}
           </Button>
-          {lastAdded !== null && (
-            <span className="text-xs text-muted-foreground">Added {lastAdded} organisation{lastAdded === 1 ? '' : 's'}.</span>
+          {running && (
+            <span className="text-xs text-muted-foreground">
+              Searching the web for organisations — this can take a couple of minutes. You can leave this open.
+            </span>
           )}
+          {!running && savedCount !== null && (
+            <span className="text-xs text-muted-foreground">
+              Saved {savedCount}{skippedCount > 0 ? ` · skipped ${skippedCount} duplicate${skippedCount === 1 ? '' : 's'}` : ''}
+            </span>
+          )}
+
         </div>
 
-        {candidates.length > 0 && (
-          <>
-            <div className="space-y-2 max-h-[55vh] overflow-y-auto border rounded p-2">
-              {candidates.map((c, i) => (
-                <div key={i} className="flex gap-2 p-2 rounded hover:bg-muted/50">
-                  <Checkbox checked={picked.has(i)} onCheckedChange={(v) => {
-                    const next = new Set(picked);
-                    v ? next.add(i) : next.delete(i);
-                    setPicked(next);
-                  }} />
-                  <div className="flex-1 text-sm">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <strong>{c.name}</strong>
-                      <Badge variant="outline" className="text-xs">{c.suggested_tier}</Badge>
-                      {c.confidence && (
-                        <Badge
-                          variant={c.confidence === 'high' ? 'default' : 'secondary'}
-                          className="text-[10px]"
-                          title="AI confidence this matches the ICP"
-                        >
-                          {c.confidence} confidence
-                        </Badge>
-                      )}
-                      {c.domain && <a href={`https://${c.domain}`} target="_blank" rel="noreferrer" className="text-xs text-primary hover:underline inline-flex items-center gap-1">{c.domain}<ExternalLink className="h-3 w-3" /></a>}
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-1">{c.rationale}</p>
-                    {Array.isArray(c.leadership) && c.leadership.length > 0 && (
-                      <div className="mt-1 text-xs">
-                        <span className="text-muted-foreground">Leaders identified: </span>
-                        {c.leadership.map((l, j) => (
-                          <Badge key={j} variant="outline" className="text-[10px] mr-1">{l.name}{l.role ? ` · ${l.role}` : ''}</Badge>
-                        ))}
-                      </div>
-                    )}
-                    <div className="flex flex-wrap gap-1 mt-1">{c.matched_signals.map((s) => <Badge key={s} variant="secondary" className="text-[10px]">{s}</Badge>)}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" size="sm" onClick={() => { setCandidates([]); setPicked(new Set()); }}>Clear</Button>
-              <Button size="sm" onClick={save} disabled={saving || picked.size === 0}>
-                {saving && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
-                Add {picked.size} organisation{picked.size === 1 ? '' : 's'}
-              </Button>
-            </div>
-          </>
+        {pendingRun && !running && (
+          <div className="rounded border border-amber-300 bg-amber-50 p-3 text-xs flex items-center justify-between gap-3">
+            <span>
+              A previous search found <strong>{pendingRun.count}</strong> organisation{pendingRun.count === 1 ? '' : 's'} that were never saved.
+            </span>
+            <Button size="sm" variant="outline" disabled={importing} onClick={() => importRun(pendingRun.id)}>
+              {importing ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : null}
+              Import results
+            </Button>
+          </div>
         )}
+
+
+        {saved.length > 0 && (
+          <div className="space-y-2 max-h-[55vh] overflow-y-auto border rounded p-2">
+            {saved.map((c) => (
+              <div key={c._rowId} className="flex gap-2 p-2 rounded hover:bg-muted/50">
+                <div className="flex-1 text-sm">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <strong>{c.name}</strong>
+                    <Badge variant="outline" className="text-xs">{c.suggested_tier}</Badge>
+                    {c.confidence && (
+                      <Badge variant={c.confidence === 'high' ? 'default' : 'secondary'} className="text-[10px]" title="AI confidence this matches the ICP">
+                        {c.confidence} confidence
+                      </Badge>
+                    )}
+                    {c.domain && <a href={`https://${c.domain}`} target="_blank" rel="noreferrer" className="text-xs text-primary hover:underline inline-flex items-center gap-1">{c.domain}<ExternalLink className="h-3 w-3" /></a>}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">{c.rationale}</p>
+                  {Array.isArray(c.leadership) && c.leadership.length > 0 && (
+                    <div className="mt-1 text-xs">
+                      <span className="text-muted-foreground">Leaders: </span>
+                      {c.leadership.map((l, j) => (
+                        <Badge key={j} variant="outline" className="text-[10px] mr-1">{l.name}{l.role ? ` · ${l.role}` : ''}</Badge>
+                      ))}
+                    </div>
+                  )}
+                  <div className="flex flex-wrap gap-1 mt-1">{c.matched_signals.map((s) => <Badge key={s} variant="secondary" className="text-[10px]">{s}</Badge>)}</div>
+                </div>
+                <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => removeOne(c._rowId)} aria-label={`Remove ${c.name}`}>
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+
 
         {hasRun && !running && debug && (
           <div className="rounded border bg-muted/30 p-3 text-xs space-y-2">
             <div className="font-medium text-sm">
-              {candidates.length === 0 ? 'No candidates returned' : 'Search diagnostics'}
+              {savedCount === 0 ? 'No candidates returned' : 'Search diagnostics'}
             </div>
-            {candidates.length === 0 && (
+            {savedCount === 0 && (
               <p className="text-muted-foreground">No time filter is applied to the search. If results are sparse, broaden the target segment or qualifying signals.</p>
             )}
             <div className="space-y-1 text-muted-foreground">
@@ -558,6 +887,226 @@ function FindRolesSheet({ org, personas, onClose }: { org: DiscoveryOrganization
               </div>
             </>
           )}
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+function EditOrgSheet({ org, campaign, onClose }: { org: DiscoveryOrganization; campaign: DiscoveryCampaign; onClose: () => void }) {
+  const [name, setName] = useState(org.name);
+  const [domain, setDomain] = useState(org.domain || '');
+  const [segment, setSegment] = useState(org.segment || '');
+  const [tier, setTier] = useState(org.tier || '');
+  const [status, setStatus] = useState<DiscoveryOrgStatus>(org.status);
+  const [confidence, setConfidence] = useState<string>(org.confidence || '');
+  const [signals, setSignals] = useState<string[]>(org.signals_matched || []);
+  const [sourceUrl, setSourceUrl] = useState(org.source_url || '');
+  const [fitNotes, setFitNotes] = useState(org.fit_notes || '');
+  const [leaders, setLeaders] = useState<{ name: string; role?: string | null }[]>(
+    Array.isArray(org.leadership) ? org.leadership.map((l) => ({ name: l.name, role: l.role || '' })) : []
+  );
+  const [saving, setSaving] = useState(false);
+  const allSignals = Array.from(new Set([...(campaign.qualifying_signals || []), ...(campaign.disqualifying_signals || []), ...(org.signals_matched || [])]));
+
+  const save = async () => {
+    if (!name.trim()) { toast.error('Name is required'); return; }
+    setSaving(true);
+    const { error } = await (supabase as any).from('discovery_organizations').update({
+      name: name.trim(),
+      domain: domain.trim() || null,
+      segment: segment.trim() || null,
+      tier: tier || null,
+      status,
+      confidence: confidence || null,
+      signals_matched: signals,
+      source_url: sourceUrl.trim() || null,
+      fit_notes: fitNotes.trim() || null,
+      leadership: leaders.filter((l) => l.name.trim()).map((l) => ({ name: l.name.trim(), role: l.role?.trim() || null })),
+    }).eq('id', org.id);
+    setSaving(false);
+    if (error) { toast.error(error.message); return; }
+    toast.success('Saved');
+    onClose();
+  };
+
+  return (
+    <Sheet open onOpenChange={onClose}>
+      <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
+        <SheetHeader><SheetTitle>Edit organisation</SheetTitle></SheetHeader>
+        <div className="space-y-3 mt-4">
+          <div><Label>Name *</Label><Input value={name} onChange={(e) => setName(e.target.value)} /></div>
+          <div className="grid grid-cols-2 gap-2">
+            <div><Label>Domain</Label><Input value={domain} onChange={(e) => setDomain(e.target.value)} placeholder="example.com" /></div>
+            <div><Label>Segment</Label><Input value={segment} onChange={(e) => setSegment(e.target.value)} /></div>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            <div>
+              <Label>Tier</Label>
+              <Select value={tier} onValueChange={setTier}>
+                <SelectTrigger><SelectValue placeholder="Tier" /></SelectTrigger>
+                <SelectContent>{campaign.tiers.map((t) => <SelectItem key={t.label} value={t.label}>{t.label}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Status</Label>
+              <Select value={status} onValueChange={(v) => setStatus(v as DiscoveryOrgStatus)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{statusOptions.map((s) => <SelectItem key={s} value={s}>{s.replace(/_/g, ' ')}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Confidence</Label>
+              <Select value={confidence || 'none'} onValueChange={(v) => setConfidence(v === 'none' ? '' : v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">—</SelectItem>
+                  <SelectItem value="high">high</SelectItem>
+                  <SelectItem value="medium">medium</SelectItem>
+                  <SelectItem value="low">low</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div><Label>Source URL</Label><Input value={sourceUrl} onChange={(e) => setSourceUrl(e.target.value)} /></div>
+          {allSignals.length > 0 && (
+            <div>
+              <Label>Matched signals</Label>
+              <div className="space-y-1 mt-1 max-h-40 overflow-auto border rounded p-2">
+                {allSignals.map((s) => (
+                  <label key={s} className="flex items-center gap-2 text-xs">
+                    <Checkbox checked={signals.includes(s)} onCheckedChange={(v) => setSignals(v ? [...signals, s] : signals.filter((x) => x !== s))} />
+                    {s}
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+          <div>
+            <div className="flex items-center justify-between">
+              <Label>Leadership</Label>
+              <Button type="button" size="sm" variant="ghost" onClick={() => setLeaders([...leaders, { name: '', role: '' }])}>
+                <Plus className="h-3 w-3 mr-1" /> Add
+              </Button>
+            </div>
+            <div className="space-y-1 mt-1">
+              {leaders.map((l, i) => (
+                <div key={i} className="flex gap-1">
+                  <Input placeholder="Name" value={l.name} onChange={(e) => {
+                    const next = [...leaders]; next[i] = { ...next[i], name: e.target.value }; setLeaders(next);
+                  }} />
+                  <Input placeholder="Role" value={l.role || ''} onChange={(e) => {
+                    const next = [...leaders]; next[i] = { ...next[i], role: e.target.value }; setLeaders(next);
+                  }} />
+                  <Button type="button" size="icon" variant="ghost" className="h-9 w-9 text-destructive"
+                    onClick={() => setLeaders(leaders.filter((_, j) => j !== i))}>
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div><Label>Fit notes</Label><Textarea rows={4} value={fitNotes} onChange={(e) => setFitNotes(e.target.value)} /></div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={onClose}>Cancel</Button>
+            <Button onClick={save} disabled={saving}>{saving && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}Save</Button>
+          </div>
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+function OrgDetailSheet({ org, onClose, onEdit, onEnrich, enriching }: {
+  org: DiscoveryOrganization; onClose: () => void; onEdit: () => void; onEnrich: () => void; enriching: boolean;
+}) {
+  const e: DiscoveryEnrichment | null | undefined = org.enrichment;
+  return (
+    <Sheet open onOpenChange={onClose}>
+      <SheetContent className="w-full sm:max-w-xl overflow-y-auto">
+        <SheetHeader>
+          <SheetTitle className="flex items-center gap-2">
+            {org.name}
+            {org.domain && <a href={`https://${org.domain}`} target="_blank" rel="noreferrer" className="text-xs text-primary inline-flex items-center gap-1">{org.domain}<ExternalLink className="h-3 w-3" /></a>}
+          </SheetTitle>
+        </SheetHeader>
+        <div className="space-y-4 mt-4 text-sm">
+          <div className="flex flex-wrap gap-2">
+            {org.tier && <Badge variant="outline">{org.tier}</Badge>}
+            <Badge variant="secondary">{org.status.replace(/_/g, ' ')}</Badge>
+            {org.confidence && <Badge>{org.confidence} confidence</Badge>}
+            {org.enriched_at && <Badge variant="outline" className="text-[10px]"><Sparkles className="h-2.5 w-2.5 mr-1" />enriched {new Date(org.enriched_at).toLocaleDateString()}</Badge>}
+          </div>
+
+          {e?.description && <p>{e.description}</p>}
+
+          {(e?.industry || e?.hq_location || e?.employee_range || e?.founded_year) && (
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              {e.industry && <div><span className="text-muted-foreground">Industry:</span> {e.industry}</div>}
+              {e.hq_location && <div><span className="text-muted-foreground">HQ:</span> {e.hq_location}</div>}
+              {e.employee_range && <div><span className="text-muted-foreground">Employees:</span> {e.employee_range}</div>}
+              {e.founded_year && <div><span className="text-muted-foreground">Founded:</span> {e.founded_year}</div>}
+            </div>
+          )}
+
+          {Array.isArray(e?.products) && e!.products!.length > 0 && (
+            <div><div className="text-xs text-muted-foreground mb-1">Products</div>
+              <div className="flex flex-wrap gap-1">{e!.products!.map((p) => <Badge key={p} variant="outline" className="text-[10px]">{p}</Badge>)}</div>
+            </div>
+          )}
+
+          {Array.isArray(e?.tech_focus) && e!.tech_focus!.length > 0 && (
+            <div><div className="text-xs text-muted-foreground mb-1">Tech focus</div>
+              <div className="flex flex-wrap gap-1">{e!.tech_focus!.map((t) => <Badge key={t} variant="secondary" className="text-[10px]">{t}</Badge>)}</div>
+            </div>
+          )}
+
+          {org.signals_matched?.length > 0 && (
+            <div><div className="text-xs text-muted-foreground mb-1">Matched signals</div>
+              <div className="flex flex-wrap gap-1">{org.signals_matched.map((s) => <Badge key={s} variant="secondary" className="text-[10px]">{s}</Badge>)}</div>
+            </div>
+          )}
+
+          {Array.isArray(org.leadership) && org.leadership.length > 0 && (
+            <div>
+              <div className="text-xs text-muted-foreground mb-1">Leadership</div>
+              <ul className="space-y-1">
+                {org.leadership.map((l, i) => (
+                  <li key={i} className="text-sm">
+                    <strong>{l.name}</strong>{l.role ? <span className="text-muted-foreground"> — {l.role}</span> : null}
+                    {(l as any).source_url && <a href={(l as any).source_url} target="_blank" rel="noreferrer" className="text-primary text-xs ml-2 inline-flex items-center gap-1">source<ExternalLink className="h-3 w-3" /></a>}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {e?.fit_rationale && (
+            <div><div className="text-xs text-muted-foreground mb-1">Fit rationale</div><p className="text-sm">{e.fit_rationale}</p></div>
+          )}
+
+          {org.fit_notes && (
+            <div><div className="text-xs text-muted-foreground mb-1">Notes</div><p className="whitespace-pre-wrap text-sm">{org.fit_notes}</p></div>
+          )}
+
+          {Array.isArray(e?.sources) && e!.sources!.length > 0 && (
+            <div>
+              <div className="text-xs text-muted-foreground mb-1">Sources</div>
+              <ul className="space-y-0.5">
+                {e!.sources!.map((s, i) => (
+                  <li key={i}><a href={s} target="_blank" rel="noreferrer" className="text-primary text-xs inline-flex items-center gap-1 break-all">{s}<ExternalLink className="h-3 w-3 shrink-0" /></a></li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          <div className="flex justify-end gap-2 pt-4 border-t">
+            <Button variant="outline" onClick={onEnrich} disabled={enriching}>
+              {enriching ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Sparkles className="h-4 w-4 mr-1" />}
+              {org.enriched_at ? 'Re-enrich' : 'Enrich'}
+            </Button>
+            <Button onClick={onEdit}><Pencil className="h-4 w-4 mr-1" /> Edit</Button>
+          </div>
         </div>
       </SheetContent>
     </Sheet>
