@@ -148,9 +148,17 @@ const LINE_H = 0.205;
 const CARD_PAD_TOP = 0.68;
 const CARD_PAD_BOTTOM = 0.26;
 
+const TITLE_LINE_H = 0.2;
+
+/** Long card titles wrap — reserve the extra rows so body copy never collides. */
+function titleRows(card: CardDef) {
+  return Math.min(3, Math.max(1, rowsFor(card.title.toUpperCase(), COL_W - 0.98, 9.5)));
+}
+
 function cardHeight(card: CardDef) {
   const rows = card.lines.reduce((a, l) => a + rowsFor(l, COL_W - 0.5, 10), 0);
-  return CARD_PAD_TOP + rows * LINE_H + CARD_PAD_BOTTOM;
+  return CARD_PAD_TOP + (titleRows(card) - 1) * TITLE_LINE_H
+    + rows * LINE_H + CARD_PAD_BOTTOM;
 }
 
 function splitCard(card: CardDef, maxHeight: number): [CardDef, CardDef | null] {
