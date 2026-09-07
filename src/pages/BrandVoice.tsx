@@ -5,10 +5,11 @@ import { useProject } from '@/contexts/ProjectContext';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Mic, Sparkles, Eye, Download, ArrowRight, Info, X, Upload, Loader2, DownloadCloud } from 'lucide-react';
+import { Mic, Sparkles, Eye, Download, ArrowRight, Info, X, Upload, Loader2, DownloadCloud, Presentation } from 'lucide-react';
 import { toast } from 'sonner';
 import NotionImportDialog from '@/components/notion/NotionImportDialog';
 import UnsavedDraftCard from '@/components/wizard/UnsavedDraftCard';
+import { downloadBrandGuidePptx } from '@/lib/brandVoicePptx';
 
 
 interface BrandVoiceRecord {
@@ -27,6 +28,7 @@ export default function BrandVoice() {
   const [loading, setLoading] = useState(true);
   const [showBanner, setShowBanner] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importOpen, setImportOpen] = useState(false);
   const notionStrategyPageId = (currentProject as any)?.notion_strategy_page_id;
@@ -83,6 +85,26 @@ export default function BrandVoice() {
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const downloadGuide = async () => {
+    if (!brandVoice || !currentProject) return;
+    setExporting(true);
+    try {
+      const { data: fullBv } = await supabase
+        .from('brand_voices').select('*').eq('id', brandVoice.id).maybeSingle();
+      const { data: project } = await supabase
+        .from('projects').select('name, slug').eq('id', currentProject.id).maybeSingle();
+      if (!fullBv) throw new Error('Brand voice could not be loaded');
+      const slug = (project as any)?.slug
+        || (project?.name || currentProject.name || 'brand').toLowerCase().replace(/\s+/g, '-');
+      await downloadBrandGuidePptx(fullBv as any, project?.name || currentProject.name, slug);
+      toast.success('Brand Guide downloaded');
+    } catch (err: any) {
+      toast.error('Could not build the Brand Guide: ' + (err?.message || 'unknown error'));
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -263,11 +285,17 @@ export default function BrandVoice() {
             {brandVoice.tone_description && (
               <p className="text-sm text-muted-foreground line-clamp-2">{brandVoice.tone_description}</p>
             )}
-            <div className="flex gap-2 pt-2">
+            <div className="flex flex-wrap gap-2 pt-2">
               {brandVoice.status === 'complete' ? (
                 <>
                   <Button onClick={() => navigate('/project/brand-voice-detail')}>
                     <Eye className="h-4 w-4 mr-2" /> View
+                  </Button>
+                  <Button variant="outline" onClick={downloadGuide} disabled={exporting}>
+                    {exporting
+                      ? <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      : <Presentation className="h-4 w-4 mr-2" />}
+                    Download Brand Guide
                   </Button>
                   <Button variant="outline" onClick={exportForCowork}>
                     <Download className="h-4 w-4 mr-2" /> Export for Cowork
