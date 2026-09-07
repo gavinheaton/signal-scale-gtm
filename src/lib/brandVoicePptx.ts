@@ -120,9 +120,12 @@ function addFooter(slide: PptxGenJS.Slide, theme: Theme, page: string) {
     x: MARGIN, y: SLIDE_H - 0.62, w: CONTENT_W, h: 0.008,
     fill: { color: HAIR }, line: { color: HAIR, width: 0 },
   });
+  const crumbs = [theme.brandName, theme.projectName, 'Brand Voice Guide']
+    .map(s => (s || '').trim())
+    .filter(Boolean)
+    .filter((s, i, all) => all.findIndex(o => o.toLowerCase() === s.toLowerCase()) === i);
   slide.addText(
-    [theme.brandName, theme.projectName, 'Brand Voice Guide']
-      .filter(Boolean).join('   ·   ').toUpperCase(),
+    crumbs.join('   ·   ').toUpperCase(),
     {
       x: MARGIN, y: SLIDE_H - 0.52, w: CONTENT_W - 2.0, h: 0.28,
       fontFace: SANS, fontSize: 8, color: MUTED, charSpacing: 1.1, margin: 0,
