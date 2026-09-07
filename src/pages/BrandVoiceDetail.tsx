@@ -5,8 +5,9 @@ import { useProject } from '@/contexts/ProjectContext';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ArrowLeft, Download, Edit, Info, Mic, X } from 'lucide-react';
+import { ArrowLeft, Download, Edit, Info, Loader2, Mic, Presentation, X } from 'lucide-react';
 import { toast } from 'sonner';
+import { downloadBrandGuidePptx } from '@/lib/brandVoicePptx';
 
 export default function BrandVoiceDetail() {
   const { currentProject } = useProject();
@@ -14,6 +15,24 @@ export default function BrandVoiceDetail() {
   const [bv, setBv] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [showBanner, setShowBanner] = useState(false);
+  const [exporting, setExporting] = useState(false);
+
+  const downloadGuide = async () => {
+    if (!bv || !currentProject) return;
+    setExporting(true);
+    try {
+      const { data: project } = await supabase
+        .from('projects').select('name, slug').eq('id', currentProject.id).maybeSingle();
+      const slug = (project as any)?.slug
+        || (project?.name || currentProject.name || 'brand').toLowerCase().replace(/\s+/g, '-');
+      await downloadBrandGuidePptx(bv, project?.name || currentProject.name, slug);
+      toast.success('Brand Guide downloaded');
+    } catch (err: any) {
+      toast.error('Could not build the Brand Guide: ' + (err?.message || 'unknown error'));
+    } finally {
+      setExporting(false);
+    }
+  };
 
   useEffect(() => {
     if (!currentProject) return;
@@ -89,9 +108,17 @@ export default function BrandVoiceDetail() {
             <Edit className="h-4 w-4 mr-2" /> Edit
           </Button>
           {bv.status === 'complete' && (
-            <Button variant="outline" onClick={exportForCowork}>
-              <Download className="h-4 w-4 mr-2" /> Export for Cowork
-            </Button>
+            <>
+              <Button onClick={downloadGuide} disabled={exporting}>
+                {exporting
+                  ? <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  : <Presentation className="h-4 w-4 mr-2" />}
+                Download Brand Guide
+              </Button>
+              <Button variant="outline" onClick={exportForCowork}>
+                <Download className="h-4 w-4 mr-2" /> Export for Cowork
+              </Button>
+            </>
           )}
         </div>
       </div>
