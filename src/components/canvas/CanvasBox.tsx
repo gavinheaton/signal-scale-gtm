@@ -243,18 +243,24 @@ export function CanvasBox({ canvasId, boxKey, label, hint, entries, onChange }: 
                 <Button size="sm" variant="ghost" className="h-5 text-[10px] px-1.5" onClick={() => suggest(true)} disabled={suggesting} title="More suggestions">
                   {suggesting ? <Loader2 className="h-3 w-3 animate-spin" /> : <><RefreshCw className="h-3 w-3 mr-0.5" />More</>}
                 </Button>
+                <Button size="sm" variant="ghost" className="h-5 text-[10px] px-1.5" onClick={() => dismissSuggestions(suggestions.map((s) => s.id))} title="Dismiss all suggestions">
+                  <X className="h-3 w-3 mr-0.5" />Dismiss
+                </Button>
               </div>
             </div>
-            {suggestions.map((s, i) => (
-              <div key={i} className="text-xs flex items-start gap-1 bg-purple-50 p-1.5 rounded">
+            {suggestions.map((s) => (
+              <div key={s.id} className="text-xs flex items-start gap-1 bg-purple-50 p-1.5 rounded">
                 <Checkbox
-                  checked={selected.has(i)}
-                  onCheckedChange={() => toggleSelected(i)}
+                  checked={selected.has(s.id)}
+                  onCheckedChange={() => toggleSelected(s.id)}
                   className="mt-0.5 h-3.5 w-3.5"
                 />
-                <span className="flex-1 cursor-pointer" onClick={() => toggleSelected(i)}>{s}</span>
-                <Button size="icon" variant="ghost" className="h-5 w-5" onClick={() => { addEntry(s, 'ai_suggestion'); setSuggestions(suggestions.filter((_, j) => j !== i)); setSelected((prev) => { const n = new Set<number>(); prev.forEach((x) => { if (x < i) n.add(x); else if (x > i) n.add(x - 1); }); return n; }); }} title="Add just this">
+                <span className="flex-1 cursor-pointer" onClick={() => toggleSelected(s.id)}>{s.content}</span>
+                <Button size="icon" variant="ghost" className="h-5 w-5" onClick={() => acceptSuggestions([s])} title="Add just this">
                   <Check className="h-3 w-3" />
+                </Button>
+                <Button size="icon" variant="ghost" className="h-5 w-5" onClick={() => dismissSuggestions([s.id])} title="Dismiss">
+                  <X className="h-3 w-3" />
                 </Button>
               </div>
             ))}
