@@ -68,14 +68,15 @@ export function CanvasBox({ canvasId, boxKey, label, hint, entries, onChange }: 
     setText(''); setAdding(false); onChange();
   }
 
-  async function addManyAiEntries(contents: string[]) {
-    const rows = contents
-      .map((c) => c.trim())
-      .filter(Boolean)
-      .map((c) => ({ canvas_id: canvasId, box: boxKey, content: c, source: 'ai_suggestion', status: 'assumption' }));
+  async function acceptSuggestions(items: Suggestion[]) {
+    const rows = items
+      .map((s) => ({ ...s, content: s.content.trim() }))
+      .filter((s) => s.content)
+      .map((s) => ({ canvas_id: canvasId, box: boxKey, content: s.content, source: 'ai_suggestion', status: 'assumption' }));
     if (!rows.length) return;
     const { error } = await (supabase as any).from('canvas_entries').insert(rows);
     if (error) return toast.error(error.message);
+    await resolveSuggestions(items.map((s) => s.id), 'accepted');
     onChange();
   }
 
