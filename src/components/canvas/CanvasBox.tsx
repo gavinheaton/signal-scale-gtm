@@ -227,7 +227,7 @@ export function CanvasBox({ canvasId, boxKey, label, hint, entries, onChange }: 
                 <button
                   className="text-[9px] uppercase text-muted-foreground underline hover:text-foreground"
                   onClick={() =>
-                    setSelected(selected.size === suggestions.length ? new Set() : new Set(suggestions.map((_, i) => i)))
+                    setSelected(selected.size === suggestions.length ? new Set() : new Set(suggestions.map((s) => s.id)))
                   }
                 >
                   {selected.size === suggestions.length ? 'clear' : 'all'}
