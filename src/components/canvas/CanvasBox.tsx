@@ -1,12 +1,14 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { CanvasEntry, CanvasEntryStatus, STATUS_COLOR } from './types';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Sparkles, Plus, Trash2, Check, Loader2, Link as LinkIcon, Pencil, RefreshCw, CheckCheck } from 'lucide-react';
+import { Sparkles, Plus, Trash2, Check, Loader2, Link as LinkIcon, Pencil, RefreshCw, CheckCheck, X } from 'lucide-react';
 import { toast } from 'sonner';
+
+interface Suggestion { id: string; content: string }
 
 interface Props {
   canvasId: string;
