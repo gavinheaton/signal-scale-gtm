@@ -100,14 +100,25 @@ export function CanvasBox({ canvasId, boxKey, label, hint, entries, onChange }: 
 
   async function suggest(append = false) {
     setSuggesting(true);
-    if (!append) { setSuggestions([]); setSelected(new Set()); }
     try {
+      if (!append && suggestions.length) {
+        await resolveSuggestions(suggestions.map((s) => s.id), 'dismissed');
+      }
       const { data, error } = await supabase.functions.invoke('canvas-suggest', {
         body: { canvas_id: canvasId, box: boxKey, count: 5 },
       });
       if (error) throw error;
-      const next = (data as any)?.suggestions || [];
-      setSuggestions((prev) => (append ? [...prev, ...next] : next));
+      const next: string[] = ((data as any)?.suggestions || [])
+        .map((s: any) => (typeof s === 'string' ? s : s?.content || ''))
+        .map((s: string) => s.trim())
+        .filter(Boolean);
+      if (!next.length) return;
+      const { data: inserted, error: insErr } = await (supabase as any)
+        .from('canvas_suggestions')
+        .insert(next.map((content) => ({ canvas_id: canvasId, box: boxKey, content })))
+        .select('id, content');
+      if (insErr) throw insErr;
+      setSuggestions((prev) => [...prev, ...((inserted || []) as Suggestion[])]);
     } catch (e: any) {
       toast.error(`Suggest failed: ${e.message || e}`);
     } finally {
@@ -118,18 +129,16 @@ export function CanvasBox({ canvasId, boxKey, label, hint, entries, onChange }: 
   async function addAllSuggestions() {
     setAddingAll(true);
     try {
-      await addManyAiEntries(suggestions);
-      setSuggestions([]);
-      setSelected(new Set());
+      await acceptSuggestions(suggestions);
     } finally {
       setAddingAll(false);
     }
   }
 
-  function toggleSelected(i: number) {
+  function toggleSelected(id: string) {
     setSelected((prev) => {
       const next = new Set(prev);
-      if (next.has(i)) next.delete(i); else next.add(i);
+      if (next.has(id)) next.delete(id); else next.add(id);
       return next;
     });
   }
@@ -138,13 +147,14 @@ export function CanvasBox({ canvasId, boxKey, label, hint, entries, onChange }: 
     if (!selected.size) return;
     setAddingSelected(true);
     try {
-      const picked = suggestions.filter((_, i) => selected.has(i));
-      await addManyAiEntries(picked);
-      setSuggestions((prev) => prev.filter((_, i) => !selected.has(i)));
-      setSelected(new Set());
+      await acceptSuggestions(suggestions.filter((s) => selected.has(s.id)));
     } finally {
       setAddingSelected(false);
     }
+  }
+
+  async function dismissSuggestions(ids: string[]) {
+    await resolveSuggestions(ids, 'dismissed');
   }
 
   return (
