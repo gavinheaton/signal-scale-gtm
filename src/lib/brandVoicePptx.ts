@@ -162,7 +162,9 @@ function cardHeight(card: CardDef) {
 }
 
 function splitCard(card: CardDef, maxHeight: number): [CardDef, CardDef | null] {
-  const maxRows = Math.max(1, Math.floor((maxHeight - CARD_PAD_TOP - CARD_PAD_BOTTOM) / LINE_H));
+  const usable = maxHeight - CARD_PAD_TOP - CARD_PAD_BOTTOM
+    - (titleRows(card) - 1) * TITLE_LINE_H;
+  const maxRows = Math.max(1, Math.floor(usable / LINE_H));
   let rows = 0;
   const head: string[] = [];
   const tail: string[] = [];
