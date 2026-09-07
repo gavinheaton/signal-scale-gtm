@@ -759,14 +759,19 @@ function addAudienceSlides(pptx: PptxGenJS, theme: Theme, bv: BrandVoiceLike) {
       who: str(a?.description) || str(a?.who),
     }))
     .filter(a => a.segment || a.tone || a.focus)
-    .map((a, i) => ({
-      title: a.segment || `Audience ${i + 1}`,
-      lines: [a.who, a.tone, a.focus].filter(Boolean).length
-        ? [a.who, a.tone, a.focus].filter(Boolean)
-        : ['—'],
-      index: i + 1,
-      noBullet: true,
-    }));
+    .map((a, i) => {
+      const lines = [
+        a.who ? `Who: ${a.who}` : '',
+        a.tone ? `Tone: ${a.tone}` : '',
+        a.focus ? `Focus: ${a.focus}` : '',
+      ].filter(Boolean);
+      return {
+        title: a.segment || `Audience ${i + 1}`,
+        lines: lines.length ? lines : ['—'],
+        index: i + 1,
+        noBullet: true,
+      };
+    });
 
   addCardSection(
     pptx, theme, cards, 'Section 07', 'Speaking to each audience',
