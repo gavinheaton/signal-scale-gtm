@@ -1,15 +1,17 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Sparkles, ArrowRight, LayoutGrid, Check } from 'lucide-react';
+import { Loader2, Sparkles, ArrowRight, LayoutGrid, Check, Gauge } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   CompetitiveWhitespace, WhitespaceKind, WHITESPACE_LABELS,
-  Competitor, CompetitorDimension, CompetitorScore,
+  Competitor, CompetitorDimension, CompetitorScore, MarketPosition,
 } from '@/types/competitors';
 import { WhitespaceChart, defaultAxes } from './WhitespaceChart';
+import { MarketPositionChart } from './MarketPositionChart';
+
 
 interface Props { projectId: string; confirmedCount: number }
 
