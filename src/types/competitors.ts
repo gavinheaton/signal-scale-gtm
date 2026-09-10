@@ -165,3 +165,22 @@ export const WHITESPACE_LABELS: Record<WhitespaceKind, string> = {
   commoditised: 'Everyone says this',
   counter_position: 'Your angle',
 };
+
+export interface NarrativeSection {
+  key: string;
+  heading: string;
+  paragraphs: string[];
+  bullets: string[];
+}
+
+export interface CompetitiveNarrative {
+  id: string;
+  project_id: string;
+  persona_id: string | null;
+  sections: NarrativeSection[];
+  markdown: string | null;
+  model: string | null;
+  generated_at: string;
+  created_at: string;
+  updated_at: string;
+}
