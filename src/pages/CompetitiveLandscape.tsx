@@ -20,7 +20,12 @@ export default function CompetitiveLandscape() {
   const [discovering, setDiscovering] = useState(false);
   const [enrichingId, setEnrichingId] = useState<string | null>(null);
   const [selected, setSelected] = useState<Competitor | null>(null);
-  const [newName, setNewName] = useState('');
+  const [addOpen, setAddOpen] = useState(false);
+  const [newComp, setNewComp] = useState<{ name: string; website: string; type: CompetitorType; why: string }>({
+    name: '', website: '', type: 'direct', why: '',
+  });
+  const [ownWebsite, setOwnWebsite] = useState<string | null>(null);
+  const [siteInput, setSiteInput] = useState('');
   const [showDismissed, setShowDismissed] = useState(false);
   const pollRef = useRef<number | null>(null);
 
