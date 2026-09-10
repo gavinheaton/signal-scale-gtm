@@ -434,6 +434,14 @@ export default function CompetitiveLandscape() {
         <TabsContent value="whitespace" className="mt-4">
           <WhitespacePanel projectId={currentProject.id} confirmedCount={confirmed.length} />
         </TabsContent>
+
+        <TabsContent value="narrative" className="mt-4">
+          <NarrativePanel
+            projectId={currentProject.id}
+            projectName={currentProject.name}
+            competitors={confirmed}
+          />
+        </TabsContent>
       </Tabs>
 
       <CompetitorProfileDrawer
