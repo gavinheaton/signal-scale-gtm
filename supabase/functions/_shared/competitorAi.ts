@@ -234,7 +234,7 @@ export function marketExpectation(context: any): { sector: string; markets: stri
 /** Build the project context every competitor prompt needs. */
 export async function loadProjectContext(sb: any, projectId: string) {
   const [proj, icps, personas, vps, problems] = await Promise.all([
-    sb.from("projects").select("name, brand_context").eq("id", projectId).maybeSingle(),
+    sb.from("projects").select("name, brand_context, website").eq("id", projectId).maybeSingle(),
     sb.from("icps").select("segment_name, firmographics, psychographics").eq("project_id", projectId).limit(10),
     sb.from("personas").select("persona_name, role_in_buying, pain_points, how_we_help").eq("project_id", projectId).limit(15),
     sb.from("value_propositions").select("statement, fields, segment_label, is_primary").eq("project_id", projectId).limit(6),
