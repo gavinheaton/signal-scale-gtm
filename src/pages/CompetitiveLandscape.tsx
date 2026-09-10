@@ -244,6 +244,7 @@ export default function CompetitiveLandscape() {
           <TabsTrigger value="profiles">Profiles {confirmed.length > 0 && `(${confirmed.length})`}</TabsTrigger>
           <TabsTrigger value="grid">Comparison grid</TabsTrigger>
           <TabsTrigger value="whitespace">Whitespace</TabsTrigger>
+          <TabsTrigger value="narrative">Narrative</TabsTrigger>
         </TabsList>
 
         <TabsContent value="profiles" className="mt-4 space-y-6">
