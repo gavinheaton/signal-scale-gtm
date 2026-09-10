@@ -12,6 +12,8 @@ import {
 import ReactMarkdown from 'react-markdown';
 import { Loader2 } from 'lucide-react';
 import { WhitespaceChart } from '@/components/competitors/WhitespaceChart';
+import { MarketPositionChart } from '@/components/competitors/MarketPositionChart';
+
 
 const VARIANT_META: Record<CanvasVariant, { label: string; boxes: typeof STANDARD_BOXES }> = {
   standard: { label: 'Disruptors Canvas', boxes: STANDARD_BOXES },
@@ -47,6 +49,8 @@ export default function CanvasPrint() {
   const [dimensions, setDimensions] = useState<any[]>([]);
   const [scores, setScores] = useState<any[]>([]);
   const [whitespace, setWhitespace] = useState<any[]>([]);
+  const [positions, setPositions] = useState<any[]>([]);
+
 
   useEffect(() => {
     (async () => {
@@ -73,16 +77,19 @@ export default function CanvasPrint() {
       out.sort((a, b) => order.indexOf(a.canvas.variant) - order.indexOf(b.canvas.variant));
       setBundles(out);
 
-      const [cRes, dRes, sRes, wRes] = await Promise.all([
+      const [cRes, dRes, sRes, wRes, mRes] = await Promise.all([
         (supabase as any).from('competitors').select('*').eq('project_id', projectId).eq('status', 'confirmed').order('name'),
         (supabase as any).from('competitor_dimensions').select('*').eq('project_id', projectId).order('position'),
         (supabase as any).from('competitor_scores').select('*').eq('project_id', projectId),
         (supabase as any).from('competitive_whitespace').select('*').eq('project_id', projectId).order('created_at'),
+        (supabase as any).from('competitor_market_positions').select('*').eq('project_id', projectId).is('persona_id', null),
       ]);
       setCompetitors(cRes.data || []);
       setDimensions(dRes.data || []);
       setScores(sRes.data || []);
       setWhitespace(wRes.data || []);
+      setPositions(mRes.data || []);
+
 
       setLoading(false);
     })();
@@ -313,14 +320,29 @@ export default function CanvasPrint() {
         </section>
       )}
 
+      {positions.length > 0 && (
+        <section className="print-page print-landscape p-6">
+          <h2 className="text-xl font-semibold mb-1">Market position</h2>
+          <p className="text-xs text-muted-foreground mb-2">
+            Across: how well known and shortlisted each organisation is with your buyers. Up: how distinct its
+            position is. Top-right leads on both; top-left is distinct but smaller; bottom-right is big but
+            interchangeable.
+          </p>
+          <MarketPositionChart
+            dimensions={dimensions} competitors={competitors} positions={positions} print
+          />
+        </section>
+      )}
+
       {dimensions.length > 0 && (
         <section className="print-page print-landscape p-6">
-          <h2 className="text-xl font-semibold mb-1">Where everyone stands</h2>
+          <h2 className="text-xl font-semibold mb-1">Dimension detail — where everyone stands</h2>
           <p className="text-xs text-muted-foreground mb-2">
             Each dot is an organisation, placed by how strongly it stands on the two dimensions buyers weigh most.
             Empty space is room to stand alone.
           </p>
           <WhitespaceChart dimensions={dimensions} competitors={competitors} scores={scores} print />
+
           <h2 className="text-xl font-semibold mt-6 mb-3">Positioning comparison</h2>
           <table className="w-full text-[10px] border-collapse">
             <thead>

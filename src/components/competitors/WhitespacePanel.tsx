@@ -1,15 +1,17 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Sparkles, ArrowRight, LayoutGrid, Check } from 'lucide-react';
+import { Loader2, Sparkles, ArrowRight, LayoutGrid, Check, Gauge } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   CompetitiveWhitespace, WhitespaceKind, WHITESPACE_LABELS,
-  Competitor, CompetitorDimension, CompetitorScore,
+  Competitor, CompetitorDimension, CompetitorScore, MarketPosition,
 } from '@/types/competitors';
 import { WhitespaceChart, defaultAxes } from './WhitespaceChart';
+import { MarketPositionChart } from './MarketPositionChart';
+
 
 interface Props { projectId: string; confirmedCount: number }
 
@@ -31,22 +33,31 @@ export function WhitespacePanel({ projectId, confirmedCount }: Props) {
   const [highlight, setHighlight] = useState<string | null>(null);
   const [xDim, setXDim] = useState<string | null>(null);
   const [yDim, setYDim] = useState<string | null>(null);
-
+  const [positions, setPositions] = useState<MarketPosition[]>([]);
+  const [personas, setPersonas] = useState<{ id: string; persona_name: string }[]>([]);
+  const [lens, setLens] = useState<string>('all');
+  const [assessing, setAssessing] = useState(false);
+  const [showDetail, setShowDetail] = useState(false);
+  const pollRef = useRef<number | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [w, c, d, s] = await Promise.all([
+    const [w, c, d, s, mp, pe] = await Promise.all([
       (supabase as any).from('competitive_whitespace').select('*').eq('project_id', projectId)
         .order('created_at', { ascending: true }),
       (supabase as any).from('competitors').select('*').eq('project_id', projectId).eq('status', 'confirmed').order('name'),
       (supabase as any).from('competitor_dimensions').select('*').eq('project_id', projectId).order('position'),
       (supabase as any).from('competitor_scores').select('*').eq('project_id', projectId),
+      (supabase as any).from('competitor_market_positions').select('*').eq('project_id', projectId),
+      (supabase as any).from('personas').select('id, persona_name').eq('project_id', projectId).order('persona_name'),
     ]);
     setItems((w.data || []) as CompetitiveWhitespace[]);
     setCompetitors((c.data || []) as Competitor[]);
     const dims = (d.data || []) as CompetitorDimension[];
     setDimensions(dims);
     setScores((s.data || []) as CompetitorScore[]);
+    setPositions((mp.data || []) as MarketPosition[]);
+    setPersonas((pe.data || []) as { id: string; persona_name: string }[]);
     const ax = defaultAxes(dims);
     setXDim((prev) => (prev && dims.some((x) => x.id === prev) ? prev : ax.x));
     setYDim((prev) => (prev && dims.some((x) => x.id === prev) ? prev : ax.y));
@@ -54,6 +65,51 @@ export function WhitespacePanel({ projectId, confirmedCount }: Props) {
   }, [projectId]);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(() => () => { if (pollRef.current) window.clearInterval(pollRef.current); }, []);
+
+  const lensPositions = useMemo(
+    () => positions.filter((p) => (p.persona_id ?? 'all') === (lens === 'all' ? 'all' : lens)),
+    [positions, lens],
+  );
+
+  async function refreshPositions() {
+    const { data } = await (supabase as any)
+      .from('competitor_market_positions').select('*').eq('project_id', projectId);
+    if (data) setPositions(data as MarketPosition[]);
+  }
+
+  async function assessPosition() {
+    setAssessing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('competitor-whitespace', {
+        body: { project_id: projectId, mode: 'market_position', persona_id: lens === 'all' ? null : lens },
+      });
+      if (error) throw new Error((data as any)?.error || error.message);
+      if ((data as any)?.error) throw new Error((data as any).error);
+      const runId = (data as any)?.run_id;
+      if (!runId) throw new Error('Could not start the assessment');
+
+      const started = Date.now();
+      const timer = window.setInterval(async () => {
+        const { data: run } = await (supabase as any)
+          .from('competitor_runs').select('*').eq('id', runId).maybeSingle();
+        if (run) await refreshPositions();
+        if (run?.status === 'complete' || run?.status === 'error' || Date.now() - started > 4 * 60 * 1000) {
+          window.clearInterval(timer);
+          if (pollRef.current === timer) pollRef.current = null;
+          setAssessing(false);
+          await refreshPositions();
+          if (run?.status === 'error') toast.error(run.error || 'The assessment stopped early.');
+          else toast.success('Market position updated.');
+        }
+      }, 4000);
+      pollRef.current = timer;
+    } catch (e: any) {
+      toast.error(e.message || 'Could not assess the market position');
+      setAssessing(false);
+    }
+  }
+
 
   const ownership = useMemo(() => {
     const nameById = new Map(competitors.map((c) => [c.id, c.name]));
@@ -167,66 +223,112 @@ export function WhitespacePanel({ projectId, confirmedCount }: Props) {
         </Button>
       </div>
 
-      {dimensions.length > 0 && (
-        <Card>
-          <CardHeader className="pb-0">
-            <CardTitle className="text-sm">Where everyone stands</CardTitle>
-          </CardHeader>
-          <CardContent className="pt-3">
-            <div className="flex flex-wrap items-center gap-3 mb-2">
-              <label className="flex items-center gap-1 text-xs text-muted-foreground">
-                Across
-                <select className="h-8 rounded-md border bg-background px-2 text-xs"
-                  value={xDim ?? ''} onChange={(e) => setXDim(e.target.value)}>
-                  {dimensions.map((d) => <option key={d.id} value={d.id}>{d.label}</option>)}
-                </select>
-              </label>
-              <label className="flex items-center gap-1 text-xs text-muted-foreground">
-                Up
-                <select className="h-8 rounded-md border bg-background px-2 text-xs"
-                  value={yDim ?? ''} onChange={(e) => setYDim(e.target.value)}>
-                  {dimensions.map((d) => <option key={d.id} value={d.id}>{d.label}</option>)}
-                </select>
-              </label>
-            </div>
+      <Card>
+        <CardHeader className="pb-0">
+          <CardTitle className="text-sm">Market position</CardTitle>
+        </CardHeader>
+        <CardContent className="pt-3">
+          <div className="flex flex-wrap items-center gap-3 mb-2">
+            <label className="flex items-center gap-1 text-xs text-muted-foreground">
+              Seen through
+              <select className="h-8 rounded-md border bg-background px-2 text-xs"
+                value={lens} onChange={(e) => setLens(e.target.value)}>
+                <option value="all">All personas</option>
+                {personas.map((p) => <option key={p.id} value={p.id}>{p.persona_name}</option>)}
+              </select>
+            </label>
+            <Button size="sm" variant="outline" onClick={assessPosition}
+              disabled={assessing || confirmedCount === 0}>
+              {assessing ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Gauge className="h-4 w-4 mr-1" />}
+              {assessing ? 'Assessing…' : 'Assess market position'}
+            </Button>
+          </div>
 
-            <WhitespaceChart
-              dimensions={dimensions}
+          {lensPositions.length === 0 ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">
+              {confirmedCount === 0
+                ? 'Confirm at least one competitor, then assess your market position.'
+                : lens === 'all'
+                  ? 'No assessment yet. Press "Assess market position".'
+                  : 'No assessment for this persona yet. Press "Assess market position".'}
+            </p>
+          ) : (
+            <MarketPositionChart
               competitors={competitors}
-              scores={scores}
-              xDimensionId={xDim}
-              yDimensionId={yDim}
+              dimensions={dimensions}
+              positions={lensPositions}
               onSelectOrganisation={(name) => {
                 setHighlight(name);
                 const el = document.getElementById('whitespace-cards');
                 el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
               }}
             />
-            {highlight && (
-              <p className="text-xs mt-2">
-                Highlighting gaps that mention <span className="font-medium">{highlight}</span>{' '}
-                <button className="underline text-muted-foreground" onClick={() => setHighlight(null)}>clear</button>
-              </p>
-            )}
+          )}
 
-            {ownership.length > 0 && (
-              <div className="mt-4 border-t pt-3">
-                <p className="text-xs font-semibold uppercase tracking-wide text-[#e33e23] mb-2">Who owns what</p>
-                <div className="grid gap-1.5 md:grid-cols-2">
-                  {ownership.map((o) => (
-                    <div key={o.id} className="text-xs">
-                      <span className="font-medium">{o.label}:</span>{' '}
-                      {o.strong.length === 0
-                        ? <span className="text-emerald-700">nobody owns this yet</span>
-                        : <span className="text-muted-foreground">{o.strong.join(', ')}</span>}
+          {highlight && (
+            <p className="text-xs mt-2">
+              Highlighting gaps that mention <span className="font-medium">{highlight}</span>{' '}
+              <button className="underline text-muted-foreground" onClick={() => setHighlight(null)}>clear</button>
+            </p>
+          )}
+
+          {dimensions.length > 0 && (
+            <div className="mt-4 border-t pt-3">
+              <button className="text-xs underline text-muted-foreground"
+                onClick={() => setShowDetail((v) => !v)}>
+                {showDetail ? 'Hide dimension detail' : 'Show dimension detail'}
+              </button>
+
+              {showDetail && (
+                <div className="mt-3">
+                  <div className="flex flex-wrap items-center gap-3 mb-2">
+                    <label className="flex items-center gap-1 text-xs text-muted-foreground">
+                      Across
+                      <select className="h-8 rounded-md border bg-background px-2 text-xs"
+                        value={xDim ?? ''} onChange={(e) => setXDim(e.target.value)}>
+                        {dimensions.map((d) => <option key={d.id} value={d.id}>{d.label}</option>)}
+                      </select>
+                    </label>
+                    <label className="flex items-center gap-1 text-xs text-muted-foreground">
+                      Up
+                      <select className="h-8 rounded-md border bg-background px-2 text-xs"
+                        value={yDim ?? ''} onChange={(e) => setYDim(e.target.value)}>
+                        {dimensions.map((d) => <option key={d.id} value={d.id}>{d.label}</option>)}
+                      </select>
+                    </label>
+                  </div>
+
+                  <WhitespaceChart
+                    dimensions={dimensions}
+                    competitors={competitors}
+                    scores={scores}
+                    xDimensionId={xDim}
+                    yDimensionId={yDim}
+                    onSelectOrganisation={(name) => setHighlight(name)}
+                  />
+
+                  {ownership.length > 0 && (
+                    <div className="mt-4 border-t pt-3">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-[#e33e23] mb-2">Who owns what</p>
+                      <div className="grid gap-1.5 md:grid-cols-2">
+                        {ownership.map((o) => (
+                          <div key={o.id} className="text-xs">
+                            <span className="font-medium">{o.label}:</span>{' '}
+                            {o.strong.length === 0
+                              ? <span className="text-emerald-700">nobody owns this yet</span>
+                              : <span className="text-muted-foreground">{o.strong.join(', ')}</span>}
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  ))}
+                  )}
                 </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
 
 
       <div id="whitespace-cards" className="space-y-4">
