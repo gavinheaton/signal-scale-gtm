@@ -467,13 +467,19 @@ Deno.serve(async (req) => {
         if (seg) await edge(from, seg, "belongs_to");
       }
     }
-    // Competitor -competes_with→ Project, and -serves→ Segment when they target it
-    for (const c of competitors) {
+    // Competitor -competes_with→ Project, and -serves→ Segment when the research supports it
+    for (const c of rivals) {
       const from = competitorNodeId.get(c.id);
       if (!from) continue;
-      await edge(from, projectNodeId, "competes_with", c.type || undefined);
+      const pos = positionByComp.get(c.id);
+      const note = typeof pos?.leadership === "number"
+        ? `${ARCHETYPE_LABEL[c.archetype || "other"]} · leadership ${pos.leadership}/100`
+        : (c.type || undefined);
+      await edge(from, projectNodeId, "competes_with", note);
       const targets: string[] = Array.isArray(c.target_segments) ? c.target_segments : [];
-      const hay = (targets.join(" ") + " " + (c.positioning || "")).toLowerCase();
+      const hay = (
+        targets.join(" ") + " " + (c.positioning || "") + " " + (claimsByComp.get(c.id) || "")
+      ).toLowerCase();
       for (const icp of icps) {
         const seg = icpNodeId.get(icp.id);
         if (!seg) continue;
@@ -481,6 +487,39 @@ Deno.serve(async (req) => {
         if (tokens.length && tokens.some((t) => hay.includes(t))) await edge(from, seg, "serves");
       }
     }
+
+    // Partner -partners_with→ Project, and -serves→ Segment on the same evidence
+    for (const c of partners) {
+      const from = partnerNodeId.get(c.id);
+      if (!from) continue;
+      await edge(from, projectNodeId, "partners_with", c.domain || undefined);
+      const hay = ((c.positioning || "") + " " + (claimsByComp.get(c.id) || "")).toLowerCase();
+      for (const icp of icps) {
+        const seg = icpNodeId.get(icp.id);
+        if (!seg) continue;
+        const tokens = String(icp.segment_name || "").toLowerCase().split(/[^a-z0-9]+/).filter((t) => t.length > 4);
+        if (tokens.length && tokens.some((t) => hay.includes(t))) await edge(from, seg, "serves");
+      }
+    }
+
+    // Whitespace -evidences→ Project, and -evidences→ any organisation it names
+    for (const w of whitespace) {
+      const from = whitespaceNodeId.get(w.id);
+      if (!from) continue;
+      await edge(from, projectNodeId, "evidences", WHITESPACE_LABEL[w.kind] || undefined);
+      const hay = (
+        (w.title || "") + " " + (w.rationale || "") + " " +
+        (Array.isArray(w.evidence) ? w.evidence.join(" ") : "")
+      ).toLowerCase();
+      for (const c of competitors) {
+        const target = competitorNodeId.get(c.id) || partnerNodeId.get(c.id);
+        if (!target) continue;
+        if (String(c.name || "").length > 3 && hay.includes(String(c.name).toLowerCase())) {
+          await edge(from, target, "evidences");
+        }
+      }
+    }
+
 
     // Insight -evidences→ Contact (via conversation.contact_id) and -evidences→ Theme
     for (const ins of insights) {
