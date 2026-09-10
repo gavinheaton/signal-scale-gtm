@@ -84,12 +84,14 @@ export default function CanvasPrint() {
         (supabase as any).from('competitor_scores').select('*').eq('project_id', projectId),
         (supabase as any).from('competitive_whitespace').select('*').eq('project_id', projectId).order('created_at'),
         (supabase as any).from('competitor_market_positions').select('*').eq('project_id', projectId).is('persona_id', null),
+        (supabase as any).from('competitive_narratives').select('sections').eq('project_id', projectId).is('persona_id', null).maybeSingle(),
       ]);
       setCompetitors(cRes.data || []);
       setDimensions(dRes.data || []);
       setScores(sRes.data || []);
       setWhitespace(wRes.data || []);
       setPositions(mRes.data || []);
+      setNarrative(((nRes as any)?.data?.sections || []) as any[]);
 
 
       setLoading(false);
