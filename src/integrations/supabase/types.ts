@@ -1789,6 +1789,72 @@ export type Database = {
           },
         ]
       }
+      ecosystem_stakeholder_suggestions: {
+        Row: {
+          created_at: string
+          evidence: Json
+          id: string
+          map_id: string
+          name: string
+          node_id: string | null
+          node_kind: string
+          project_id: string
+          rationale: string | null
+          relationships: Json
+          roles: Json
+          status: string
+          subtitle: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          evidence?: Json
+          id?: string
+          map_id: string
+          name: string
+          node_id?: string | null
+          node_kind?: string
+          project_id: string
+          rationale?: string | null
+          relationships?: Json
+          roles?: Json
+          status?: string
+          subtitle?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          evidence?: Json
+          id?: string
+          map_id?: string
+          name?: string
+          node_id?: string | null
+          node_kind?: string
+          project_id?: string
+          rationale?: string | null
+          relationships?: Json
+          roles?: Json
+          status?: string
+          subtitle?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ecosystem_stakeholder_suggestions_map_id_fkey"
+            columns: ["map_id"]
+            isOneToOne: false
+            referencedRelation: "ecosystem_maps"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ecosystem_stakeholder_suggestions_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       icps: {
         Row: {
           access_score: number | null
