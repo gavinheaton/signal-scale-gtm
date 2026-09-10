@@ -971,6 +971,7 @@ export type Database = {
       }
       competitors: {
         Row: {
+          archetype: Database["public"]["Enums"]["competitor_archetype"] | null
           claims: Json
           confidence: string | null
           created_at: string
@@ -998,6 +999,7 @@ export type Database = {
           why_suggested: string | null
         }
         Insert: {
+          archetype?: Database["public"]["Enums"]["competitor_archetype"] | null
           claims?: Json
           confidence?: string | null
           created_at?: string
@@ -1025,6 +1027,7 @@ export type Database = {
           why_suggested?: string | null
         }
         Update: {
+          archetype?: Database["public"]["Enums"]["competitor_archetype"] | null
           claims?: Json
           confidence?: string | null
           created_at?: string
@@ -2476,6 +2479,12 @@ export type Database = {
       canvas_entry_status: "assumption" | "hypothesis" | "validated"
       canvas_validation_outcome: "supports" | "contradicts" | "inconclusive"
       canvas_variant: "standard" | "shared_value" | "business_model"
+      competitor_archetype:
+        | "capital_coalition"
+        | "engineering_systems"
+        | "applied_research"
+        | "place_alliance"
+        | "other"
       competitor_rating: "strong" | "parity" | "weak"
       competitor_status: "suggested" | "confirmed" | "dismissed"
       competitor_type: "direct" | "adjacent" | "in_house" | "do_nothing"
@@ -2704,6 +2713,13 @@ export const Constants = {
       canvas_entry_status: ["assumption", "hypothesis", "validated"],
       canvas_validation_outcome: ["supports", "contradicts", "inconclusive"],
       canvas_variant: ["standard", "shared_value", "business_model"],
+      competitor_archetype: [
+        "capital_coalition",
+        "engineering_systems",
+        "applied_research",
+        "place_alliance",
+        "other",
+      ],
       competitor_rating: ["strong", "parity", "weak"],
       competitor_status: ["suggested", "confirmed", "dismissed"],
       competitor_type: ["direct", "adjacent", "in_house", "do_nothing"],
