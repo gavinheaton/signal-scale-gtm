@@ -240,17 +240,14 @@ export default function CompetitiveLandscape() {
                   <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
                     Your landscape ({confirmed.length})
                   </h2>
-                  <div className="flex items-center gap-1">
-                    <Input className="h-9 w-56" placeholder="Add a competitor by name" value={newName}
-                      onChange={(e) => setNewName(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && addManual()} />
-                    <Button size="sm" variant="ghost" onClick={addManual}><Plus className="h-4 w-4" /></Button>
-                  </div>
+                  <Button size="sm" variant="outline" onClick={() => setAddOpen(true)}>
+                    <Plus className="h-4 w-4 mr-1" /> Add competitor
+                  </Button>
                 </div>
 
                 {confirmed.length === 0 ? (
                   <Card><CardContent className="py-10 text-center text-sm text-muted-foreground">
-                    Nothing confirmed yet. Press “Find competitors” for a proposed shortlist, or add one by name.
+                    Nothing confirmed yet. Press “Find competitors” for a proposed shortlist, or add one yourself.
                   </CardContent></Card>
                 ) : (
                   <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
