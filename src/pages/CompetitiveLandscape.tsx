@@ -355,38 +355,50 @@ export default function CompetitiveLandscape() {
                   </Button>
                 </div>
 
-                {confirmed.length === 0 ? (
+                {confirmedShown.length === 0 ? (
                   <Card><CardContent className="py-10 text-center text-sm text-muted-foreground">
-                    Nothing confirmed yet. Press “Find competitors” for a proposed shortlist, or add one yourself.
+                    {confirmed.length === 0
+                      ? 'Nothing confirmed yet. Press “Find competitors” for a proposed shortlist, or add one yourself.'
+                      : 'Nothing confirmed in this group yet.'}
                   </CardContent></Card>
                 ) : (
-                  <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-                    {confirmed.map((c) => (
-                      <Card key={c.id}
-                        className={`cursor-pointer hover:shadow-md transition-shadow ${enrichingId === c.id ? 'ring-2 ring-primary animate-pulse' : ''}`}
-                        onClick={() => setSelected(c)}>
-                        <CardContent className="py-4 space-y-2">
-                          <div className="flex items-start justify-between gap-2">
-                            <p className="font-medium truncate">{c.name}</p>
-                            <Badge className={TYPE_BADGE[c.type]}>{TYPE_LABELS[c.type]}</Badge>
-                          </div>
-                          {c.positioning
-                            ? <p className="text-sm text-muted-foreground line-clamp-3">{c.positioning}</p>
-                            : <p className="text-sm text-muted-foreground italic">
-                                {enrichingId === c.id ? 'Researching…' : 'Not researched yet'}
-                              </p>}
-                          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                            {c.claims?.length > 0 && <span>{c.claims.length} claims</span>}
-                            {c.proof_points?.length > 0 && <span>{c.proof_points.length} proof points</span>}
-                            {c.weaknesses?.length > 0 && <span>{c.weaknesses.length} weaknesses</span>}
-                          </div>
-                          {!c.researched_at && enrichingId !== c.id && (
-                            <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); research(c); }}>
-                              <RefreshCw className="h-3.5 w-3.5 mr-1" /> Research
-                            </Button>
-                          )}
-                        </CardContent>
-                      </Card>
+                  <div className="space-y-5">
+                    {groups.map((g) => (
+                      <div key={g.key} className="space-y-2">
+                        <div>
+                          <h3 className="text-sm font-semibold">{ARCHETYPE_LABELS[g.key]} ({g.items.length})</h3>
+                          <p className="text-xs text-muted-foreground">{ARCHETYPE_HINTS[g.key]}</p>
+                        </div>
+                        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                          {g.items.map((c) => (
+                            <Card key={c.id}
+                              className={`cursor-pointer hover:shadow-md transition-shadow ${enrichingId === c.id ? 'ring-2 ring-primary animate-pulse' : ''}`}
+                              onClick={() => setSelected(c)}>
+                              <CardContent className="py-4 space-y-2">
+                                <div className="flex items-start justify-between gap-2">
+                                  <p className="font-medium truncate">{c.name}</p>
+                                  <Badge className={TYPE_BADGE[c.type]}>{TYPE_LABELS[c.type]}</Badge>
+                                </div>
+                                {c.positioning
+                                  ? <p className="text-sm text-muted-foreground line-clamp-3">{c.positioning}</p>
+                                  : <p className="text-sm text-muted-foreground italic">
+                                      {enrichingId === c.id ? 'Researching…' : 'Not researched yet'}
+                                    </p>}
+                                <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                                  {c.claims?.length > 0 && <span>{c.claims.length} claims</span>}
+                                  {c.proof_points?.length > 0 && <span>{c.proof_points.length} proof points</span>}
+                                  {c.weaknesses?.length > 0 && <span>{c.weaknesses.length} weaknesses</span>}
+                                </div>
+                                {!c.researched_at && enrichingId !== c.id && (
+                                  <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); research(c); }}>
+                                    <RefreshCw className="h-3.5 w-3.5 mr-1" /> Research
+                                  </Button>
+                                )}
+                              </CardContent>
+                            </Card>
+                          ))}
+                        </div>
+                      </div>
                     ))}
                   </div>
                 )}
