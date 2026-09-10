@@ -13,6 +13,7 @@ interface Props {
   competitors: Competitor[];
   dimensions: CompetitorDimension[];
   positions: MarketPosition[];
+  usLabel?: string;
   print?: boolean;
   onSelectOrganisation?: (name: string) => void;
 }
@@ -30,8 +31,9 @@ interface Point {
 }
 
 export function MarketPositionChart({
-  competitors, dimensions, positions, print, onSelectOrganisation,
+  competitors, dimensions, positions, usLabel, print, onSelectOrganisation,
 }: Props) {
+  const ourName = usLabel?.trim() || 'Us';
   const dimLabel = useMemo(
     () => new Map(dimensions.map((d) => [d.id, d.label])),
     [dimensions],
@@ -60,13 +62,13 @@ export function MarketPositionChart({
       });
     };
 
-    push('us', 'Us', 'us', true, 4);
+    push('us', ourName, 'us', true, 4);
     [...competitors]
       .sort((a, b) => ARCHETYPE_ORDER.indexOf(a.archetype || 'other') - ARCHETYPE_ORDER.indexOf(b.archetype || 'other'))
       .forEach((c) => push(c.id, c.name, (c.archetype || 'other') as CompetitorArchetype, false,
         Array.isArray(c.claims) ? c.claims.length : 1));
     return rows;
-  }, [competitors, positions, dimLabel]);
+  }, [competitors, positions, dimLabel, ourName]);
 
   if (points.length === 0) return null;
 
@@ -83,9 +85,9 @@ export function MarketPositionChart({
           <ScatterChart margin={{ top: 24, right: 40, bottom: 40, left: 24 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
             <XAxis
-              type="number" dataKey="x" name="Sector leadership"
+              type="number" dataKey="x" name="Market traction"
               domain={[0, 100]} ticks={[0, 25, 50, 75, 100]} tick={{ fontSize: 10 }}
-              label={{ value: 'Sector leadership →', position: 'insideBottom', offset: -18, fontSize: 11 }}
+              label={{ value: 'Market traction (evidenced) →', position: 'insideBottom', offset: -18, fontSize: 11 }}
             />
             <YAxis
               type="number" dataKey="y" name="Differentiation"
@@ -122,7 +124,7 @@ export function MarketPositionChart({
                       {!p.isUs && (
                         <p className="text-muted-foreground">{ARCHETYPE_LABELS[p.archetype as CompetitorArchetype]}</p>
                       )}
-                      <p>Sector leadership {p.x} / 100 · Differentiation {p.y} / 100</p>
+                      <p>Market traction {p.x} / 100 · Differentiation {p.y} / 100</p>
                       {p.rationale && <p className="text-muted-foreground">{p.rationale}</p>}
                       {p.cited.length > 0 && (
                         <p className="text-muted-foreground">Based on: {p.cited.join(', ')}</p>
@@ -155,7 +157,7 @@ export function MarketPositionChart({
 
       <div className="flex flex-wrap gap-3 mt-1">
         <span className="flex items-center gap-1 text-xs text-muted-foreground">
-          <span className="h-2.5 w-2.5 rounded-full" style={{ background: ARCHETYPE_COLOUR.us }} /> Us
+          <span className="h-2.5 w-2.5 rounded-full" style={{ background: ARCHETYPE_COLOUR.us }} /> {ourName}
         </span>
         {usedArchetypes.map((a) => (
           <span key={a} className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -165,9 +167,9 @@ export function MarketPositionChart({
         ))}
       </div>
       <p className="text-xs text-muted-foreground mt-1">
-        Across: how well known and shortlisted an organisation is with your buyers. Up: how distinct its
-        position is from everyone else. Top-right leads on both; top-left is distinct but smaller;
-        bottom-right is big but interchangeable.
+        Across: evidenced traction — how widely known, adopted and shortlisted an organisation already is with
+        your buyers. Up: how distinct its position is from everyone else. Top-right leads on both; top-left is
+        distinct but yet to build traction; bottom-right is well known but interchangeable.
       </p>
       
     </div>

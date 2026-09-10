@@ -22,7 +22,7 @@ Return ONLY JSON:
 
 RULES:
 - "organisation" must exactly match a supplied organisation name (the business itself is supplied as "US").
-- "leadership" 0-100: presence, credibility, reach and pull with the buyers described in the supplied personas and ICPs. 100 = the name every buyer in this segment already knows and shortlists.
+- "leadership" 0-100 is MARKET TRACTION, not ambition: evidenced presence, adoption and pull with the buyers described in the supplied personas and ICPs. Score it only on evidence in the supplied research — named clients or references, proof points, funded or delivered work, breadth of footprint, how often this buyer would already have heard of them. 100 = the name every buyer in this segment already knows and shortlists. A small or young organisation with a compelling story but little evidenced adoption scores LOW here, however distinctive it is. Being strongly differentiated is never a reason to raise this score.
 - "differentiation" 0-100: how distinct their position is from the rest of the supplied field. 100 = stands for something nobody else stands for. A large generalist that looks like its peers scores low here even with high leadership.
 - Judge ONLY from the supplied research, comparison grid, personas and project context. Never use outside knowledge about the named organisations.
 - Spread the scores. Use the full range, avoid clustering everything near 50, and do not give two organisations the same pair of scores.

@@ -324,12 +324,12 @@ export default function CanvasPrint() {
         <section className="print-page print-landscape p-6">
           <h2 className="text-xl font-semibold mb-1">Market position</h2>
           <p className="text-xs text-muted-foreground mb-2">
-            Across: how well known and shortlisted each organisation is with your buyers. Up: how distinct its
-            position is. Top-right leads on both; top-left is distinct but smaller; bottom-right is big but
-            interchangeable.
+            Across: evidenced traction — how widely known, adopted and shortlisted each organisation already is
+            with your buyers. Up: how distinct its position is. Top-right leads on both; top-left is distinct but
+            yet to build traction; bottom-right is well known but interchangeable.
           </p>
           <MarketPositionChart
-            dimensions={dimensions} competitors={competitors} positions={positions} print
+            dimensions={dimensions} competitors={competitors} positions={positions} usLabel={projectName} print
           />
         </section>
       )}
