@@ -34,11 +34,15 @@ export default function CompetitiveLandscape() {
   const load = useCallback(async () => {
     if (!projectId) return;
     setLoading(true);
-    const { data, error } = await (supabase as any)
-      .from('competitors').select('*').eq('project_id', projectId)
-      .order('created_at', { ascending: true });
+    const [{ data, error }, { data: proj }] = await Promise.all([
+      (supabase as any).from('competitors').select('*').eq('project_id', projectId)
+        .order('created_at', { ascending: true }),
+      (supabase as any).from('projects').select('website').eq('id', projectId).maybeSingle(),
+    ]);
     if (error) toast.error(error.message);
     setCompetitors((data || []) as Competitor[]);
+    setOwnWebsite(proj?.website || null);
+    setSiteInput(proj?.website || '');
     setLoading(false);
   }, [projectId]);
 
