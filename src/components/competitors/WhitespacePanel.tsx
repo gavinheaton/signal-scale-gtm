@@ -44,12 +44,28 @@ export function WhitespacePanel({ projectId, confirmedCount }: Props) {
     ]);
     setItems((w.data || []) as CompetitiveWhitespace[]);
     setCompetitors((c.data || []) as Competitor[]);
-    setDimensions((d.data || []) as CompetitorDimension[]);
+    const dims = (d.data || []) as CompetitorDimension[];
+    setDimensions(dims);
     setScores((s.data || []) as CompetitorScore[]);
+    const ax = defaultAxes(dims);
+    setXDim((prev) => (prev && dims.some((x) => x.id === prev) ? prev : ax.x));
+    setYDim((prev) => (prev && dims.some((x) => x.id === prev) ? prev : ax.y));
     setLoading(false);
   }, [projectId]);
 
   useEffect(() => { load(); }, [load]);
+
+  const ownership = useMemo(() => {
+    const nameById = new Map(competitors.map((c) => [c.id, c.name]));
+    return dimensions.map((d) => ({
+      id: d.id,
+      label: d.label,
+      strong: scores
+        .filter((s) => s.dimension_id === d.id && s.rating === 'strong' && s.competitor_id && nameById.has(s.competitor_id))
+        .map((s) => nameById.get(s.competitor_id as string) as string),
+    }));
+  }, [dimensions, scores, competitors]);
+
 
   async function findGaps() {
     setRunning(true);
