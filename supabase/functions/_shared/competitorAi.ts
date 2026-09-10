@@ -91,7 +91,7 @@ export interface FcPage {
 
 /** Scrape readable content and the page's explicit links in one request. */
 export async function fcScrapePage(url: string, maxChars = 6000): Promise<FcPage> {
-  if (!FIRECRAWL_API_KEY) return "";
+  if (!FIRECRAWL_API_KEY) return { markdown: "", links: [] };
   try {
     const r = await fetch("https://api.firecrawl.dev/v2/scrape", {
       method: "POST",
