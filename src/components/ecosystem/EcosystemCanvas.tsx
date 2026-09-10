@@ -97,7 +97,7 @@ export function EcosystemCanvas({ mapId, refreshKey }: Props) {
     const filtered = dbN.filter((n) => (showHidden || !n.hidden) && (kindFilter.size === 0 || kindFilter.has(n.kind)));
     setNodes(filtered.map<Node>((n) => ({
       id: n.id, type: 'eco', position: { x: n.x, y: n.y },
-      data: { label: n.label, subtitle: n.subtitle, kind: n.kind, readiness_score: n.readiness_score, stale: n.stale },
+      data: { label: n.label, subtitle: n.subtitle, kind: n.kind, readiness_score: n.readiness_score, stale: n.stale, meta: (n as any).meta },
       draggable: true,
     })));
     setEdges(dbE
