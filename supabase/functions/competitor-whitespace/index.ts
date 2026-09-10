@@ -75,7 +75,7 @@ Deno.serve(async (req) => {
       const [compRes, dimRes, scoreRes] = await Promise.all([
         sb.from("competitors").select("id, name, type, positioning, claims, proof_points, strengths, weaknesses, target_segments, pricing_signals")
           .eq("project_id", project_id).eq("status", "confirmed"),
-        sb.from("competitor_dimensions").select("id, label, description, position").eq("project_id", project_id).order("position"),
+        sb.from("competitor_dimensions").select("id, label, description, position, importance").eq("project_id", project_id).order("position"),
         sb.from("competitor_scores").select("dimension_id, competitor_id, claim, rating").eq("project_id", project_id),
       ]);
       const competitors = compRes.data || [];
@@ -87,6 +87,7 @@ Deno.serve(async (req) => {
       const grid = dims.map((d: any) => ({
         dimension: d.label,
         description: d.description,
+        importance: d.importance,
         cells: (scoreRes.data || [])
           .filter((s: any) => s.dimension_id === d.id)
           .map((s: any) => ({
