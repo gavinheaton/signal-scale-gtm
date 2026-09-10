@@ -15,7 +15,7 @@ const phases: { key: MethodologyPhase; label: string; path?: string }[] = [
   { key: 'personas', label: 'Personas', path: '/project/icp-personas' },
   { key: 'value_proposition', label: 'Value Prop', path: '/project/value-prop' },
   { key: 'customer_conversations', label: 'Conversations', path: '/project/discovery' },
-  { key: 'competitor_mapping', label: 'Competitors' },
+  { key: 'competitor_mapping', label: 'Competitors', path: '/project/competitors' },
   { key: 'ecosystem_map', label: 'Ecosystem', path: '/project/ecosystem' },
   { key: 'canvas' as any, label: 'Canvas', path: '/project/canvas' },
   { key: 'campaign_strategy', label: 'Strategy', path: '/project/campaigns' },
@@ -41,6 +41,8 @@ export default function Home() {
   const [icpWizardComplete, setIcpWizardComplete] = useState(false);
   const [valuePropCount, setValuePropCount] = useState(0);
   const [activeValuePropCount, setActiveValuePropCount] = useState(0);
+  const [confirmedCompetitors, setConfirmedCompetitors] = useState(0);
+  const [whitespaceCount, setWhitespaceCount] = useState(0);
 
   useEffect(() => {
     if (!currentProject) return;
@@ -82,6 +84,14 @@ export default function Home() {
         setValuePropCount(data?.length || 0);
         setActiveValuePropCount((data || []).filter((v: any) => v.status === 'active').length);
       });
+
+    (supabase.from('competitors' as any).select('id, status').eq('project_id', pid) as any)
+      .then(({ data }: { data: any[] | null }) => {
+        setConfirmedCompetitors((data || []).filter((c: any) => c.status === 'confirmed').length);
+      });
+
+    (supabase.from('competitive_whitespace' as any).select('id').eq('project_id', pid) as any)
+      .then(({ data }: { data: any[] | null }) => setWhitespaceCount(data?.length || 0));
   }, [currentProject]);
 
   if (!currentProject) return <Navigate to="/projects" replace />;
@@ -92,7 +102,8 @@ export default function Home() {
     personas: personaCount === 0 ? 'not_started' : personaCount >= 3 ? 'complete' : 'in_progress',
     value_proposition: valuePropCount === 0 ? 'not_started' : activeValuePropCount >= 1 ? 'complete' : 'in_progress',
     customer_conversations: 'not_started',
-    competitor_mapping: 'not_started',
+    competitor_mapping: confirmedCompetitors === 0 ? 'not_started'
+      : whitespaceCount > 0 ? 'complete' : 'in_progress',
     ecosystem_map: 'not_started',
     campaign_strategy: allCampaigns.length === 0 ? 'not_started' :
       allCampaigns.some(c => ['active', 'complete'].includes(c.status)) ? 'complete' : 'in_progress',
