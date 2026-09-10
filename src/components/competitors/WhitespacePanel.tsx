@@ -25,13 +25,24 @@ export function WhitespacePanel({ projectId, confirmedCount }: Props) {
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [competitors, setCompetitors] = useState<Competitor[]>([]);
+  const [dimensions, setDimensions] = useState<CompetitorDimension[]>([]);
+  const [scores, setScores] = useState<CompetitorScore[]>([]);
+  const [highlight, setHighlight] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
-    const { data } = await (supabase as any)
-      .from('competitive_whitespace').select('*').eq('project_id', projectId)
-      .order('created_at', { ascending: true });
-    setItems((data || []) as CompetitiveWhitespace[]);
+    const [w, c, d, s] = await Promise.all([
+      (supabase as any).from('competitive_whitespace').select('*').eq('project_id', projectId)
+        .order('created_at', { ascending: true }),
+      (supabase as any).from('competitors').select('*').eq('project_id', projectId).eq('status', 'confirmed').order('name'),
+      (supabase as any).from('competitor_dimensions').select('*').eq('project_id', projectId).order('position'),
+      (supabase as any).from('competitor_scores').select('*').eq('project_id', projectId),
+    ]);
+    setItems((w.data || []) as CompetitiveWhitespace[]);
+    setCompetitors((c.data || []) as Competitor[]);
+    setDimensions((d.data || []) as CompetitorDimension[]);
+    setScores((s.data || []) as CompetitorScore[]);
     setLoading(false);
   }, [projectId]);
 
