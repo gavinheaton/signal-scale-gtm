@@ -1,4 +1,4 @@
-import { Home, Users, Mic, Megaphone, FileText, BarChart3, Settings, LogOut, FolderOpen, Shield, HelpCircle, Gauge, MessagesSquare, Network, Sparkles, LayoutGrid } from 'lucide-react';
+import { Home, Users, Mic, Megaphone, FileText, BarChart3, Settings, LogOut, FolderOpen, Shield, HelpCircle, Gauge, MessagesSquare, Network, Sparkles, LayoutGrid, Swords } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -22,6 +22,7 @@ const navItems = [
   { title: 'ICP & Personas', url: '/project/icp-personas', icon: Users },
   { title: 'Value Prop', url: '/project/value-prop', icon: Sparkles },
   { title: 'Discovery', url: '/project/discovery', icon: MessagesSquare },
+  { title: 'Competitors', url: '/project/competitors', icon: Swords },
   { title: 'Ecosystem', url: '/project/ecosystem', icon: Network },
   { title: 'Canvas', url: '/project/canvas', icon: LayoutGrid },
   { title: 'Brand Voice', url: '/project/brand-voice', icon: Mic },

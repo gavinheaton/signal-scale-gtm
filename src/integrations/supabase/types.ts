@@ -782,6 +782,273 @@ export type Database = {
           },
         ]
       }
+      competitive_whitespace: {
+        Row: {
+          applied_to: Json
+          created_at: string
+          evidence: Json
+          id: string
+          kind: Database["public"]["Enums"]["whitespace_kind"]
+          project_id: string
+          rationale: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          applied_to?: Json
+          created_at?: string
+          evidence?: Json
+          id?: string
+          kind: Database["public"]["Enums"]["whitespace_kind"]
+          project_id: string
+          rationale?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          applied_to?: Json
+          created_at?: string
+          evidence?: Json
+          id?: string
+          kind?: Database["public"]["Enums"]["whitespace_kind"]
+          project_id?: string
+          rationale?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "competitive_whitespace_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      competitor_dimensions: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          label: string
+          position: number
+          project_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          label: string
+          position?: number
+          project_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          label?: string
+          position?: number
+          project_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "competitor_dimensions_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      competitor_runs: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          error: string | null
+          id: string
+          kind: string
+          project_id: string
+          result: Json
+          saved_count: number
+          status: string
+          target_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          error?: string | null
+          id?: string
+          kind: string
+          project_id: string
+          result?: Json
+          saved_count?: number
+          status?: string
+          target_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          error?: string | null
+          id?: string
+          kind?: string
+          project_id?: string
+          result?: Json
+          saved_count?: number
+          status?: string
+          target_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "competitor_runs_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      competitor_scores: {
+        Row: {
+          claim: string | null
+          competitor_id: string | null
+          created_at: string
+          dimension_id: string
+          id: string
+          project_id: string
+          rating: Database["public"]["Enums"]["competitor_rating"] | null
+          updated_at: string
+        }
+        Insert: {
+          claim?: string | null
+          competitor_id?: string | null
+          created_at?: string
+          dimension_id: string
+          id?: string
+          project_id: string
+          rating?: Database["public"]["Enums"]["competitor_rating"] | null
+          updated_at?: string
+        }
+        Update: {
+          claim?: string | null
+          competitor_id?: string | null
+          created_at?: string
+          dimension_id?: string
+          id?: string
+          project_id?: string
+          rating?: Database["public"]["Enums"]["competitor_rating"] | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "competitor_scores_competitor_id_fkey"
+            columns: ["competitor_id"]
+            isOneToOne: false
+            referencedRelation: "competitors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "competitor_scores_dimension_id_fkey"
+            columns: ["dimension_id"]
+            isOneToOne: false
+            referencedRelation: "competitor_dimensions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "competitor_scores_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      competitors: {
+        Row: {
+          claims: Json
+          confidence: string | null
+          created_at: string
+          domain: string | null
+          evidence: Json
+          id: string
+          linkedin_url: string | null
+          name: string
+          notes: string | null
+          positioning: string | null
+          pricing_signals: string | null
+          project_id: string
+          proof_points: Json
+          researched_at: string | null
+          status: Database["public"]["Enums"]["competitor_status"]
+          strengths: Json
+          target_segments: Json
+          type: Database["public"]["Enums"]["competitor_type"]
+          updated_at: string
+          weaknesses: Json
+          why_suggested: string | null
+        }
+        Insert: {
+          claims?: Json
+          confidence?: string | null
+          created_at?: string
+          domain?: string | null
+          evidence?: Json
+          id?: string
+          linkedin_url?: string | null
+          name: string
+          notes?: string | null
+          positioning?: string | null
+          pricing_signals?: string | null
+          project_id: string
+          proof_points?: Json
+          researched_at?: string | null
+          status?: Database["public"]["Enums"]["competitor_status"]
+          strengths?: Json
+          target_segments?: Json
+          type?: Database["public"]["Enums"]["competitor_type"]
+          updated_at?: string
+          weaknesses?: Json
+          why_suggested?: string | null
+        }
+        Update: {
+          claims?: Json
+          confidence?: string | null
+          created_at?: string
+          domain?: string | null
+          evidence?: Json
+          id?: string
+          linkedin_url?: string | null
+          name?: string
+          notes?: string | null
+          positioning?: string | null
+          pricing_signals?: string | null
+          project_id?: string
+          proof_points?: Json
+          researched_at?: string | null
+          status?: Database["public"]["Enums"]["competitor_status"]
+          strengths?: Json
+          target_segments?: Json
+          type?: Database["public"]["Enums"]["competitor_type"]
+          updated_at?: string
+          weaknesses?: Json
+          why_suggested?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "competitors_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       discovery_campaigns: {
         Row: {
           created_at: string
@@ -2194,6 +2461,9 @@ export type Database = {
       canvas_entry_status: "assumption" | "hypothesis" | "validated"
       canvas_validation_outcome: "supports" | "contradicts" | "inconclusive"
       canvas_variant: "standard" | "shared_value" | "business_model"
+      competitor_rating: "strong" | "parity" | "weak"
+      competitor_status: "suggested" | "confirmed" | "dismissed"
+      competitor_type: "direct" | "adjacent" | "in_house" | "do_nothing"
       discovery_campaign_status: "active" | "paused" | "archived"
       discovery_enrichment_source: "apollo" | "manual" | "firecrawl"
       discovery_insight_kind: "observation" | "interpretation"
@@ -2263,6 +2533,7 @@ export type Database = {
         | "blocker"
       value_prop_format: "memory_dart" | "elevator_pitch"
       value_prop_status: "draft" | "active" | "archived"
+      whitespace_kind: "unowned" | "commoditised" | "counter_position"
       wizard_session_status: "in_progress" | "complete" | "cancelled"
       wizard_session_type:
         | "icp"
@@ -2418,6 +2689,9 @@ export const Constants = {
       canvas_entry_status: ["assumption", "hypothesis", "validated"],
       canvas_validation_outcome: ["supports", "contradicts", "inconclusive"],
       canvas_variant: ["standard", "shared_value", "business_model"],
+      competitor_rating: ["strong", "parity", "weak"],
+      competitor_status: ["suggested", "confirmed", "dismissed"],
+      competitor_type: ["direct", "adjacent", "in_house", "do_nothing"],
       discovery_campaign_status: ["active", "paused", "archived"],
       discovery_enrichment_source: ["apollo", "manual", "firecrawl"],
       discovery_insight_kind: ["observation", "interpretation"],
@@ -2494,6 +2768,7 @@ export const Constants = {
       ],
       value_prop_format: ["memory_dart", "elevator_pitch"],
       value_prop_status: ["draft", "active", "archived"],
+      whitespace_kind: ["unowned", "commoditised", "counter_position"],
       wizard_session_status: ["in_progress", "complete", "cancelled"],
       wizard_session_type: [
         "icp",

@@ -42,6 +42,10 @@ export default function CanvasPrint() {
   const [projectName, setProjectName] = useState<string>('');
   const [bundles, setBundles] = useState<Bundle[]>([]);
   const [loading, setLoading] = useState(true);
+  const [competitors, setCompetitors] = useState<any[]>([]);
+  const [dimensions, setDimensions] = useState<any[]>([]);
+  const [scores, setScores] = useState<any[]>([]);
+  const [whitespace, setWhitespace] = useState<any[]>([]);
 
   useEffect(() => {
     (async () => {
@@ -67,6 +71,18 @@ export default function CanvasPrint() {
       const order: CanvasVariant[] = ['standard', 'shared_value', 'business_model'];
       out.sort((a, b) => order.indexOf(a.canvas.variant) - order.indexOf(b.canvas.variant));
       setBundles(out);
+
+      const [cRes, dRes, sRes, wRes] = await Promise.all([
+        (supabase as any).from('competitors').select('*').eq('project_id', projectId).eq('status', 'confirmed').order('name'),
+        (supabase as any).from('competitor_dimensions').select('*').eq('project_id', projectId).order('position'),
+        (supabase as any).from('competitor_scores').select('*').eq('project_id', projectId),
+        (supabase as any).from('competitive_whitespace').select('*').eq('project_id', projectId).order('created_at'),
+      ]);
+      setCompetitors(cRes.data || []);
+      setDimensions(dRes.data || []);
+      setScores(sRes.data || []);
+      setWhitespace(wRes.data || []);
+
       setLoading(false);
     })();
   }, [projectId]);
@@ -256,6 +272,103 @@ export default function CanvasPrint() {
           </div>
         );
       })}
+
+      {competitors.length > 0 && (
+        <section className="print-page p-10">
+          <h2 className="text-xl font-semibold mb-1">Competitive Landscape</h2>
+          <p className="text-xs text-muted-foreground mb-4">{projectName}</p>
+          <div className="space-y-4 text-sm">
+            {competitors.map((c) => (
+              <div key={c.id} className="border rounded p-3">
+                <div className="flex items-baseline justify-between gap-2">
+                  <h3 className="font-semibold">{c.name}</h3>
+                  <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                    {String(c.type || '').replace('_', ' ')}
+                  </span>
+                </div>
+                {c.domain && <p className="text-xs text-muted-foreground">{c.domain}</p>}
+                {c.positioning && <p className="mt-1">{c.positioning}</p>}
+                <div className="grid grid-cols-2 gap-3 mt-2 text-xs">
+                  {(c.strengths || []).length > 0 && (
+                    <div>
+                      <p className="font-medium">Strengths</p>
+                      <ul className="list-disc pl-4">
+                        {(c.strengths || []).map((s: string, k: number) => <li key={k}>{s}</li>)}
+                      </ul>
+                    </div>
+                  )}
+                  {(c.weaknesses || []).length > 0 && (
+                    <div>
+                      <p className="font-medium">Weaknesses</p>
+                      <ul className="list-disc pl-4">
+                        {(c.weaknesses || []).map((s: string, k: number) => <li key={k}>{s}</li>)}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {dimensions.length > 0 && (
+        <section className="print-page print-landscape p-6">
+          <h2 className="text-xl font-semibold mb-3">Positioning comparison</h2>
+          <table className="w-full text-[10px] border-collapse">
+            <thead>
+              <tr>
+                <th className="border p-1 text-left">Dimension</th>
+                <th className="border p-1 text-left">Us</th>
+                {competitors.map((c) => (
+                  <th key={c.id} className="border p-1 text-left">{c.name}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {dimensions.map((d) => {
+                const cell = (competitorId: string | null) =>
+                  scores.find((s) => s.dimension_id === d.id && (s.competitor_id || null) === competitorId);
+                const render = (s: any) =>
+                  s ? (
+                    <>
+                      {s.rating && <span className="uppercase font-semibold">{s.rating}</span>}
+                      {s.claim && <span className="block">{s.claim}</span>}
+                    </>
+                  ) : (
+                    <span className="text-muted-foreground">—</span>
+                  );
+                return (
+                  <tr key={d.id}>
+                    <td className="border p-1 font-medium align-top">{d.label}</td>
+                    <td className="border p-1 align-top">{render(cell(null))}</td>
+                    {competitors.map((c) => (
+                      <td key={c.id} className="border p-1 align-top">{render(cell(c.id))}</td>
+                    ))}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </section>
+      )}
+
+      {whitespace.length > 0 && (
+        <section className="print-page p-10">
+          <h2 className="text-xl font-semibold mb-3">Whitespace &amp; counter-positioning</h2>
+          <div className="space-y-3 text-sm">
+            {whitespace.map((w) => (
+              <div key={w.id} className="border-l-2 border-primary pl-3">
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                  {String(w.kind || '').replace('_', ' ')}
+                </p>
+                <p className="font-medium">{w.title}</p>
+                {w.rationale && <p className="text-xs mt-0.5">{w.rationale}</p>}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   );
 }
