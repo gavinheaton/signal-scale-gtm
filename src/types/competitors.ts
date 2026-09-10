@@ -1,6 +1,7 @@
 // Competitive landscape shared types
 
 export type CompetitorType = 'direct' | 'adjacent' | 'in_house' | 'do_nothing';
+export type CompetitorArchetype = 'capital_coalition' | 'engineering_systems' | 'applied_research' | 'place_alliance' | 'other';
 export type CompetitorStatus = 'suggested' | 'confirmed' | 'dismissed';
 export type CompetitorRating = 'strong' | 'parity' | 'weak';
 export type WhitespaceKind = 'unowned' | 'commoditised' | 'counter_position';
