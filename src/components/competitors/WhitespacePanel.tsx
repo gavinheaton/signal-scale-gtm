@@ -33,22 +33,31 @@ export function WhitespacePanel({ projectId, confirmedCount }: Props) {
   const [highlight, setHighlight] = useState<string | null>(null);
   const [xDim, setXDim] = useState<string | null>(null);
   const [yDim, setYDim] = useState<string | null>(null);
-
+  const [positions, setPositions] = useState<MarketPosition[]>([]);
+  const [personas, setPersonas] = useState<{ id: string; persona_name: string }[]>([]);
+  const [lens, setLens] = useState<string>('all');
+  const [assessing, setAssessing] = useState(false);
+  const [showDetail, setShowDetail] = useState(false);
+  const pollRef = useRef<number | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [w, c, d, s] = await Promise.all([
+    const [w, c, d, s, mp, pe] = await Promise.all([
       (supabase as any).from('competitive_whitespace').select('*').eq('project_id', projectId)
         .order('created_at', { ascending: true }),
       (supabase as any).from('competitors').select('*').eq('project_id', projectId).eq('status', 'confirmed').order('name'),
       (supabase as any).from('competitor_dimensions').select('*').eq('project_id', projectId).order('position'),
       (supabase as any).from('competitor_scores').select('*').eq('project_id', projectId),
+      (supabase as any).from('competitor_market_positions').select('*').eq('project_id', projectId),
+      (supabase as any).from('personas').select('id, persona_name').eq('project_id', projectId).order('persona_name'),
     ]);
     setItems((w.data || []) as CompetitiveWhitespace[]);
     setCompetitors((c.data || []) as Competitor[]);
     const dims = (d.data || []) as CompetitorDimension[];
     setDimensions(dims);
     setScores((s.data || []) as CompetitorScore[]);
+    setPositions((mp.data || []) as MarketPosition[]);
+    setPersonas((pe.data || []) as { id: string; persona_name: string }[]);
     const ax = defaultAxes(dims);
     setXDim((prev) => (prev && dims.some((x) => x.id === prev) ? prev : ax.x));
     setYDim((prev) => (prev && dims.some((x) => x.id === prev) ? prev : ax.y));
@@ -56,6 +65,51 @@ export function WhitespacePanel({ projectId, confirmedCount }: Props) {
   }, [projectId]);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(() => () => { if (pollRef.current) window.clearInterval(pollRef.current); }, []);
+
+  const lensPositions = useMemo(
+    () => positions.filter((p) => (p.persona_id ?? 'all') === (lens === 'all' ? 'all' : lens)),
+    [positions, lens],
+  );
+
+  async function refreshPositions() {
+    const { data } = await (supabase as any)
+      .from('competitor_market_positions').select('*').eq('project_id', projectId);
+    if (data) setPositions(data as MarketPosition[]);
+  }
+
+  async function assessPosition() {
+    setAssessing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('competitor-whitespace', {
+        body: { project_id: projectId, mode: 'market_position', persona_id: lens === 'all' ? null : lens },
+      });
+      if (error) throw new Error((data as any)?.error || error.message);
+      if ((data as any)?.error) throw new Error((data as any).error);
+      const runId = (data as any)?.run_id;
+      if (!runId) throw new Error('Could not start the assessment');
+
+      const started = Date.now();
+      const timer = window.setInterval(async () => {
+        const { data: run } = await (supabase as any)
+          .from('competitor_runs').select('*').eq('id', runId).maybeSingle();
+        if (run) await refreshPositions();
+        if (run?.status === 'complete' || run?.status === 'error' || Date.now() - started > 4 * 60 * 1000) {
+          window.clearInterval(timer);
+          if (pollRef.current === timer) pollRef.current = null;
+          setAssessing(false);
+          await refreshPositions();
+          if (run?.status === 'error') toast.error(run.error || 'The assessment stopped early.');
+          else toast.success('Market position updated.');
+        }
+      }, 4000);
+      pollRef.current = timer;
+    } catch (e: any) {
+      toast.error(e.message || 'Could not assess the market position');
+      setAssessing(false);
+    }
+  }
+
 
   const ownership = useMemo(() => {
     const nameById = new Map(competitors.map((c) => [c.id, c.name]));
