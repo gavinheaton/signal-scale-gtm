@@ -277,21 +277,103 @@ Deno.serve(async (req) => {
       themeNodeId.set(t.id, id);
     }
 
-    // 6b. Competitor nodes — ring 2 (alongside companies and themes)
+    // 6b. Competitive landscape nodes — competitors and partners, grouped by archetype
+    const ARCHETYPE_LABEL: Record<string, string> = {
+      capital_coalition: "Scale & capital coalitions",
+      engineering_systems: "Engineering & systems maturity",
+      applied_research: "Applied research organisations",
+      place_alliance: "Hazard & place-specific alliances",
+      other: "Other",
+    };
+    const ARCHETYPE_ORDER = ["capital_coalition", "engineering_systems", "applied_research", "place_alliance", "other"];
+    const byArchetype = (a: any, b: any) =>
+      ARCHETYPE_ORDER.indexOf(a.archetype || "other") - ARCHETYPE_ORDER.indexOf(b.archetype || "other");
+
+    function landscapeMeta(c: any) {
+      const pos = positionByComp.get(c.id);
+      return {
+        type: c.type, domain: c.domain, archetype: c.archetype || null,
+        archetype_label: ARCHETYPE_LABEL[c.archetype || "other"],
+        source: c.source, positioning: c.positioning,
+        target_segments: c.target_segments || [],
+        strengths: c.strengths || [], weaknesses: c.weaknesses || [],
+        pricing_signals: c.pricing_signals || null,
+        strong_dimensions: strongDims.get(c.id) || [],
+        leadership: pos?.leadership ?? null,
+        differentiation: pos?.differentiation ?? null,
+        position_rationale: pos?.rationale ?? null,
+        cited_dimensions: (pos?.cited_dimension_ids || []).map((d: string) => dimLabel.get(d)).filter(Boolean),
+      };
+    }
+    function landscapeRing(c: any) {
+      const lead = positionByComp.get(c.id)?.leadership;
+      if (typeof lead !== "number") return 2;
+      if (lead >= 67) return 2;
+      if (lead >= 34) return 3;
+      return 4;
+    }
+
     const competitorNodeId = new Map<string, string>();
-    for (let i = 0; i < competitors.length; i++) {
-      const c = competitors[i];
+    const sortedRivals = [...rivals].sort(byArchetype);
+    const ringCounts = new Map<number, number>();
+    for (const c of sortedRivals) {
+      const ring = landscapeRing(c);
+      ringCounts.set(ring, (ringCounts.get(ring) || 0) + 1);
+    }
+    const ringSeen = new Map<number, number>();
+    for (const c of sortedRivals) {
+      const ring = landscapeRing(c);
+      const seen = ringSeen.get(ring) || 0;
+      ringSeen.set(ring, seen + 1);
+      const base = ring === 2 ? orgs.length + themes.length : 0;
       const id = await upsertNode({
         kind: "competitor", ref_table: "competitors", ref_id: c.id,
         label: c.name,
-        subtitle: c.domain || c.type || undefined,
-        ring: 2, idx: orgs.length + themes.length + i,
-        total: Math.max(orgs.length + themes.length + competitors.length, 1),
-        meta: { type: c.type, domain: c.domain, positioning: c.positioning,
-                target_segments: c.target_segments || [] },
+        subtitle: ARCHETYPE_LABEL[c.archetype || "other"],
+        ring, idx: base + seen,
+        total: Math.max(base + (ringCounts.get(ring) || 1), 1),
+        cluster: c.archetype || "other",
+        meta: landscapeMeta(c),
       });
       competitorNodeId.set(c.id, id);
     }
+
+    // 6c. Partner nodes — organisations linked from your own website
+    const partnerNodeId = new Map<string, string>();
+    const sortedPartners = [...partners].sort(byArchetype);
+    for (let i = 0; i < sortedPartners.length; i++) {
+      const c = sortedPartners[i];
+      const id = await upsertNode({
+        kind: "partner", ref_table: "competitors", ref_id: c.id,
+        label: c.name,
+        subtitle: "Linked partner",
+        ring: 1, idx: icps.length + i, total: Math.max(icps.length + sortedPartners.length, 1),
+        cluster: "partners",
+        meta: { ...landscapeMeta(c), partner: true },
+      });
+      partnerNodeId.set(c.id, id);
+    }
+
+    // 6d. Whitespace nodes — the open ground, outer ring
+    const WHITESPACE_LABEL: Record<string, string> = {
+      unowned: "Nobody owns this",
+      commoditised: "Everyone says this",
+      counter_position: "Your angle",
+    };
+    const whitespaceNodeId = new Map<string, string>();
+    for (let i = 0; i < whitespace.length; i++) {
+      const w = whitespace[i];
+      const id = await upsertNode({
+        kind: "theme", ref_table: "competitive_whitespace", ref_id: w.id,
+        label: w.title || "Whitespace",
+        subtitle: WHITESPACE_LABEL[w.kind] || "Whitespace",
+        ring: 4, idx: i, total: Math.max(whitespace.length, 1),
+        cluster: "whitespace",
+        meta: { whitespace_kind: w.kind, rationale: w.rationale, evidence: w.evidence || [] },
+      });
+      whitespaceNodeId.set(w.id, id);
+    }
+
 
     // 7. Insight nodes — ring 4 (alongside people)
     const insightNodeId = new Map<string, string>();
