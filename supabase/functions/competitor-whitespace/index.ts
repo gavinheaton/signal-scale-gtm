@@ -8,7 +8,29 @@ import { corsHeaders } from "../_shared/cors.ts";
 import { requireUser, serviceClient, assertProjectAccess } from "../_shared/auth.ts";
 import { aiJson, loadProjectContext, AiError } from "../_shared/competitorAi.ts";
 
-interface Body { project_id: string; mode?: "dimensions" | "whitespace" | "map_grid"; overwrite?: boolean }
+interface Body {
+  project_id: string;
+  mode?: "dimensions" | "whitespace" | "map_grid" | "market_position";
+  overwrite?: boolean;
+  persona_id?: string | null;
+}
+
+const MARKET_SYSTEM = `You place organisations on a market-position map, in the style of an analyst quadrant.
+
+Return ONLY JSON:
+{"positions":[{"organisation":string,"leadership":number,"differentiation":number,"rationale":string,"cited_dimensions":string[]}]}
+
+RULES:
+- "organisation" must exactly match a supplied organisation name (the business itself is supplied as "US").
+- "leadership" 0-100: presence, credibility, reach and pull with the buyers described in the supplied personas and ICPs. 100 = the name every buyer in this segment already knows and shortlists.
+- "differentiation" 0-100: how distinct their position is from the rest of the supplied field. 100 = stands for something nobody else stands for. A large generalist that looks like its peers scores low here even with high leadership.
+- Judge ONLY from the supplied research, comparison grid, personas and project context. Never use outside knowledge about the named organisations.
+- Spread the scores. Use the full range, avoid clustering everything near 50, and do not give two organisations the same pair of scores.
+- "rationale" is ONE sentence, max 25 words, explaining the placement.
+- "cited_dimensions" lists 1-3 supplied dimension labels (exact matches) that the placement rests on.
+- Return one entry for every organisation supplied, including "US".
+- When a single persona is supplied as the lens, weigh that persona's priorities and buying behaviour above everything else.`;
+
 
 const MAP_SYSTEM = `You fill a competitive comparison grid from research that has already been gathered.
 
