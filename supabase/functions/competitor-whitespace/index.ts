@@ -1,12 +1,29 @@
-// Two modes:
+// Three modes:
 //  - mode "dimensions": propose the comparison dimensions that matter to this project's buyers.
+//  - mode "map_grid": fill the comparison grid (claims + ratings) from the research already stored
+//    on each confirmed competitor. Runs as a background job, saving batch by batch.
 //  - mode "whitespace": read the grid + profiles and return gaps, commoditised claims
 //    and counter-positioning angles.
 import { corsHeaders } from "../_shared/cors.ts";
 import { requireUser, serviceClient, assertProjectAccess } from "../_shared/auth.ts";
 import { aiJson, loadProjectContext, AiError } from "../_shared/competitorAi.ts";
 
-interface Body { project_id: string; mode?: "dimensions" | "whitespace" }
+interface Body { project_id: string; mode?: "dimensions" | "whitespace" | "map_grid"; overwrite?: boolean }
+
+const MAP_SYSTEM = `You fill a competitive comparison grid from research that has already been gathered.
+
+Return ONLY JSON:
+{"cells":[{"organisation":string,"dimension":string,"claim":string,"rating":"strong"|"parity"|"weak"|null}]}
+
+RULES:
+- Use ONLY the supplied research (positioning, claims, proof points, strengths, weaknesses, segments, pricing signals) and the project context. Never use outside knowledge about the named organisations.
+- "organisation" must exactly match a supplied organisation name; "dimension" must exactly match a supplied dimension label.
+- Return one cell per organisation per dimension. Cover every combination supplied.
+- "claim" is max 14 words, in the organisation's own language, describing what they offer on that dimension. If the research says nothing about it, return an empty string.
+- "rating": "strong" only when the research clearly evidences leadership on that dimension (a proof point, a named capability, a stated focus). "parity" when they do it but nothing sets them apart. "weak" when the research shows a gap or a stated weakness. null when the research says nothing at all — do not guess.
+- Be discriminating: most organisations should NOT be strong on most dimensions.
+- For the organisation named "US" use the project's own value proposition, problems worth solving and proof points.`;
+
 
 const DIMENSIONS_SYSTEM = `You choose the dimensions a B2B buyer actually compares vendors on.
 
@@ -41,7 +58,7 @@ Deno.serve(async (req) => {
     try { ({ user } = await requireUser(req, corsHeaders)); }
     catch (r) { return r as Response; }
 
-    const { project_id, mode = "whitespace" }: Body = await req.json();
+    const { project_id, mode = "whitespace", overwrite = false }: Body = await req.json();
     if (!project_id) return json({ error: "project_id required" }, 400);
 
     const sb = serviceClient();
@@ -70,6 +87,140 @@ Deno.serve(async (req) => {
         if (error) throw new Error(error.message);
         return json({ dimensions: ins || [] });
       }
+
+      if (mode === "map_grid") {
+        const [compRes, dimRes] = await Promise.all([
+          sb.from("competitors")
+            .select("id, name, type, archetype, positioning, claims, proof_points, strengths, weaknesses, target_segments, pricing_signals")
+            .eq("project_id", project_id).eq("status", "confirmed"),
+          sb.from("competitor_dimensions").select("id, label, description, importance")
+            .eq("project_id", project_id).order("position"),
+        ]);
+        const comps = compRes.data || [];
+        const dims = dimRes.data || [];
+        if (comps.length === 0) return json({ error: "Confirm at least one competitor first." }, 422);
+        if (dims.length === 0) return json({ error: "Add or suggest some dimensions first." }, 422);
+
+        const { data: run, error: runErr } = await sb.from("competitor_runs")
+          .insert({ project_id, kind: "map_grid", status: "running", created_by: user.id })
+          .select("id").single();
+        if (runErr || !run) return json({ error: runErr?.message || "Could not start mapping" }, 500);
+        const runId = run.id as string;
+
+        const background = (async () => {
+          let filled = 0;
+          try {
+            const context = await loadProjectContext(sb, project_id);
+            const { data: existingScores } = await sb.from("competitor_scores")
+              .select("id, dimension_id, competitor_id, claim, rating").eq("project_id", project_id);
+            const existing = existingScores || [];
+            const keyOf = (dimId: string, compId: string | null) => `${dimId}|${compId ?? "us"}`;
+            const byKey = new Map(existing.map((s: any) => [keyOf(s.dimension_id, s.competitor_id ?? null), s]));
+            const dimByLabel = new Map(dims.map((d: any) => [d.label.toLowerCase(), d]));
+
+            const targets: { id: string | null; name: string; research: any }[] = [
+              {
+                id: null,
+                name: "US",
+                research: {
+                  positioning: context.value_propositions?.[0]?.statement || null,
+                  value_propositions: context.value_propositions,
+                  problems_worth_solving: context.problems_worth_solving,
+                  personas: context.personas,
+                  brand_context: context.brand_context,
+                },
+              },
+              ...comps.map((c: any) => ({
+                id: c.id,
+                name: c.name,
+                research: {
+                  type: c.type, archetype: c.archetype, positioning: c.positioning,
+                  claims: c.claims, proof_points: c.proof_points, strengths: c.strengths,
+                  weaknesses: c.weaknesses, target_segments: c.target_segments,
+                  pricing_signals: c.pricing_signals,
+                },
+              })),
+            ];
+
+            const BATCH = 3;
+            for (let i = 0; i < targets.length; i += BATCH) {
+              const batch = targets.slice(i, i + BATCH);
+              const nameToId = new Map(batch.map((t) => [t.name.toLowerCase(), t.id]));
+              let parsed: any = {};
+              try {
+                parsed = await aiJson(MAP_SYSTEM, {
+                  project_context: {
+                    project_name: context.project_name,
+                    icps: context.icps,
+                    personas: context.personas,
+                    value_propositions: context.value_propositions,
+                    problems_worth_solving: context.problems_worth_solving,
+                  },
+                  dimensions: dims.map((d: any) => ({ label: d.label, description: d.description, importance: d.importance })),
+                  organisations: batch.map((t) => ({ name: t.name, research: t.research })),
+                });
+              } catch (e: any) {
+                if (e instanceof AiError && e.status === 429) {
+                  await new Promise((r) => setTimeout(r, 4000));
+                  continue;
+                }
+                throw e;
+              }
+
+              const cells: any[] = Array.isArray(parsed.cells) ? parsed.cells : [];
+              const inserts: any[] = [];
+              for (const cell of cells) {
+                const orgName = typeof cell?.organisation === "string" ? cell.organisation.trim().toLowerCase() : "";
+                const dim = dimByLabel.get(
+                  typeof cell?.dimension === "string" ? cell.dimension.trim().toLowerCase() : "",
+                );
+                if (!dim || !nameToId.has(orgName)) continue;
+                const compId = nameToId.get(orgName) ?? null;
+                const rating = ["strong", "parity", "weak"].includes(cell?.rating) ? cell.rating : null;
+                const claim = typeof cell?.claim === "string" && cell.claim.trim()
+                  ? cell.claim.trim().slice(0, 200) : null;
+                if (!rating && !claim) continue;
+
+                const prev: any = byKey.get(keyOf(dim.id, compId));
+                if (prev) {
+                  const hasContent = (prev.claim && String(prev.claim).trim()) || prev.rating;
+                  if (hasContent && !overwrite) continue;
+                  await sb.from("competitor_scores").update({ claim, rating }).eq("id", prev.id);
+                  filled += 1;
+                } else {
+                  inserts.push({ project_id, dimension_id: dim.id, competitor_id: compId, claim, rating });
+                  byKey.set(keyOf(dim.id, compId), { id: "pending", claim, rating });
+                }
+              }
+              if (inserts.length > 0) {
+                const { error: insErr } = await sb.from("competitor_scores").insert(inserts);
+                if (insErr) console.error("[competitor-whitespace] map insert failed", insErr.message);
+                else filled += inserts.length;
+              }
+              await sb.from("competitor_runs").update({ saved_count: filled }).eq("id", runId);
+            }
+
+            await sb.from("competitor_runs").update({
+              status: "complete",
+              saved_count: filled,
+              result: { cells_filled: filled, organisations: targets.length, dimensions: dims.length },
+            }).eq("id", runId);
+          } catch (e: any) {
+            console.error("[competitor-whitespace] map_grid failed", e?.message);
+            await sb.from("competitor_runs").update({
+              status: "error",
+              saved_count: filled,
+              error: e instanceof AiError ? e.message : (e?.message || "Mapping failed"),
+            }).eq("id", runId);
+          }
+        })();
+
+        const rt = (globalThis as any).EdgeRuntime;
+        if (rt?.waitUntil) rt.waitUntil(background);
+        return json({ run_id: runId, status: "running" }, 202);
+      }
+
+
 
       // whitespace
       const [compRes, dimRes, scoreRes] = await Promise.all([

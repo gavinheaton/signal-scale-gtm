@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,7 +9,7 @@ import {
   CompetitiveWhitespace, WhitespaceKind, WHITESPACE_LABELS,
   Competitor, CompetitorDimension, CompetitorScore,
 } from '@/types/competitors';
-import { WhitespaceChart } from './WhitespaceChart';
+import { WhitespaceChart, defaultAxes } from './WhitespaceChart';
 
 interface Props { projectId: string; confirmedCount: number }
 
@@ -29,6 +29,9 @@ export function WhitespacePanel({ projectId, confirmedCount }: Props) {
   const [dimensions, setDimensions] = useState<CompetitorDimension[]>([]);
   const [scores, setScores] = useState<CompetitorScore[]>([]);
   const [highlight, setHighlight] = useState<string | null>(null);
+  const [xDim, setXDim] = useState<string | null>(null);
+  const [yDim, setYDim] = useState<string | null>(null);
+
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -41,12 +44,28 @@ export function WhitespacePanel({ projectId, confirmedCount }: Props) {
     ]);
     setItems((w.data || []) as CompetitiveWhitespace[]);
     setCompetitors((c.data || []) as Competitor[]);
-    setDimensions((d.data || []) as CompetitorDimension[]);
+    const dims = (d.data || []) as CompetitorDimension[];
+    setDimensions(dims);
     setScores((s.data || []) as CompetitorScore[]);
+    const ax = defaultAxes(dims);
+    setXDim((prev) => (prev && dims.some((x) => x.id === prev) ? prev : ax.x));
+    setYDim((prev) => (prev && dims.some((x) => x.id === prev) ? prev : ax.y));
     setLoading(false);
   }, [projectId]);
 
   useEffect(() => { load(); }, [load]);
+
+  const ownership = useMemo(() => {
+    const nameById = new Map(competitors.map((c) => [c.id, c.name]));
+    return dimensions.map((d) => ({
+      id: d.id,
+      label: d.label,
+      strong: scores
+        .filter((s) => s.dimension_id === d.id && s.rating === 'strong' && s.competitor_id && nameById.has(s.competitor_id))
+        .map((s) => nameById.get(s.competitor_id as string) as string),
+    }));
+  }, [dimensions, scores, competitors]);
+
 
   async function findGaps() {
     setRunning(true);
@@ -151,15 +170,34 @@ export function WhitespacePanel({ projectId, confirmedCount }: Props) {
       {dimensions.length > 0 && (
         <Card>
           <CardHeader className="pb-0">
-            <CardTitle className="text-sm">Opportunity map</CardTitle>
+            <CardTitle className="text-sm">Where everyone stands</CardTitle>
           </CardHeader>
           <CardContent className="pt-3">
+            <div className="flex flex-wrap items-center gap-3 mb-2">
+              <label className="flex items-center gap-1 text-xs text-muted-foreground">
+                Across
+                <select className="h-8 rounded-md border bg-background px-2 text-xs"
+                  value={xDim ?? ''} onChange={(e) => setXDim(e.target.value)}>
+                  {dimensions.map((d) => <option key={d.id} value={d.id}>{d.label}</option>)}
+                </select>
+              </label>
+              <label className="flex items-center gap-1 text-xs text-muted-foreground">
+                Up
+                <select className="h-8 rounded-md border bg-background px-2 text-xs"
+                  value={yDim ?? ''} onChange={(e) => setYDim(e.target.value)}>
+                  {dimensions.map((d) => <option key={d.id} value={d.id}>{d.label}</option>)}
+                </select>
+              </label>
+            </div>
+
             <WhitespaceChart
               dimensions={dimensions}
               competitors={competitors}
               scores={scores}
-              onSelectDimension={(label) => {
-                setHighlight(label);
+              xDimensionId={xDim}
+              yDimensionId={yDim}
+              onSelectOrganisation={(name) => {
+                setHighlight(name);
                 const el = document.getElementById('whitespace-cards');
                 el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
               }}
@@ -170,9 +208,26 @@ export function WhitespacePanel({ projectId, confirmedCount }: Props) {
                 <button className="underline text-muted-foreground" onClick={() => setHighlight(null)}>clear</button>
               </p>
             )}
+
+            {ownership.length > 0 && (
+              <div className="mt-4 border-t pt-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-[#e33e23] mb-2">Who owns what</p>
+                <div className="grid gap-1.5 md:grid-cols-2">
+                  {ownership.map((o) => (
+                    <div key={o.id} className="text-xs">
+                      <span className="font-medium">{o.label}:</span>{' '}
+                      {o.strong.length === 0
+                        ? <span className="text-emerald-700">nobody owns this yet</span>
+                        : <span className="text-muted-foreground">{o.strong.join(', ')}</span>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
+
 
       <div id="whitespace-cards" className="space-y-4">
       {items.length === 0 ? (

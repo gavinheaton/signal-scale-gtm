@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
-import { Loader2, Sparkles, Plus, Trash2, ArrowUp, ArrowDown } from 'lucide-react';
+import { Loader2, Sparkles, Plus, Trash2, ArrowUp, ArrowDown, Wand2 } from 'lucide-react';
+
 import { toast } from 'sonner';
 import {
   Competitor, CompetitorDimension, CompetitorScore, CompetitorRating, RATING_BADGE, RATING_LABELS,
@@ -19,7 +20,11 @@ export function ComparisonGrid({ projectId, competitors }: Props) {
   const [scores, setScores] = useState<CompetitorScore[]>([]);
   const [loading, setLoading] = useState(true);
   const [suggesting, setSuggesting] = useState(false);
+  const [mapping, setMapping] = useState(false);
+  const [mapped, setMapped] = useState(0);
+  const [overwrite, setOverwrite] = useState(false);
   const [newLabel, setNewLabel] = useState('');
+  const pollRef = useRef<number | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -32,7 +37,14 @@ export function ComparisonGrid({ projectId, competitors }: Props) {
     setLoading(false);
   }, [projectId]);
 
+  const refreshScores = useCallback(async () => {
+    const { data } = await (supabase as any).from('competitor_scores').select('*').eq('project_id', projectId);
+    if (data) setScores(data as CompetitorScore[]);
+  }, [projectId]);
+
   useEffect(() => { load(); }, [load]);
+  useEffect(() => () => { if (pollRef.current) window.clearInterval(pollRef.current); }, []);
+
 
   const cell = (dimId: string, compId: string | null) =>
     scores.find((s) => s.dimension_id === dimId && (s.competitor_id ?? null) === compId);
@@ -67,6 +79,42 @@ export function ComparisonGrid({ projectId, competitors }: Props) {
       setSuggesting(false);
     }
   }
+
+  async function mapFromResearch() {
+    if (dims.length === 0) { toast.error('Add some dimensions first.'); return; }
+    setMapping(true);
+    setMapped(0);
+    try {
+      const { data, error } = await supabase.functions.invoke('competitor-whitespace', {
+        body: { project_id: projectId, mode: 'map_grid', overwrite },
+      });
+      if (error) throw new Error((data as any)?.error || error.message);
+      if ((data as any)?.error) throw new Error((data as any).error);
+      const runId = (data as any)?.run_id;
+      if (!runId) throw new Error('Could not start mapping');
+
+      const started = Date.now();
+      const timer = window.setInterval(async () => {
+        const { data: run } = await (supabase as any)
+          .from('competitor_runs').select('*').eq('id', runId).maybeSingle();
+        if (run?.saved_count != null) setMapped(run.saved_count);
+        if (run) await refreshScores();
+        if (run?.status === 'complete' || run?.status === 'error' || Date.now() - started > 5 * 60 * 1000) {
+          window.clearInterval(timer);
+          if (pollRef.current === timer) pollRef.current = null;
+          setMapping(false);
+          await load();
+          if (run?.status === 'error') toast.error(run.error || 'Mapping stopped early — anything already filled is saved.');
+          else toast.success(`Grid mapped — ${run?.saved_count ?? 0} cells filled from the research.`);
+        }
+      }, 4000);
+      pollRef.current = timer;
+    } catch (e: any) {
+      toast.error(e.message || 'Could not map the grid');
+      setMapping(false);
+    }
+  }
+
 
   async function addDimension() {
     if (!newLabel.trim()) return;
@@ -124,6 +172,14 @@ export function ComparisonGrid({ projectId, competitors }: Props) {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
+        <Button size="sm" onClick={mapFromResearch} disabled={mapping || competitors.length === 0}>
+          {mapping ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Wand2 className="h-4 w-4 mr-1" />}
+          {mapping ? `Mapping… ${mapped} cells` : 'Map from research'}
+        </Button>
+        <label className="flex items-center gap-1 text-xs text-muted-foreground">
+          <input type="checkbox" checked={overwrite} onChange={(e) => setOverwrite(e.target.checked)} />
+          Overwrite what's already filled
+        </label>
         <Button size="sm" variant="outline" onClick={suggestDimensions} disabled={suggesting}>
           {suggesting ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Sparkles className="h-4 w-4 mr-1" />}
           Suggest dimensions
@@ -135,6 +191,11 @@ export function ComparisonGrid({ projectId, competitors }: Props) {
           <Button size="sm" variant="ghost" onClick={addDimension}><Plus className="h-4 w-4" /></Button>
         </div>
       </div>
+      <p className="text-xs text-muted-foreground -mt-2">
+        "Map from research" reads what was already found about each organisation and fills in their claim
+        and standing on every row. Nothing you typed is changed unless you tick overwrite.
+      </p>
+
 
       {competitors.length === 0 && (
         <Card><CardContent className="py-8 text-center text-sm text-muted-foreground">
@@ -191,7 +252,8 @@ export function ComparisonGrid({ projectId, competitors }: Props) {
                     const sc = cell(d.id, c.id);
                     return (
                       <td key={(c.id ?? 'us') + d.id} className="p-2">
-                        <Input className="h-8 text-sm mb-1" placeholder="Short claim"
+                        <Input key={`${sc?.id ?? 'new'}-${sc?.claim ?? ''}`}
+                          className="h-8 text-sm mb-1" placeholder="Short claim"
                           defaultValue={sc?.claim || ''}
                           onBlur={(e) => {
                             if ((sc?.claim || '') !== e.target.value) upsertCell(d.id, c.id, { claim: e.target.value });
