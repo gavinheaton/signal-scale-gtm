@@ -52,6 +52,7 @@ export interface CompetitorDimension {
   label: string;
   description: string | null;
   position: number;
+  importance: number;
 }
 
 export interface CompetitorScore {

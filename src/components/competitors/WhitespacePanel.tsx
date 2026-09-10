@@ -5,7 +5,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, Sparkles, ArrowRight, LayoutGrid, Check } from 'lucide-react';
 import { toast } from 'sonner';
-import { CompetitiveWhitespace, WhitespaceKind, WHITESPACE_LABELS } from '@/types/competitors';
+import {
+  CompetitiveWhitespace, WhitespaceKind, WHITESPACE_LABELS,
+  Competitor, CompetitorDimension, CompetitorScore,
+} from '@/types/competitors';
+import { WhitespaceChart } from './WhitespaceChart';
 
 interface Props { projectId: string; confirmedCount: number }
 
@@ -21,13 +25,24 @@ export function WhitespacePanel({ projectId, confirmedCount }: Props) {
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [competitors, setCompetitors] = useState<Competitor[]>([]);
+  const [dimensions, setDimensions] = useState<CompetitorDimension[]>([]);
+  const [scores, setScores] = useState<CompetitorScore[]>([]);
+  const [highlight, setHighlight] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
-    const { data } = await (supabase as any)
-      .from('competitive_whitespace').select('*').eq('project_id', projectId)
-      .order('created_at', { ascending: true });
-    setItems((data || []) as CompetitiveWhitespace[]);
+    const [w, c, d, s] = await Promise.all([
+      (supabase as any).from('competitive_whitespace').select('*').eq('project_id', projectId)
+        .order('created_at', { ascending: true }),
+      (supabase as any).from('competitors').select('*').eq('project_id', projectId).eq('status', 'confirmed').order('name'),
+      (supabase as any).from('competitor_dimensions').select('*').eq('project_id', projectId).order('position'),
+      (supabase as any).from('competitor_scores').select('*').eq('project_id', projectId),
+    ]);
+    setItems((w.data || []) as CompetitiveWhitespace[]);
+    setCompetitors((c.data || []) as Competitor[]);
+    setDimensions((d.data || []) as CompetitorDimension[]);
+    setScores((s.data || []) as CompetitorScore[]);
     setLoading(false);
   }, [projectId]);
 
@@ -133,6 +148,33 @@ export function WhitespacePanel({ projectId, confirmedCount }: Props) {
         </Button>
       </div>
 
+      {dimensions.length > 0 && (
+        <Card>
+          <CardHeader className="pb-0">
+            <CardTitle className="text-sm">Opportunity map</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-3">
+            <WhitespaceChart
+              dimensions={dimensions}
+              competitors={competitors}
+              scores={scores}
+              onSelectDimension={(label) => {
+                setHighlight(label);
+                const el = document.getElementById('whitespace-cards');
+                el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              }}
+            />
+            {highlight && (
+              <p className="text-xs mt-2">
+                Highlighting gaps that mention <span className="font-medium">{highlight}</span>{' '}
+                <button className="underline text-muted-foreground" onClick={() => setHighlight(null)}>clear</button>
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      <div id="whitespace-cards" className="space-y-4">
       {items.length === 0 ? (
         <Card><CardContent className="py-10 text-center text-sm text-muted-foreground">
           {confirmedCount === 0
@@ -146,8 +188,10 @@ export function WhitespacePanel({ projectId, confirmedCount }: Props) {
             <div className="grid gap-3 md:grid-cols-2">
               {items.filter((i) => i.kind === kind).map((item) => {
                 const appliedTargets = (item.applied_to || []).map((a) => a.target);
+                const hay = `${item.title} ${item.rationale || ''} ${(item.evidence || []).join(' ')}`.toLowerCase();
+                const isHit = !!highlight && hay.includes(highlight.toLowerCase());
                 return (
-                  <Card key={item.id}>
+                  <Card key={item.id} className={isHit ? 'ring-2 ring-primary' : undefined}>
                     <CardHeader className="pb-2">
                       <div className="flex items-start justify-between gap-2">
                         <CardTitle className="text-sm leading-snug">{item.title}</CardTitle>
@@ -181,6 +225,7 @@ export function WhitespacePanel({ projectId, confirmedCount }: Props) {
           </div>
         ))
       )}
+      </div>
     </div>
   );
 }
