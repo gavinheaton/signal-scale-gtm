@@ -337,6 +337,29 @@ export default function CanvasPrint() {
         </section>
       )}
 
+      {narrative.length > 0 && (
+        <section className="print-page p-6">
+          <h2 className="text-xl font-semibold mb-3">Competitive landscape narrative</h2>
+          <div className="space-y-4">
+            {narrative.map((s: any) => (
+              <div key={s.key} className="break-inside-avoid">
+                <h3 className="text-sm font-semibold uppercase tracking-wide text-[#e33e23] mb-1">{s.heading}</h3>
+                {(s.paragraphs || []).map((p: string, i: number) => (
+                  <p key={i} className="text-[11px] leading-relaxed mb-1.5">{p}</p>
+                ))}
+                {(s.bullets || []).length > 0 && (
+                  <ul className="list-disc pl-4 space-y-0.5">
+                    {(s.bullets || []).map((b: string, i: number) => (
+                      <li key={i} className="text-[11px] leading-relaxed">{b}</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       {dimensions.length > 0 && (
         <section className="print-page print-landscape p-6">
           <h2 className="text-xl font-semibold mb-1">Dimension detail — where everyone stands</h2>
