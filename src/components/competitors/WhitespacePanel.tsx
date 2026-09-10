@@ -36,13 +36,14 @@ export function WhitespacePanel({ projectId, confirmedCount }: Props) {
   const [positions, setPositions] = useState<MarketPosition[]>([]);
   const [personas, setPersonas] = useState<{ id: string; persona_name: string }[]>([]);
   const [lens, setLens] = useState<string>('all');
+  const [ourName, setOurName] = useState<string>('');
   const [assessing, setAssessing] = useState(false);
   const [showDetail, setShowDetail] = useState(false);
   const pollRef = useRef<number | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [w, c, d, s, mp, pe] = await Promise.all([
+    const [w, c, d, s, mp, pe, pr] = await Promise.all([
       (supabase as any).from('competitive_whitespace').select('*').eq('project_id', projectId)
         .order('created_at', { ascending: true }),
       (supabase as any).from('competitors').select('*').eq('project_id', projectId).eq('status', 'confirmed').order('name'),
@@ -50,7 +51,9 @@ export function WhitespacePanel({ projectId, confirmedCount }: Props) {
       (supabase as any).from('competitor_scores').select('*').eq('project_id', projectId),
       (supabase as any).from('competitor_market_positions').select('*').eq('project_id', projectId),
       (supabase as any).from('personas').select('id, persona_name').eq('project_id', projectId).order('persona_name'),
+      (supabase as any).from('projects').select('name').eq('id', projectId).maybeSingle(),
     ]);
+    setOurName((pr as any)?.data?.name || '');
     setItems((w.data || []) as CompetitiveWhitespace[]);
     setCompetitors((c.data || []) as Competitor[]);
     const dims = (d.data || []) as CompetitorDimension[];
@@ -257,6 +260,7 @@ export function WhitespacePanel({ projectId, confirmedCount }: Props) {
               competitors={competitors}
               dimensions={dimensions}
               positions={lensPositions}
+              usLabel={ourName}
               onSelectOrganisation={(name) => {
                 setHighlight(name);
                 const el = document.getElementById('whitespace-cards');
