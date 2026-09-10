@@ -314,7 +314,12 @@ export default function CanvasPrint() {
 
       {dimensions.length > 0 && (
         <section className="print-page print-landscape p-6">
-          <h2 className="text-xl font-semibold mb-3">Positioning comparison</h2>
+          <h2 className="text-xl font-semibold mb-1">Whitespace opportunity map</h2>
+          <p className="text-xs text-muted-foreground mb-2">
+            Dots sitting high and to the left are dimensions buyers care about that no competitor owns.
+          </p>
+          <WhitespaceChart dimensions={dimensions} competitors={competitors} scores={scores} print />
+          <h2 className="text-xl font-semibold mt-6 mb-3">Positioning comparison</h2>
           <table className="w-full text-[10px] border-collapse">
             <thead>
               <tr>
