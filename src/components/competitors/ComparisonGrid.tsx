@@ -252,7 +252,8 @@ export function ComparisonGrid({ projectId, competitors }: Props) {
                     const sc = cell(d.id, c.id);
                     return (
                       <td key={(c.id ?? 'us') + d.id} className="p-2">
-                        <Input className="h-8 text-sm mb-1" placeholder="Short claim"
+                        <Input key={`${sc?.id ?? 'new'}-${sc?.claim ?? ''}`}
+                          className="h-8 text-sm mb-1" placeholder="Short claim"
                           defaultValue={sc?.claim || ''}
                           onBlur={(e) => {
                             if ((sc?.claim || '') !== e.target.value) upsertCell(d.id, c.id, { claim: e.target.value });
