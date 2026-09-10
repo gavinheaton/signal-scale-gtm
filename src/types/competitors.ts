@@ -35,6 +35,10 @@ export interface Competitor {
   evidence: CompetitorEvidence[];
   confidence: string | null;
   notes: string | null;
+  identity_verdict: 'match' | 'unsure' | 'mismatch' | null;
+  identity_reason: string | null;
+  source: 'ai' | 'manual' | 'own_site';
+  domain_locked: boolean;
   researched_at: string | null;
   created_at: string;
   updated_at: string;
