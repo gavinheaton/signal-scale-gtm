@@ -195,6 +195,26 @@ export default function CompetitiveLandscape() {
             </div>
           ) : (
             <>
+              {!ownWebsite && (
+                <Card className="border-amber-200 bg-amber-50/60">
+                  <CardContent className="py-4 space-y-2">
+                    <p className="text-sm font-medium flex items-center gap-2">
+                      <Globe className="h-4 w-4" /> What is your own website?
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      We read your own site first — partners and alternatives named there are the most reliable
+                      starting point for your landscape.
+                    </p>
+                    <div className="flex gap-2 max-w-md">
+                      <Input placeholder="yourcompany.com" value={siteInput}
+                        onChange={(e) => setSiteInput(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && saveWebsite()} />
+                      <Button size="sm" onClick={saveWebsite}>Save</Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
               {suggested.length > 0 && (
                 <div className="space-y-2">
                   <h2 className="text-sm font-semibold text-[#e33e23] uppercase tracking-wide">
