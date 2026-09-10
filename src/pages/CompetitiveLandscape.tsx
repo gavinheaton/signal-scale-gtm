@@ -4,11 +4,15 @@ import { useProject } from '@/contexts/ProjectContext';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Swords, Sparkles, Loader2, Plus, Check, X, ExternalLink, RefreshCw } from 'lucide-react';
+import { Swords, Sparkles, Loader2, Plus, Check, X, ExternalLink, RefreshCw, Globe, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
-import { Competitor, CompetitorRun, TYPE_BADGE, TYPE_LABELS } from '@/types/competitors';
+import { Competitor, CompetitorRun, CompetitorType, TYPE_BADGE, TYPE_LABELS } from '@/types/competitors';
 import { CompetitorProfileDrawer } from '@/components/competitors/CompetitorProfileDrawer';
 import { ComparisonGrid } from '@/components/competitors/ComparisonGrid';
 import { WhitespacePanel } from '@/components/competitors/WhitespacePanel';
@@ -20,7 +24,12 @@ export default function CompetitiveLandscape() {
   const [discovering, setDiscovering] = useState(false);
   const [enrichingId, setEnrichingId] = useState<string | null>(null);
   const [selected, setSelected] = useState<Competitor | null>(null);
-  const [newName, setNewName] = useState('');
+  const [addOpen, setAddOpen] = useState(false);
+  const [newComp, setNewComp] = useState<{ name: string; website: string; type: CompetitorType; why: string }>({
+    name: '', website: '', type: 'direct', why: '',
+  });
+  const [ownWebsite, setOwnWebsite] = useState<string | null>(null);
+  const [siteInput, setSiteInput] = useState('');
   const [showDismissed, setShowDismissed] = useState(false);
   const pollRef = useRef<number | null>(null);
 
@@ -29,11 +38,15 @@ export default function CompetitiveLandscape() {
   const load = useCallback(async () => {
     if (!projectId) return;
     setLoading(true);
-    const { data, error } = await (supabase as any)
-      .from('competitors').select('*').eq('project_id', projectId)
-      .order('created_at', { ascending: true });
+    const [{ data, error }, { data: proj }] = await Promise.all([
+      (supabase as any).from('competitors').select('*').eq('project_id', projectId)
+        .order('created_at', { ascending: true }),
+      (supabase as any).from('projects').select('website').eq('id', projectId).maybeSingle(),
+    ]);
     if (error) toast.error(error.message);
     setCompetitors((data || []) as Competitor[]);
+    setOwnWebsite(proj?.website || null);
+    setSiteInput(proj?.website || '');
     setLoading(false);
   }, [projectId]);
 
@@ -105,16 +118,41 @@ export default function CompetitiveLandscape() {
     }
   }
 
-  async function addManual() {
-    if (!projectId || !newName.trim()) return;
+  async function addManual(research_now: boolean) {
+    if (!projectId || !newComp.name.trim()) { toast.error('Give the competitor a name.'); return; }
+    const domain = newComp.website.trim()
+      ? newComp.website.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0]
+      : null;
     const { data, error } = await (supabase as any).from('competitors')
-      .insert({ project_id: projectId, name: newName.trim(), status: 'confirmed', type: 'direct' })
+      .insert({
+        project_id: projectId,
+        name: newComp.name.trim(),
+        domain,
+        domain_locked: !!domain,
+        type: newComp.type,
+        status: 'confirmed',
+        source: 'manual',
+        why_suggested: newComp.why.trim() || null,
+        identity_verdict: domain ? 'match' : null,
+        identity_reason: domain ? 'Web address supplied by you.' : null,
+      })
       .select('*').single();
     if (error) { toast.error(error.message); return; }
-    setNewName('');
     setCompetitors((prev) => [...prev, data as Competitor]);
-    research(data as Competitor);
+    setAddOpen(false);
+    setNewComp({ name: '', website: '', type: 'direct', why: '' });
+    if (research_now) research(data as Competitor);
   }
+
+  async function saveWebsite() {
+    if (!projectId || !siteInput.trim()) return;
+    const { error } = await (supabase as any).from('projects')
+      .update({ website: siteInput.trim() }).eq('id', projectId);
+    if (error) { toast.error(error.message); return; }
+    setOwnWebsite(siteInput.trim());
+    toast.success('Saved — your own site will be read first when finding competitors.');
+  }
+
 
   if (!currentProject) {
     return <div className="p-6 text-muted-foreground">Select a project to view its competitive landscape.</div>;
@@ -157,6 +195,26 @@ export default function CompetitiveLandscape() {
             </div>
           ) : (
             <>
+              {!ownWebsite && (
+                <Card className="border-amber-200 bg-amber-50/60">
+                  <CardContent className="py-4 space-y-2">
+                    <p className="text-sm font-medium flex items-center gap-2">
+                      <Globe className="h-4 w-4" /> What is your own website?
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      We read your own site first — partners and alternatives named there are the most reliable
+                      starting point for your landscape.
+                    </p>
+                    <div className="flex gap-2 max-w-md">
+                      <Input placeholder="yourcompany.com" value={siteInput}
+                        onChange={(e) => setSiteInput(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && saveWebsite()} />
+                      <Button size="sm" onClick={saveWebsite}>Save</Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
               {suggested.length > 0 && (
                 <div className="space-y-2">
                   <h2 className="text-sm font-semibold text-[#e33e23] uppercase tracking-wide">
@@ -171,11 +229,20 @@ export default function CompetitiveLandscape() {
                               <p className="font-medium truncate">{c.name}</p>
                               <div className="flex items-center gap-2 mt-1">
                                 <Badge className={TYPE_BADGE[c.type]}>{TYPE_LABELS[c.type]}</Badge>
-                                {c.domain && (
+                                {c.source === 'own_site' && (
+                                  <Badge variant="outline" className="text-xs">
+                                    <Globe className="h-3 w-3 mr-1" /> Found on your website
+                                  </Badge>
+                                )}
+                                {c.domain ? (
                                   <a href={`https://${c.domain}`} target="_blank" rel="noreferrer"
                                     className="text-xs text-primary underline inline-flex items-center gap-1">
                                     {c.domain} <ExternalLink className="h-3 w-3" />
                                   </a>
+                                ) : (c.type === 'direct' || c.type === 'adjacent') && (
+                                  <Badge variant="outline" className="text-xs text-amber-800 border-amber-300">
+                                    <AlertTriangle className="h-3 w-3 mr-1" /> Needs a website
+                                  </Badge>
                                 )}
                               </div>
                             </div>
@@ -189,6 +256,9 @@ export default function CompetitiveLandscape() {
                             </div>
                           </div>
                           {c.why_suggested && <p className="text-sm text-muted-foreground mt-2">{c.why_suggested}</p>}
+                          {!c.domain && c.identity_reason && (
+                            <p className="text-xs text-amber-800 mt-1">{c.identity_reason}</p>
+                          )}
                           <button className="text-xs text-primary underline mt-2" onClick={() => setSelected(c)}>Edit details</button>
                         </CardContent>
                       </Card>
@@ -202,17 +272,14 @@ export default function CompetitiveLandscape() {
                   <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
                     Your landscape ({confirmed.length})
                   </h2>
-                  <div className="flex items-center gap-1">
-                    <Input className="h-9 w-56" placeholder="Add a competitor by name" value={newName}
-                      onChange={(e) => setNewName(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && addManual()} />
-                    <Button size="sm" variant="ghost" onClick={addManual}><Plus className="h-4 w-4" /></Button>
-                  </div>
+                  <Button size="sm" variant="outline" onClick={() => setAddOpen(true)}>
+                    <Plus className="h-4 w-4 mr-1" /> Add competitor
+                  </Button>
                 </div>
 
                 {confirmed.length === 0 ? (
                   <Card><CardContent className="py-10 text-center text-sm text-muted-foreground">
-                    Nothing confirmed yet. Press “Find competitors” for a proposed shortlist, or add one by name.
+                    Nothing confirmed yet. Press “Find competitors” for a proposed shortlist, or add one yourself.
                   </CardContent></Card>
                 ) : (
                   <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
@@ -285,6 +352,47 @@ export default function CompetitiveLandscape() {
         onResearch={research}
         researching={enrichingId === selected?.id}
       />
+
+      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader><DialogTitle>Add a competitor</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label className="text-xs">Name</Label>
+              <Input value={newComp.name} placeholder="Acme Advisory"
+                onChange={(e) => setNewComp({ ...newComp, name: e.target.value })} />
+            </div>
+            <div>
+              <Label className="text-xs">Website (optional)</Label>
+              <Input value={newComp.website} placeholder="acme.com"
+                onChange={(e) => setNewComp({ ...newComp, website: e.target.value })} />
+              <p className="text-xs text-muted-foreground mt-1">
+                If you give one it is used exactly as typed — research will never replace it.
+              </p>
+            </div>
+            <div>
+              <Label className="text-xs">Type</Label>
+              <Select value={newComp.type} onValueChange={(v) => setNewComp({ ...newComp, type: v as CompetitorType })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {(Object.keys(TYPE_LABELS) as CompetitorType[]).map((t) => (
+                    <SelectItem key={t} value={t}>{TYPE_LABELS[t]}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs">Why they matter (optional)</Label>
+              <Textarea rows={2} value={newComp.why}
+                onChange={(e) => setNewComp({ ...newComp, why: e.target.value })} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => addManual(false)}>Save</Button>
+            <Button onClick={() => addManual(true)}>Save and research</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
