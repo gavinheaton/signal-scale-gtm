@@ -19,6 +19,7 @@ import {
 import { CompetitorProfileDrawer } from '@/components/competitors/CompetitorProfileDrawer';
 import { ComparisonGrid } from '@/components/competitors/ComparisonGrid';
 import { WhitespacePanel } from '@/components/competitors/WhitespacePanel';
+import { NarrativePanel } from '@/components/competitors/NarrativePanel';
 
 export default function CompetitiveLandscape() {
   const { currentProject } = useProject();
