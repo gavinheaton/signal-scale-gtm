@@ -55,15 +55,27 @@ export default function CompetitiveLandscape() {
 
   function pollRun(runId: string, onDone: (run: CompetitorRun) => void) {
     if (pollRef.current) window.clearInterval(pollRef.current);
+    const startedAt = Date.now();
     pollRef.current = window.setInterval(async () => {
       const { data } = await (supabase as any).from('competitor_runs').select('*').eq('id', runId).maybeSingle();
       const run = data as CompetitorRun | null;
+      // A run can be cut short by the server; don't wait forever.
+      if (run?.status === 'running' && Date.now() - startedAt > 240000) {
+        if (pollRef.current) window.clearInterval(pollRef.current);
+        pollRef.current = null;
+        await (supabase as any).from('competitor_runs')
+          .update({ status: 'error', error: 'The research stopped early. Anything already found has been kept.' })
+          .eq('id', runId);
+        onDone({ ...(run as CompetitorRun), status: 'error', error: 'The research stopped early. Anything already found has been kept.' });
+        return;
+      }
       if (!run || run.status === 'running') return;
       if (pollRef.current) window.clearInterval(pollRef.current);
       pollRef.current = null;
       onDone(run);
     }, 3000);
   }
+
 
   async function findCompetitors() {
     if (!projectId) return;
