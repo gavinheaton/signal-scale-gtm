@@ -2,7 +2,7 @@
 // extract positioning, claims, proof points, pricing signals and weaknesses.
 import { corsHeaders } from "../_shared/cors.ts";
 import { requireUser, serviceClient, assertProjectAccess } from "../_shared/auth.ts";
-import { aiJson, apexDomain, fcSearch, fcScrape, loadProjectContext, AiError } from "../_shared/competitorAi.ts";
+import { aiJson, apexDomain, fcScrape, loadProjectContext, marketExpectation, resolveCompanySite, AiError } from "../_shared/competitorAi.ts";
 
 interface Body { competitor_id: string }
 
