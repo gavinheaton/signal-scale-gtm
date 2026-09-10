@@ -73,8 +73,17 @@ Deno.serve(async (req) => {
         const takenNames = new Set((existing || []).map((c: any) => (c.name || "").toLowerCase()));
         const takenDomains = new Set((existing || []).map((c: any) => (c.domain || "").toLowerCase()).filter(Boolean));
 
-        const rows: any[] = [];
         const now = () => new Date().toISOString();
+        let saved = 0;
+
+        // Insert as we go so a long run never loses what it already found.
+        const saveRows = async (rows: any[]) => {
+          if (rows.length === 0) return;
+          const { data: ins, error: insErr } = await sb.from("competitors").insert(rows).select("id");
+          if (insErr) throw new Error(insErr.message);
+          saved += ins?.length || rows.length;
+          await sb.from("competitor_runs").update({ saved_count: saved }).eq("id", runId);
+        };
 
         // ---------- Pass 1: the project's own website ----------
         let ownSiteFound = 0;
@@ -82,16 +91,15 @@ Deno.serve(async (req) => {
         if (ownSite) {
           const ownApex = apexDomain(ownSite);
           const pages = new Set<string>([`https://${ownApex}`]);
-          for (const kw of ["partners", "about", "services", "ecosystem"]) {
-            const found = await fcMap(`https://${ownApex}`, kw, 6);
+          for (const kw of ["partners", "about"]) {
+            const found = await fcMap(`https://${ownApex}`, kw, 4);
             found.slice(0, 2).forEach((u) => pages.add(u));
-            if (pages.size >= 6) break;
+            if (pages.size >= 4) break;
           }
-          const scraped: { url: string; markdown: string }[] = [];
-          for (const u of Array.from(pages).slice(0, 6)) {
-            const md = await fcScrape(u, 5000);
-            if (md.length > 150) scraped.push({ url: u, markdown: md });
-          }
+          const scrapedAll = await Promise.all(
+            Array.from(pages).slice(0, 4).map(async (u) => ({ url: u, markdown: await fcScrape(u, 5000) })),
+          );
+          const scraped = scrapedAll.filter((p) => p.markdown.length > 150);
           if (scraped.length > 0) {
             const parsedOwn = await aiJson(OWN_SITE_SYSTEM, {
               site_owner: { name: context.project_name, domain: ownApex },
@@ -99,6 +107,7 @@ Deno.serve(async (req) => {
               pages: scraped,
             });
             const orgs: any[] = Array.isArray(parsedOwn?.organisations) ? parsedOwn.organisations.slice(0, 10) : [];
+            const ownRows: any[] = [];
             for (const o of orgs) {
               const name = typeof o?.name === "string" ? o.name.trim() : "";
               if (!name || takenNames.has(name.toLowerCase())) continue;
@@ -107,7 +116,7 @@ Deno.serve(async (req) => {
               if (domain && takenDomains.has(domain)) continue;
               takenNames.add(name.toLowerCase());
               if (domain) takenDomains.add(domain);
-              rows.push({
+              ownRows.push({
                 project_id,
                 name,
                 domain,
@@ -122,66 +131,71 @@ Deno.serve(async (req) => {
               });
               ownSiteFound++;
             }
+            await saveRows(ownRows);
           }
         }
 
         // ---------- Pass 2: AI-proposed set ----------
         const parsed = await aiJson(SYSTEM, context);
-        const proposed: any[] = Array.isArray(parsed.competitors) ? parsed.competitors.slice(0, 12) : [];
-        if (proposed.length === 0 && rows.length === 0) {
+        const proposed: any[] = Array.isArray(parsed.competitors) ? parsed.competitors.slice(0, 10) : [];
+        if (proposed.length === 0 && saved === 0) {
           throw new Error("The AI could not propose competitors from the current project data.");
         }
 
-        for (const p of proposed) {
+        const fresh = proposed.filter((p) => {
           const name = typeof p?.name === "string" ? p.name.trim() : "";
-          if (!name || takenNames.has(name.toLowerCase())) continue;
-          const type = ["direct", "adjacent", "in_house", "do_nothing"].includes(p?.type) ? p.type : "direct";
+          return name && !takenNames.has(name.toLowerCase());
+        });
 
-          let domain: string | null = null;
-          let linkedin: string | null = null;
-          let verdict: string | null = null;
-          let reason: string | null = null;
-          const evidence: any[] = [];
-
-          if (type === "direct" || type === "adjacent") {
-            const { site, linkedin: li } = await resolveCompanySite(name, expectation, {
-              preferDomain: typeof p?.guess_domain === "string" ? p.guess_domain : null,
-            });
-            verdict = site.verdict;
-            reason = site.reason || null;
-            linkedin = li;
-            if (site.verdict === "match" && site.domain) {
-              domain = site.domain;
-              evidence.push({ kind: "website", url: `https://${site.domain}`, captured_at: now() });
+        // Resolve websites in small parallel batches — sequential lookups
+        // outlive the function and the run would never finish.
+        for (let i = 0; i < fresh.length; i += 4) {
+          const batch = fresh.slice(i, i + 4);
+          const resolved = await Promise.all(batch.map(async (p) => {
+            const name = (p.name as string).trim();
+            const type = ["direct", "adjacent", "in_house", "do_nothing"].includes(p?.type) ? p.type : "direct";
+            if (type !== "direct" && type !== "adjacent") return { p, name, type, site: null, linkedin: null };
+            try {
+              const { site, linkedin } = await resolveCompanySite(name, expectation, {
+                preferDomain: typeof p?.guess_domain === "string" ? p.guess_domain : null,
+                maxCandidates: 2,
+              });
+              return { p, name, type, site, linkedin };
+            } catch (e: any) {
+              console.error("[competitor-discover] resolve failed", name, e?.message);
+              return { p, name, type, site: null, linkedin: null };
             }
-            if (linkedin) evidence.push({ kind: "linkedin", url: linkedin, captured_at: now() });
+          }));
+
+          const rows: any[] = [];
+          for (const r of resolved) {
+            if (takenNames.has(r.name.toLowerCase())) continue;
+            let domain: string | null = null;
+            const evidence: any[] = [];
+            if (r.site?.verdict === "match" && r.site.domain) {
+              domain = r.site.domain;
+              evidence.push({ kind: "website", url: `https://${domain}`, captured_at: now() });
+            }
+            if (r.linkedin) evidence.push({ kind: "linkedin", url: r.linkedin, captured_at: now() });
+            if (domain && takenDomains.has(domain)) continue;
+            if (domain) takenDomains.add(domain);
+            takenNames.add(r.name.toLowerCase());
+            rows.push({
+              project_id,
+              name: r.name,
+              domain,
+              linkedin_url: r.linkedin,
+              type: r.type,
+              status: "suggested",
+              source: "ai",
+              why_suggested: typeof r.p?.why === "string" ? r.p.why.slice(0, 300) : null,
+              identity_verdict: r.site?.verdict || null,
+              identity_reason: r.site?.reason || null,
+              evidence,
+              confidence: domain ? "medium" : "low",
+            });
           }
-
-          if (domain && takenDomains.has(domain)) continue;
-          if (domain) takenDomains.add(domain);
-          takenNames.add(name.toLowerCase());
-
-          rows.push({
-            project_id,
-            name,
-            domain,
-            linkedin_url: linkedin,
-            type,
-            status: "suggested",
-            source: "ai",
-            why_suggested: typeof p?.why === "string" ? p.why.slice(0, 300) : null,
-            identity_verdict: verdict,
-            identity_reason: reason,
-            evidence,
-            confidence: domain ? "medium" : "low",
-          });
-        }
-
-        let saved = 0;
-        if (rows.length > 0) {
-          const { data: ins, error: insErr } = await sb.from("competitors").insert(rows).select("id");
-          if (insErr) throw new Error(insErr.message);
-          saved = ins?.length || rows.length;
+          await saveRows(rows);
         }
 
         await sb.from("competitor_runs").update({
@@ -189,6 +203,7 @@ Deno.serve(async (req) => {
           saved_count: saved,
           result: { proposed: proposed.length, from_own_site: ownSiteFound, saved, own_site: ownSite || null },
         }).eq("id", runId);
+
       } catch (e: any) {
         console.error("[competitor-discover] failed", e?.message);
         await sb.from("competitor_runs").update({
