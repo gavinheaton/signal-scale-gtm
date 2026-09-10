@@ -1,6 +1,7 @@
 // Competitive landscape shared types
 
 export type CompetitorType = 'direct' | 'adjacent' | 'in_house' | 'do_nothing';
+export type CompetitorArchetype = 'capital_coalition' | 'engineering_systems' | 'applied_research' | 'place_alliance' | 'other';
 export type CompetitorStatus = 'suggested' | 'confirmed' | 'dismissed';
 export type CompetitorRating = 'strong' | 'parity' | 'weak';
 export type WhitespaceKind = 'unowned' | 'commoditised' | 'counter_position';
@@ -23,6 +24,7 @@ export interface Competitor {
   domain: string | null;
   linkedin_url: string | null;
   type: CompetitorType;
+  archetype: CompetitorArchetype | null;
   status: CompetitorStatus;
   why_suggested: string | null;
   positioning: string | null;
@@ -37,7 +39,7 @@ export interface Competitor {
   notes: string | null;
   identity_verdict: 'match' | 'unsure' | 'mismatch' | null;
   identity_reason: string | null;
-  source: 'ai' | 'manual' | 'own_site';
+  source: 'ai' | 'manual' | 'own_site' | 'search';
   domain_locked: boolean;
   researched_at: string | null;
   created_at: string;
@@ -96,6 +98,34 @@ export const TYPE_BADGE: Record<CompetitorType, string> = {
   adjacent: 'bg-amber-100 text-amber-800',
   in_house: 'bg-sky-100 text-sky-800',
   do_nothing: 'bg-muted text-muted-foreground',
+};
+
+export const ARCHETYPE_ORDER: CompetitorArchetype[] = [
+  'capital_coalition', 'engineering_systems', 'applied_research', 'place_alliance', 'other',
+];
+
+export const ARCHETYPE_LABELS: Record<CompetitorArchetype, string> = {
+  capital_coalition: 'Scale & capital coalitions',
+  engineering_systems: 'Engineering & systems maturity',
+  applied_research: 'Applied research organisations',
+  place_alliance: 'Hazard & place-specific alliances',
+  other: 'Other',
+};
+
+export const ARCHETYPE_HINTS: Record<CompetitorArchetype, string> = {
+  capital_coalition: 'Coalitions, funds and global initiatives mobilising capital and scale.',
+  engineering_systems: 'Engineering, design and advisory firms delivering the technical work.',
+  applied_research: 'Research institutes and public science agencies producing applied methods.',
+  place_alliance: 'Hazard or place-based alliances, city networks and partnership programmes.',
+  other: 'In-house teams, doing nothing, and anything unclassified.',
+};
+
+export const ARCHETYPE_BADGE: Record<CompetitorArchetype, string> = {
+  capital_coalition: 'bg-violet-100 text-violet-800',
+  engineering_systems: 'bg-blue-100 text-blue-800',
+  applied_research: 'bg-emerald-100 text-emerald-800',
+  place_alliance: 'bg-orange-100 text-orange-800',
+  other: 'bg-muted text-muted-foreground',
 };
 
 export const RATING_LABELS: Record<CompetitorRating, string> = {

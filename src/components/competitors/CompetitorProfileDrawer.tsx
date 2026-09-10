@@ -9,7 +9,10 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2, ExternalLink, RefreshCw, Trash2, Save } from 'lucide-react';
 import { toast } from 'sonner';
-import { Competitor, CompetitorType, TYPE_LABELS } from '@/types/competitors';
+import {
+  Competitor, CompetitorType, CompetitorArchetype, TYPE_LABELS,
+  ARCHETYPE_LABELS, ARCHETYPE_ORDER, ARCHETYPE_BADGE,
+} from '@/types/competitors';
 
 interface Props {
   competitor: Competitor | null;
@@ -43,6 +46,7 @@ export function CompetitorProfileDrawer({ competitor, onClose, onChanged, onRese
       identity_reason: domainChanged && typedDomain ? 'Web address supplied by you.' : competitor.identity_reason,
       linkedin_url: form.linkedin_url || null,
       type: form.type,
+      archetype: form.archetype || null,
       positioning: form.positioning || null,
       pricing_signals: form.pricing_signals || null,
       target_segments: form.target_segments || [],
@@ -89,6 +93,9 @@ export function CompetitorProfileDrawer({ competitor, onClose, onChanged, onRese
         <div className="mt-4 space-y-5">
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="outline">{TYPE_LABELS[competitor.type]}</Badge>
+            {competitor.archetype && (
+              <Badge className={ARCHETYPE_BADGE[competitor.archetype]}>{ARCHETYPE_LABELS[competitor.archetype]}</Badge>
+            )}
             {competitor.confidence && <Badge variant="outline">Confidence: {competitor.confidence}</Badge>}
             {competitor.researched_at && (
               <span className="text-xs text-muted-foreground">
@@ -159,7 +166,20 @@ export function CompetitorProfileDrawer({ competitor, onClose, onChanged, onRese
               <Label className="text-xs">LinkedIn page</Label>
               <Input value={form.linkedin_url || ''} onChange={(e) => setForm({ ...form, linkedin_url: e.target.value })} />
             </div>
+            <div className="col-span-2">
+              <Label className="text-xs">Kind of organisation</Label>
+              <Select value={form.archetype || 'other'}
+                onValueChange={(v) => setForm({ ...form, archetype: v as CompetitorArchetype })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {ARCHETYPE_ORDER.map((a) => (
+                    <SelectItem key={a} value={a}>{ARCHETYPE_LABELS[a]}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
+
 
           <div>
             <Label className="text-xs">How they position themselves</Label>

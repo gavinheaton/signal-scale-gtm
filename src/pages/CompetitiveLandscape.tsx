@@ -12,7 +12,10 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Swords, Sparkles, Loader2, Plus, Check, X, ExternalLink, RefreshCw, Globe, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
-import { Competitor, CompetitorRun, CompetitorType, TYPE_BADGE, TYPE_LABELS } from '@/types/competitors';
+import {
+  Competitor, CompetitorRun, CompetitorType, CompetitorArchetype,
+  TYPE_BADGE, TYPE_LABELS, ARCHETYPE_BADGE, ARCHETYPE_HINTS, ARCHETYPE_LABELS, ARCHETYPE_ORDER,
+} from '@/types/competitors';
 import { CompetitorProfileDrawer } from '@/components/competitors/CompetitorProfileDrawer';
 import { ComparisonGrid } from '@/components/competitors/ComparisonGrid';
 import { WhitespacePanel } from '@/components/competitors/WhitespacePanel';
@@ -25,13 +28,17 @@ export default function CompetitiveLandscape() {
   const [enrichingId, setEnrichingId] = useState<string | null>(null);
   const [selected, setSelected] = useState<Competitor | null>(null);
   const [addOpen, setAddOpen] = useState(false);
-  const [newComp, setNewComp] = useState<{ name: string; website: string; type: CompetitorType; why: string }>({
-    name: '', website: '', type: 'direct', why: '',
+  const [newComp, setNewComp] = useState<{ name: string; website: string; type: CompetitorType; archetype: CompetitorArchetype; why: string }>({
+    name: '', website: '', type: 'direct', archetype: 'other', why: '',
   });
+  const [pasteList, setPasteList] = useState('');
+  const [seeding, setSeeding] = useState(false);
+  const [archetypeFilter, setArchetypeFilter] = useState<'all' | CompetitorArchetype>('all');
   const [ownWebsite, setOwnWebsite] = useState<string | null>(null);
   const [siteInput, setSiteInput] = useState('');
   const [showDismissed, setShowDismissed] = useState(false);
   const pollRef = useRef<number | null>(null);
+
 
   const projectId = currentProject?.id;
 
@@ -142,6 +149,7 @@ export default function CompetitiveLandscape() {
         domain,
         domain_locked: !!domain,
         type: newComp.type,
+        archetype: newComp.archetype,
         status: 'confirmed',
         source: 'manual',
         why_suggested: newComp.why.trim() || null,
@@ -152,9 +160,38 @@ export default function CompetitiveLandscape() {
     if (error) { toast.error(error.message); return; }
     setCompetitors((prev) => [...prev, data as Competitor]);
     setAddOpen(false);
-    setNewComp({ name: '', website: '', type: 'direct', why: '' });
+    setNewComp({ name: '', website: '', type: 'direct', archetype: 'other', why: '' });
     if (research_now) research(data as Competitor);
   }
+
+  /** Research a pasted list of names — one per line. */
+  async function seedList() {
+    if (!projectId) return;
+    const names = pasteList.split('\n').map((s) => s.trim()).filter(Boolean);
+    if (names.length === 0) { toast.error('Paste at least one name.'); return; }
+    setSeeding(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('competitor-seed', {
+        body: { project_id: projectId, names },
+      });
+      if (error) throw new Error((data as any)?.error || error.message);
+      const runId = (data as any)?.run_id;
+      if (!runId) throw new Error((data as any)?.error || 'Could not start the research');
+      setAddOpen(false);
+      setPasteList('');
+      toast.info(`Researching ${names.length} organisations — they will appear as suggestions.`);
+      pollRun(runId, (run) => {
+        setSeeding(false);
+        if (run.status === 'error') { toast.error(run.error || 'Research failed'); return; }
+        toast.success(`${run.saved_count} organisations added for your review.`);
+        load();
+      });
+    } catch (e: any) {
+      setSeeding(false);
+      toast.error(e.message || 'Could not start the research');
+    }
+  }
+
 
   async function saveWebsite() {
     if (!projectId || !siteInput.trim()) return;
@@ -170,9 +207,17 @@ export default function CompetitiveLandscape() {
     return <div className="p-6 text-muted-foreground">Select a project to view its competitive landscape.</div>;
   }
 
-  const suggested = competitors.filter((c) => c.status === 'suggested');
+  const matchesFilter = (c: Competitor) =>
+    archetypeFilter === 'all' || (c.archetype || 'other') === archetypeFilter;
+  const suggested = competitors.filter((c) => c.status === 'suggested' && matchesFilter(c));
   const confirmed = competitors.filter((c) => c.status === 'confirmed');
+  const confirmedShown = confirmed.filter(matchesFilter);
   const dismissed = competitors.filter((c) => c.status === 'dismissed');
+  const groups = ARCHETYPE_ORDER
+    .map((key) => ({ key, items: confirmedShown.filter((c) => (c.archetype || 'other') === key) }))
+    .filter((g) => g.items.length > 0);
+  const countFor = (key: CompetitorArchetype) =>
+    competitors.filter((c) => c.status !== 'dismissed' && (c.archetype || 'other') === key).length;
 
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
@@ -227,6 +272,21 @@ export default function CompetitiveLandscape() {
                 </Card>
               )}
 
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  onClick={() => setArchetypeFilter('all')}
+                  className={`text-xs rounded-full border px-3 py-1 ${archetypeFilter === 'all' ? 'bg-primary text-primary-foreground border-primary' : 'hover:bg-muted'}`}>
+                  All kinds ({competitors.filter((c) => c.status !== 'dismissed').length})
+                </button>
+                {ARCHETYPE_ORDER.map((key) => (
+                  <button key={key} title={ARCHETYPE_HINTS[key]}
+                    onClick={() => setArchetypeFilter(archetypeFilter === key ? 'all' : key)}
+                    className={`text-xs rounded-full border px-3 py-1 ${archetypeFilter === key ? 'bg-primary text-primary-foreground border-primary' : 'hover:bg-muted'}`}>
+                    {ARCHETYPE_LABELS[key]} ({countFor(key)})
+                  </button>
+                ))}
+              </div>
+
               {suggested.length > 0 && (
                 <div className="space-y-2">
                   <h2 className="text-sm font-semibold text-[#e33e23] uppercase tracking-wide">
@@ -239,12 +299,18 @@ export default function CompetitiveLandscape() {
                           <div className="flex items-start justify-between gap-2">
                             <div className="min-w-0">
                               <p className="font-medium truncate">{c.name}</p>
-                              <div className="flex items-center gap-2 mt-1">
+                              <div className="flex flex-wrap items-center gap-2 mt-1">
                                 <Badge className={TYPE_BADGE[c.type]}>{TYPE_LABELS[c.type]}</Badge>
+                                {c.archetype && (
+                                  <Badge className={ARCHETYPE_BADGE[c.archetype]}>{ARCHETYPE_LABELS[c.archetype]}</Badge>
+                                )}
                                 {c.source === 'own_site' && (
                                   <Badge variant="outline" className="text-xs">
                                     <Globe className="h-3 w-3 mr-1" /> Found on your website
                                   </Badge>
+                                )}
+                                {c.source === 'search' && (
+                                  <Badge variant="outline" className="text-xs">Found by web search</Badge>
                                 )}
                                 {c.domain ? (
                                   <a href={`https://${c.domain}`} target="_blank" rel="noreferrer"
@@ -289,38 +355,50 @@ export default function CompetitiveLandscape() {
                   </Button>
                 </div>
 
-                {confirmed.length === 0 ? (
+                {confirmedShown.length === 0 ? (
                   <Card><CardContent className="py-10 text-center text-sm text-muted-foreground">
-                    Nothing confirmed yet. Press “Find competitors” for a proposed shortlist, or add one yourself.
+                    {confirmed.length === 0
+                      ? 'Nothing confirmed yet. Press “Find competitors” for a proposed shortlist, or add one yourself.'
+                      : 'Nothing confirmed in this group yet.'}
                   </CardContent></Card>
                 ) : (
-                  <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-                    {confirmed.map((c) => (
-                      <Card key={c.id}
-                        className={`cursor-pointer hover:shadow-md transition-shadow ${enrichingId === c.id ? 'ring-2 ring-primary animate-pulse' : ''}`}
-                        onClick={() => setSelected(c)}>
-                        <CardContent className="py-4 space-y-2">
-                          <div className="flex items-start justify-between gap-2">
-                            <p className="font-medium truncate">{c.name}</p>
-                            <Badge className={TYPE_BADGE[c.type]}>{TYPE_LABELS[c.type]}</Badge>
-                          </div>
-                          {c.positioning
-                            ? <p className="text-sm text-muted-foreground line-clamp-3">{c.positioning}</p>
-                            : <p className="text-sm text-muted-foreground italic">
-                                {enrichingId === c.id ? 'Researching…' : 'Not researched yet'}
-                              </p>}
-                          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                            {c.claims?.length > 0 && <span>{c.claims.length} claims</span>}
-                            {c.proof_points?.length > 0 && <span>{c.proof_points.length} proof points</span>}
-                            {c.weaknesses?.length > 0 && <span>{c.weaknesses.length} weaknesses</span>}
-                          </div>
-                          {!c.researched_at && enrichingId !== c.id && (
-                            <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); research(c); }}>
-                              <RefreshCw className="h-3.5 w-3.5 mr-1" /> Research
-                            </Button>
-                          )}
-                        </CardContent>
-                      </Card>
+                  <div className="space-y-5">
+                    {groups.map((g) => (
+                      <div key={g.key} className="space-y-2">
+                        <div>
+                          <h3 className="text-sm font-semibold">{ARCHETYPE_LABELS[g.key]} ({g.items.length})</h3>
+                          <p className="text-xs text-muted-foreground">{ARCHETYPE_HINTS[g.key]}</p>
+                        </div>
+                        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                          {g.items.map((c) => (
+                            <Card key={c.id}
+                              className={`cursor-pointer hover:shadow-md transition-shadow ${enrichingId === c.id ? 'ring-2 ring-primary animate-pulse' : ''}`}
+                              onClick={() => setSelected(c)}>
+                              <CardContent className="py-4 space-y-2">
+                                <div className="flex items-start justify-between gap-2">
+                                  <p className="font-medium truncate">{c.name}</p>
+                                  <Badge className={TYPE_BADGE[c.type]}>{TYPE_LABELS[c.type]}</Badge>
+                                </div>
+                                {c.positioning
+                                  ? <p className="text-sm text-muted-foreground line-clamp-3">{c.positioning}</p>
+                                  : <p className="text-sm text-muted-foreground italic">
+                                      {enrichingId === c.id ? 'Researching…' : 'Not researched yet'}
+                                    </p>}
+                                <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                                  {c.claims?.length > 0 && <span>{c.claims.length} claims</span>}
+                                  {c.proof_points?.length > 0 && <span>{c.proof_points.length} proof points</span>}
+                                  {c.weaknesses?.length > 0 && <span>{c.weaknesses.length} weaknesses</span>}
+                                </div>
+                                {!c.researched_at && enrichingId !== c.id && (
+                                  <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); research(c); }}>
+                                    <RefreshCw className="h-3.5 w-3.5 mr-1" /> Research
+                                  </Button>
+                                )}
+                              </CardContent>
+                            </Card>
+                          ))}
+                        </div>
+                      </div>
                     ))}
                   </div>
                 )}
@@ -367,42 +445,79 @@ export default function CompetitiveLandscape() {
 
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
         <DialogContent className="sm:max-w-md">
-          <DialogHeader><DialogTitle>Add a competitor</DialogTitle></DialogHeader>
-          <div className="space-y-3">
-            <div>
-              <Label className="text-xs">Name</Label>
-              <Input value={newComp.name} placeholder="Acme Advisory"
-                onChange={(e) => setNewComp({ ...newComp, name: e.target.value })} />
-            </div>
-            <div>
-              <Label className="text-xs">Website (optional)</Label>
-              <Input value={newComp.website} placeholder="acme.com"
-                onChange={(e) => setNewComp({ ...newComp, website: e.target.value })} />
-              <p className="text-xs text-muted-foreground mt-1">
-                If you give one it is used exactly as typed — research will never replace it.
-              </p>
-            </div>
-            <div>
-              <Label className="text-xs">Type</Label>
-              <Select value={newComp.type} onValueChange={(v) => setNewComp({ ...newComp, type: v as CompetitorType })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {(Object.keys(TYPE_LABELS) as CompetitorType[]).map((t) => (
-                    <SelectItem key={t} value={t}>{TYPE_LABELS[t]}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label className="text-xs">Why they matter (optional)</Label>
-              <Textarea rows={2} value={newComp.why}
-                onChange={(e) => setNewComp({ ...newComp, why: e.target.value })} />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => addManual(false)}>Save</Button>
-            <Button onClick={() => addManual(true)}>Save and research</Button>
-          </DialogFooter>
+          <DialogHeader><DialogTitle>Add competitors</DialogTitle></DialogHeader>
+          <Tabs defaultValue="one">
+            <TabsList className="w-full">
+              <TabsTrigger value="one" className="flex-1">One at a time</TabsTrigger>
+              <TabsTrigger value="list" className="flex-1">Paste a list</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="one" className="mt-4 space-y-3">
+              <div>
+                <Label className="text-xs">Name</Label>
+                <Input value={newComp.name} placeholder="Acme Advisory"
+                  onChange={(e) => setNewComp({ ...newComp, name: e.target.value })} />
+              </div>
+              <div>
+                <Label className="text-xs">Website (optional)</Label>
+                <Input value={newComp.website} placeholder="acme.com"
+                  onChange={(e) => setNewComp({ ...newComp, website: e.target.value })} />
+                <p className="text-xs text-muted-foreground mt-1">
+                  If you give one it is used exactly as typed — research will never replace it.
+                </p>
+              </div>
+              <div>
+                <Label className="text-xs">Type</Label>
+                <Select value={newComp.type} onValueChange={(v) => setNewComp({ ...newComp, type: v as CompetitorType })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {(Object.keys(TYPE_LABELS) as CompetitorType[]).map((t) => (
+                      <SelectItem key={t} value={t}>{TYPE_LABELS[t]}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs">Kind of organisation</Label>
+                <Select value={newComp.archetype}
+                  onValueChange={(v) => setNewComp({ ...newComp, archetype: v as CompetitorArchetype })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {ARCHETYPE_ORDER.map((a) => (
+                      <SelectItem key={a} value={a}>{ARCHETYPE_LABELS[a]}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs">Why they matter (optional)</Label>
+                <Textarea rows={2} value={newComp.why}
+                  onChange={(e) => setNewComp({ ...newComp, why: e.target.value })} />
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => addManual(false)}>Save</Button>
+                <Button onClick={() => addManual(true)}>Save and research</Button>
+              </DialogFooter>
+            </TabsContent>
+
+            <TabsContent value="list" className="mt-4 space-y-3">
+              <div>
+                <Label className="text-xs">One organisation per line</Label>
+                <Textarea rows={8} value={pasteList} placeholder={'CDRI\nResilience Rising\nArup\nDeltares'}
+                  onChange={(e) => setPasteList(e.target.value)} />
+                <p className="text-xs text-muted-foreground mt-1">
+                  We look each one up, find and check their website, sort them into the right kind of organisation,
+                  and add them as suggestions for you to confirm. Up to 30 at a time.
+                </p>
+              </div>
+              <DialogFooter>
+                <Button onClick={seedList} disabled={seeding}>
+                  {seeding ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Sparkles className="h-4 w-4 mr-1" />}
+                  Research this list
+                </Button>
+              </DialogFooter>
+            </TabsContent>
+          </Tabs>
         </DialogContent>
       </Dialog>
     </div>

@@ -7,6 +7,7 @@ import { Loader2, Sparkles, Plus, Trash2, ArrowUp, ArrowDown } from 'lucide-reac
 import { toast } from 'sonner';
 import {
   Competitor, CompetitorDimension, CompetitorScore, CompetitorRating, RATING_BADGE, RATING_LABELS,
+  ARCHETYPE_LABELS, ARCHETYPE_ORDER,
 } from '@/types/competitors';
 
 interface Props { projectId: string; competitors: Competitor[] }
@@ -103,9 +104,16 @@ export function ComparisonGrid({ projectId, competitors }: Props) {
     return <div className="flex items-center gap-2 py-10 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Loading grid…</div>;
   }
 
-  const columns: { id: string | null; name: string }[] = [
-    { id: null, name: 'Us' },
-    ...competitors.map((c) => ({ id: c.id, name: c.name })),
+  const ordered = [...competitors].sort(
+    (a, b) => ARCHETYPE_ORDER.indexOf(a.archetype || 'other') - ARCHETYPE_ORDER.indexOf(b.archetype || 'other'),
+  );
+  const columns: { id: string | null; name: string; archetype: string | null }[] = [
+    { id: null, name: 'Us', archetype: null },
+    ...ordered.map((c) => ({
+      id: c.id,
+      name: c.name,
+      archetype: c.archetype ? ARCHETYPE_LABELS[c.archetype] : null,
+    })),
   ];
 
   return (
@@ -142,6 +150,9 @@ export function ComparisonGrid({ projectId, competitors }: Props) {
                 {columns.map((c) => (
                   <th key={c.id ?? 'us'} className={`text-left p-2 min-w-[200px] font-medium ${c.id === null ? 'text-primary' : ''}`}>
                     {c.name}
+                    {c.archetype && (
+                      <span className="block text-xs font-normal text-muted-foreground">{c.archetype}</span>
+                    )}
                   </th>
                 ))}
               </tr>
