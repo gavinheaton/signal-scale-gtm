@@ -73,14 +73,8 @@ export function MarketPositionChart({
   const height = print ? 380 : 460;
   const usedArchetypes = Array.from(new Set(points.filter((p) => !p.isUs).map((p) => p.archetype)));
 
-  const quadrant = (x: number, y: number, text: string, sub: string, colour: string) => (
-    <>
-      <ReferenceLine
-        x={x} stroke="transparent"
-        label={{ value: text, position: y > 50 ? 'insideTop' : 'insideBottom', fontSize: 10, fill: colour }}
-      />
-    </>
-  );
+
+
 
   return (
     <div className="w-full">

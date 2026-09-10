@@ -64,6 +64,25 @@ export interface CompetitorScore {
   rating: CompetitorRating | null;
 }
 
+export interface MarketPosition {
+  id: string;
+  project_id: string;
+  competitor_id: string | null; // null = us
+  persona_id: string | null;    // null = all personas
+  leadership: number;
+  differentiation: number;
+  rationale: string | null;
+  cited_dimension_ids: string[];
+}
+
+export const QUADRANT_LABELS = {
+  leaders: 'Leaders — distinct and dominant',
+  challengers: 'Challengers — big but interchangeable',
+  visionaries: 'Visionaries — distinct, smaller',
+  niche: 'Niche players — narrow and quiet',
+};
+
+
 export interface CompetitiveWhitespace {
   id: string;
   project_id: string;
