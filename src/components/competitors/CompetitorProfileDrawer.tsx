@@ -166,7 +166,20 @@ export function CompetitorProfileDrawer({ competitor, onClose, onChanged, onRese
               <Label className="text-xs">LinkedIn page</Label>
               <Input value={form.linkedin_url || ''} onChange={(e) => setForm({ ...form, linkedin_url: e.target.value })} />
             </div>
+            <div className="col-span-2">
+              <Label className="text-xs">Kind of organisation</Label>
+              <Select value={form.archetype || 'other'}
+                onValueChange={(v) => setForm({ ...form, archetype: v as CompetitorArchetype })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {ARCHETYPE_ORDER.map((a) => (
+                    <SelectItem key={a} value={a}>{ARCHETYPE_LABELS[a]}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
+
 
           <div>
             <Label className="text-xs">How they position themselves</Label>
