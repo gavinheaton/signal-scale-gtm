@@ -2,10 +2,13 @@ import { useEffect, useState } from 'react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { Link } from 'react-router-dom';
-import { Trash2, EyeOff, Eye, ExternalLink } from 'lucide-react';
+import { Trash2, EyeOff, Eye, ExternalLink, Send, Save } from 'lucide-react';
 import { toast } from 'sonner';
+import { STAKEHOLDER_ROLES, ROLE_LABEL } from '@/lib/ecosystemRoles';
 
 interface DbNode {
   id: string; kind: string; label: string; subtitle: string | null;
@@ -13,7 +16,7 @@ interface DbNode {
   hidden: boolean; stale: boolean; ref_table: string | null; ref_id: string | null; meta: any;
 }
 
-interface Props { node: DbNode | null; onClose: () => void; onChanged: () => void }
+interface Props { node: DbNode | null; projectId: string; onClose: () => void; onChanged: () => void }
 
 const REF_LINKS: Record<string, (id: string) => string> = {
   icps: () => `/project/icp-personas`,
@@ -22,12 +25,23 @@ const REF_LINKS: Record<string, (id: string) => string> = {
   discovery_contacts: () => `/project/discovery`,
   discovery_themes: () => `/project/discovery`,
   discovery_insights: () => `/project/discovery`,
+  competitors: () => `/project/competitors`,
+  competitive_whitespace: () => `/project/competitors`,
 };
 
-export function NodeDrawer({ node, onClose, onChanged }: Props) {
+const ORG_LIKE = new Set([
+  'stakeholder', 'funder', 'infrastructure_owner', 'research_body',
+  'partner', 'regulator', 'competitor', 'channel', 'community', 'company', 'influencer',
+]);
+
+export function NodeDrawer({ node, projectId, onClose, onChanged }: Props) {
   const [details, setDetails] = useState<any>(null);
+  const [roles, setRoles] = useState<string[]>([]);
+  const [savingRoles, setSavingRoles] = useState(false);
+  const [sending, setSending] = useState(false);
 
   useEffect(() => {
+    setRoles(Array.isArray(node?.meta?.roles) ? node!.meta.roles : []);
     if (!node?.ref_table || !node.ref_id) { setDetails(null); return; }
     if (node.ref_table === 'discovery_leadership') { setDetails(null); return; }
     (async () => {
@@ -50,11 +64,58 @@ export function NodeDrawer({ node, onClose, onChanged }: Props) {
     onChanged(); onClose();
   }
 
+  async function saveRoles() {
+    setSavingRoles(true);
+    const meta = { ...(node!.meta || {}), roles };
+    const { error } = await (supabase as any).from('ecosystem_nodes').update({ meta }).eq('id', node!.id);
+    setSavingRoles(false);
+    if (error) { toast.error(error.message); return; }
+    toast.success('Roles saved');
+    onChanged();
+  }
+
+  async function sendToDiscovery() {
+    setSending(true);
+    try {
+      const { data: camps } = await (supabase as any)
+        .from('discovery_campaigns').select('id, name, status')
+        .eq('project_id', projectId).order('created_at', { ascending: false });
+      const camp = (camps || []).find((c: any) => c.status === 'active') || (camps || [])[0];
+      if (!camp) { toast.error('Create a discovery campaign first'); return; }
+
+      const { data: dupes } = await (supabase as any)
+        .from('discovery_organizations').select('id')
+        .eq('campaign_id', camp.id).ilike('name', node!.label);
+      if ((dupes || []).length) { toast.info(`${node!.label} is already in ${camp.name}`); return; }
+
+      const { error } = await (supabase as any).from('discovery_organizations').insert({
+        campaign_id: camp.id,
+        name: node!.label,
+        domain: node!.meta?.domain || null,
+        segment: node!.subtitle || null,
+        source: 'manual',
+        status: 'researching',
+        fit_notes: [
+          'Added from the ecosystem map.',
+          roles.length ? `Roles: ${roles.map((r) => ROLE_LABEL[r] || r).join(', ')}.` : '',
+          node!.meta?.rationale || '',
+        ].filter(Boolean).join(' '),
+      });
+      if (error) throw error;
+      toast.success(`Sent to Discovery · ${camp.name}`);
+    } catch (e: any) {
+      toast.error(`Could not send: ${e.message || e}`);
+    } finally {
+      setSending(false);
+    }
+  }
+
   const link = node.ref_table && REF_LINKS[node.ref_table]?.(node.ref_id!);
+  const canSendToDiscovery = ORG_LIKE.has(node.kind) && node.ref_table !== 'discovery_organizations';
 
   return (
     <Sheet open={!!node} onOpenChange={(o) => !o && onClose()}>
-      <SheetContent className="w-[400px] sm:w-[440px]">
+      <SheetContent className="w-[400px] sm:w-[440px] overflow-y-auto">
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">
             {node.label}
@@ -64,6 +125,32 @@ export function NodeDrawer({ node, onClose, onChanged }: Props) {
         </SheetHeader>
 
         <div className="mt-4 space-y-3 text-sm">
+          {ORG_LIKE.has(node.kind) && (
+            <div>
+              <Label className="text-xs uppercase text-muted-foreground">Roles in this ecosystem</Label>
+              <p className="text-[11px] text-muted-foreground mb-2">
+                Tick every role that applies — one organisation can be a client, a funder and an
+                infrastructure owner at the same time.
+              </p>
+              <div className="grid grid-cols-2 gap-1">
+                {STAKEHOLDER_ROLES.map((r) => (
+                  <label key={r.value} className="flex items-center gap-2 text-xs">
+                    <Checkbox
+                      checked={roles.includes(r.value)}
+                      onCheckedChange={(v) =>
+                        setRoles((rs) => (v ? [...rs, r.value] : rs.filter((x) => x !== r.value)))
+                      }
+                    />
+                    {r.label}
+                  </label>
+                ))}
+              </div>
+              <Button size="sm" variant="outline" className="mt-2" onClick={saveRoles} disabled={savingRoles}>
+                <Save className="h-3 w-3 mr-1" /> Save roles
+              </Button>
+            </div>
+          )}
+
           {node.readiness_score != null && (
             <div>
               <div className="text-xs uppercase text-muted-foreground mb-1">Readiness</div>
@@ -76,6 +163,12 @@ export function NodeDrawer({ node, onClose, onChanged }: Props) {
           {node.stale && (
             <div className="text-xs p-2 rounded bg-amber-50 text-amber-900 border border-amber-200">
               This node's source record has been deleted. It will remain hidden unless restored or purged.
+            </div>
+          )}
+          {node.meta?.rationale && (
+            <div>
+              <div className="text-xs uppercase text-muted-foreground mb-1">Why they matter</div>
+              <p className="text-sm">{node.meta.rationale}</p>
             </div>
           )}
           {(node.kind === 'competitor' || node.kind === 'partner') && node.meta && (
@@ -135,20 +228,17 @@ export function NodeDrawer({ node, onClose, onChanged }: Props) {
               </pre>
             </div>
           )}
-          {node.meta && Object.keys(node.meta).length > 0 && (
-            <div>
-              <div className="text-xs uppercase text-muted-foreground mb-1">Meta</div>
-              <pre className="text-[11px] bg-muted rounded p-2 overflow-auto max-h-40">
-                {JSON.stringify(node.meta, null, 2)}
-              </pre>
-            </div>
-          )}
         </div>
 
         <div className="mt-6 flex flex-wrap gap-2">
           {link && (
             <Button variant="outline" size="sm" asChild>
               <Link to={link}><ExternalLink className="h-3 w-3 mr-1" /> Open source</Link>
+            </Button>
+          )}
+          {canSendToDiscovery && (
+            <Button variant="outline" size="sm" onClick={sendToDiscovery} disabled={sending}>
+              <Send className="h-3 w-3 mr-1" /> Send to Discovery
             </Button>
           )}
           <Button variant="outline" size="sm" onClick={toggleHide}>
