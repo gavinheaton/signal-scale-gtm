@@ -48,20 +48,24 @@ Deno.serve(async (req) => {
       try {
         const evidence: any[] = [];
         const now = () => new Date().toISOString();
+        const context = await loadProjectContext(sb, comp.project_id);
+        const expectation = marketExpectation(context);
+
+        // A domain the user typed in is trusted as-is and never overwritten.
         let domain: string | null = comp.domain ? apexDomain(comp.domain) : null;
         let linkedin: string | null = comp.linkedin_url || null;
+        let verdict: string | null = comp.identity_verdict || null;
+        let reason: string | null = comp.identity_reason || null;
 
-        if (!domain || !linkedin) {
-          const hits = await fcSearch(`${comp.name} official website`, 6);
-          const mapped = hits.map((h) => ({ ...h, apex: apexDomain(h.url) }));
-          if (!linkedin) {
-            const li = mapped.find((h) => h.apex === "linkedin.com" && /\/company\//i.test(h.url));
-            if (li) linkedin = li.url.split("?")[0];
-          }
-          if (!domain) {
-            const site = mapped.find((h) => h.apex !== "linkedin.com" && !h.apex.endsWith("wikipedia.org"));
-            if (site) domain = site.apex;
-          }
+        if (!domain) {
+          const { site, linkedin: li } = await resolveCompanySite(comp.name, expectation);
+          verdict = site.verdict;
+          reason = site.reason || null;
+          if (!linkedin) linkedin = li;
+          if (site.verdict === "match" && site.domain) domain = site.domain;
+        } else if (comp.domain_locked) {
+          verdict = "match";
+          reason = "Web address supplied by you.";
         }
 
         const pages: { url: string; markdown: string }[] = [];
@@ -81,10 +85,20 @@ Deno.serve(async (req) => {
         }
         if (linkedin) evidence.push({ kind: "linkedin", url: linkedin, captured_at: now() });
 
-        const verified = pages.length > 0;
-        if (!verified) throw new Error(`Could not read a website for "${comp.name}". Add its web address on the profile and try again.`);
+        if (pages.length === 0) {
+          await sb.from("competitors").update({
+            domain: comp.domain_locked ? comp.domain : null,
+            linkedin_url: linkedin,
+            identity_verdict: verdict || "mismatch",
+            identity_reason: reason || `Could not read a website for "${comp.name}".`,
+            evidence,
+          }).eq("id", competitor_id);
+          throw new Error(
+            (reason ? `${reason} ` : "") +
+            `No verified website for "${comp.name}" — add its web address on the profile and research again.`,
+          );
+        }
 
-        const context = await loadProjectContext(sb, comp.project_id);
         const parsed = await aiJson(SYSTEM, {
           competitor_name: comp.name,
           competitor_type: comp.type,
@@ -104,6 +118,8 @@ Deno.serve(async (req) => {
         const { error: upErr } = await sb.from("competitors").update({
           domain,
           linkedin_url: linkedin,
+          identity_verdict: verdict || "match",
+          identity_reason: reason,
           positioning: typeof parsed.positioning === "string" ? parsed.positioning.slice(0, 500) : comp.positioning,
           target_segments: asStrings(parsed.target_segments, 6),
           claims: asStrings(parsed.claims, 8),
@@ -116,6 +132,7 @@ Deno.serve(async (req) => {
           researched_at: now(),
         }).eq("id", competitor_id);
         if (upErr) throw new Error(upErr.message);
+
 
         await sb.from("competitor_runs").update({
           status: "complete", saved_count: 1, result: { pages: pages.length },
