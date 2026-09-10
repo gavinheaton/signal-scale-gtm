@@ -12,7 +12,10 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Swords, Sparkles, Loader2, Plus, Check, X, ExternalLink, RefreshCw, Globe, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
-import { Competitor, CompetitorRun, CompetitorType, TYPE_BADGE, TYPE_LABELS } from '@/types/competitors';
+import {
+  Competitor, CompetitorRun, CompetitorType, CompetitorArchetype,
+  TYPE_BADGE, TYPE_LABELS, ARCHETYPE_BADGE, ARCHETYPE_HINTS, ARCHETYPE_LABELS, ARCHETYPE_ORDER,
+} from '@/types/competitors';
 import { CompetitorProfileDrawer } from '@/components/competitors/CompetitorProfileDrawer';
 import { ComparisonGrid } from '@/components/competitors/ComparisonGrid';
 import { WhitespacePanel } from '@/components/competitors/WhitespacePanel';
