@@ -42,6 +42,38 @@ Deno.serve(async (req) => {
     const competitors = (compRes.data || []) as any[];
     const dcampIds = dcamps.map((c) => c.id);
 
+    // Competitive landscape detail: dimensions, grid standing, market position, whitespace
+    const [dimRes, scoreRes, mpRes, wsRes] = await Promise.all([
+      svc.from("competitor_dimensions").select("id, label, importance").eq("project_id", projectId).order("position"),
+      svc.from("competitor_scores").select("dimension_id, competitor_id, claim, rating").eq("project_id", projectId),
+      svc.from("competitor_market_positions")
+        .select("competitor_id, leadership, differentiation, rationale, cited_dimension_ids")
+        .eq("project_id", projectId).is("persona_id", null),
+      svc.from("competitive_whitespace").select("id, kind, title, rationale, evidence").eq("project_id", projectId),
+    ]);
+    const dimensions = (dimRes.data || []) as any[];
+    const gridScores = (scoreRes.data || []) as any[];
+    const marketPositions = (mpRes.data || []) as any[];
+    const whitespace = (wsRes.data || []) as any[];
+    const dimLabel = new Map<string, string>(dimensions.map((d) => [d.id, d.label]));
+    const positionByComp = new Map<string, any>();
+    for (const p of marketPositions) positionByComp.set(p.competitor_id ?? "us", p);
+    const strongDims = new Map<string, string[]>();
+    const claimsByComp = new Map<string, string>();
+    for (const s of gridScores) {
+      if (!s.competitor_id) continue;
+      if (s.rating === "strong") {
+        const label = dimLabel.get(s.dimension_id);
+        if (label) strongDims.set(s.competitor_id, [...(strongDims.get(s.competitor_id) || []), label]);
+      }
+      if (s.claim) {
+        claimsByComp.set(s.competitor_id, `${claimsByComp.get(s.competitor_id) || ""} ${s.claim}`);
+      }
+    }
+    const partners = competitors.filter((c) => c.source === "own_site");
+    const rivals = competitors.filter((c) => c.source !== "own_site");
+
+
     // Orgs / roles / contacts / themes / insights across all discovery campaigns in this project
     let orgs: any[] = [], roles: any[] = [], contacts: any[] = [];
     let themes: any[] = [], insights: any[] = [], conversations: any[] = [];
