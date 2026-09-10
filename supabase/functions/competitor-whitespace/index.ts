@@ -10,12 +10,13 @@ interface Body { project_id: string; mode?: "dimensions" | "whitespace" }
 
 const DIMENSIONS_SYSTEM = `You choose the dimensions a B2B buyer actually compares vendors on.
 
-Return ONLY JSON: {"dimensions":[{"label":string,"description":string}]}
+Return ONLY JSON: {"dimensions":[{"label":string,"description":string,"importance":1|2|3|4|5}]}
 
 RULES:
 - 6 to 8 dimensions, drawn from the buyer's decision criteria implied by the ICPs, personas, pain points and problems worth solving in the context.
 - "label" is max 4 words, buyer language, never vendor jargon (good: "Speed to first result"; bad: "Solution scalability paradigm").
 - "description" is one sentence explaining what "strong" looks like on this dimension.
+- "importance" is how much this dimension weighs on the buyer's decision: 5 = a deal-breaker, 3 = considered, 1 = nice to have. Vary the values; do not give everything a 5.
 - Cover a mix: outcome, evidence/credibility, ease of adoption, cost/commercial model, depth of expertise, risk/compliance where relevant.
 - No duplicates and no dimension that only this business could ever win by definition.`;
 
@@ -62,6 +63,7 @@ Deno.serve(async (req) => {
             project_id,
             label: d.label.trim().slice(0, 80),
             description: typeof d.description === "string" ? d.description.slice(0, 300) : null,
+            importance: Math.min(5, Math.max(1, Math.round(Number(d.importance) || 3))),
             position: start + i,
           }));
         const { data: ins, error } = await sb.from("competitor_dimensions").insert(rows).select("*");
