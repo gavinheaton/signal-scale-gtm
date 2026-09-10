@@ -68,6 +68,42 @@ export function ComparisonGrid({ projectId, competitors }: Props) {
     }
   }
 
+  async function mapFromResearch() {
+    if (dims.length === 0) { toast.error('Add some dimensions first.'); return; }
+    setMapping(true);
+    setMapped(0);
+    try {
+      const { data, error } = await supabase.functions.invoke('competitor-whitespace', {
+        body: { project_id: projectId, mode: 'map_grid', overwrite },
+      });
+      if (error) throw new Error((data as any)?.error || error.message);
+      if ((data as any)?.error) throw new Error((data as any).error);
+      const runId = (data as any)?.run_id;
+      if (!runId) throw new Error('Could not start mapping');
+
+      const started = Date.now();
+      const timer = window.setInterval(async () => {
+        const { data: run } = await (supabase as any)
+          .from('competitor_runs').select('*').eq('id', runId).maybeSingle();
+        if (run?.saved_count != null) setMapped(run.saved_count);
+        if (run) await refreshScores();
+        if (run?.status === 'complete' || run?.status === 'error' || Date.now() - started > 5 * 60 * 1000) {
+          window.clearInterval(timer);
+          if (pollRef.current === timer) pollRef.current = null;
+          setMapping(false);
+          await load();
+          if (run?.status === 'error') toast.error(run.error || 'Mapping stopped early — anything already filled is saved.');
+          else toast.success(`Grid mapped — ${run?.saved_count ?? 0} cells filled from the research.`);
+        }
+      }, 4000);
+      pollRef.current = timer;
+    } catch (e: any) {
+      toast.error(e.message || 'Could not map the grid');
+      setMapping(false);
+    }
+  }
+
+
   async function addDimension() {
     if (!newLabel.trim()) return;
     const { data, error } = await (supabase as any).from('competitor_dimensions')
