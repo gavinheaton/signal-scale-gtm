@@ -343,12 +343,6 @@ Deno.serve(async (req) => {
                 rationale: typeof p?.rationale === "string" ? p.rationale.trim().slice(0, 300) : null,
                 cited_dimension_ids: cited,
               };
-              const q = sb.from("competitor_market_positions").select("id").eq("project_id", project_id);
-              const { data: prev } = await (competitor_id
-                ? q.eq("competitor_id", competitor_id)
-                : q.is("competitor_id", null)
-              ).then((r: any) => r) as any;
-              const match = (prev || []).length > 0 ? prev : null;
               const { data: existing } = await sb.from("competitor_market_positions")
                 .select("id, persona_id, competitor_id").eq("project_id", project_id);
               const hit = (existing || []).find((e: any) =>
