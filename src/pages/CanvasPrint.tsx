@@ -78,7 +78,7 @@ export default function CanvasPrint() {
       out.sort((a, b) => order.indexOf(a.canvas.variant) - order.indexOf(b.canvas.variant));
       setBundles(out);
 
-      const [cRes, dRes, sRes, wRes, mRes] = await Promise.all([
+      const [cRes, dRes, sRes, wRes, mRes, nRes] = await Promise.all([
         (supabase as any).from('competitors').select('*').eq('project_id', projectId).eq('status', 'confirmed').order('name'),
         (supabase as any).from('competitor_dimensions').select('*').eq('project_id', projectId).order('position'),
         (supabase as any).from('competitor_scores').select('*').eq('project_id', projectId),
