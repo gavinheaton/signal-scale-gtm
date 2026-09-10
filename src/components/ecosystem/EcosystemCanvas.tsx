@@ -1,14 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import ReactFlow, {
   Background, Controls, MiniMap, Node, Edge, NodeProps,
-  applyNodeChanges, applyEdgeChanges, NodeChange, EdgeChange,
+  applyNodeChanges, applyEdgeChanges, NodeChange, EdgeChange, Connection,
   ConnectionMode, Handle, Position,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { supabase } from '@/integrations/supabase/client';
 import { NodeDrawer } from './NodeDrawer';
+import { EdgeDialog, EdgePair } from './EdgeDialog';
+import { EDGE_LABEL, ROLE_LABEL } from '@/lib/ecosystemRoles';
 
-type Kind = 'project'|'segment'|'company'|'role'|'person'|'partner'|'regulator'|'competitor'|'channel'|'influencer'|'community'|'theme'|'insight'|'custom';
+type Kind = 'project'|'segment'|'company'|'role'|'person'|'partner'|'regulator'|'competitor'|'channel'|'influencer'|'community'|'theme'|'insight'|'custom'|'stakeholder'|'funder'|'infrastructure_owner'|'research_body';
 
 interface DbNode {
   id: string; kind: Kind; label: string; subtitle: string | null;
@@ -31,6 +33,10 @@ const KIND_STYLES: Record<Kind, { bg: string; border: string; text: string; labe
   community:  { bg: 'hsl(50 90% 55%)',         border: 'hsl(50 90% 40%)',   text: '#111',    label: 'Community' },
   theme:      { bg: 'hsl(220 15% 25%)',        border: 'hsl(220 15% 40%)',  text: '#fff',    label: 'Theme' },
   insight:    { bg: 'hsl(190 55% 45%)',        border: 'hsl(190 55% 30%)',  text: '#fff',    label: 'Insight' },
+  stakeholder:          { bg: 'hsl(15 80% 50%)',  border: 'hsl(15 80% 35%)',  text: '#fff', label: 'Stakeholder' },
+  funder:               { bg: 'hsl(95 45% 40%)',  border: 'hsl(95 45% 28%)',  text: '#fff', label: 'Funder' },
+  infrastructure_owner: { bg: 'hsl(215 35% 45%)', border: 'hsl(215 35% 30%)', text: '#fff', label: 'Infrastructure' },
+  research_body:        { bg: 'hsl(250 40% 50%)', border: 'hsl(250 40% 35%)', text: '#fff', label: 'Research body' },
   custom:     { bg: 'hsl(220 15% 90%)',        border: 'hsl(220 15% 60%)',  text: '#111',    label: 'Custom' },
 };
 
@@ -44,6 +50,7 @@ function heat(score: number | null): string | null {
 function EcoNode({ data }: NodeProps<any>) {
   const style = KIND_STYLES[data.kind as Kind] || KIND_STYLES.custom;
   const glow = heat(data.readiness_score);
+  const roles: string[] = Array.isArray(data.meta?.roles) ? data.meta.roles : [];
   return (
     <div
       style={{
@@ -58,6 +65,13 @@ function EcoNode({ data }: NodeProps<any>) {
       <div className="text-[9px] uppercase tracking-wider opacity-70">{style.label}</div>
       <div className="text-sm font-semibold truncate">{data.label}</div>
       {data.subtitle && <div className="text-[11px] opacity-80 truncate">{data.subtitle}</div>}
+      {roles.length > 0 && (
+        <div className="flex flex-wrap gap-1 mt-1">
+          {roles.slice(0, 4).map((r) => (
+            <span key={r} className="text-[9px] px-1 rounded bg-black/20">{ROLE_LABEL[r] || r}</span>
+          ))}
+        </div>
+      )}
       {data.meta?.leadership != null && (
         <div className="text-[10px] mt-1 opacity-80">
           Leadership {data.meta.leadership} · Differentiation {data.meta.differentiation}
@@ -76,13 +90,14 @@ const nodeTypes = { eco: EcoNode };
 
 interface Props { mapId: string; projectId: string; refreshKey: number }
 
-export function EcosystemCanvas({ mapId, refreshKey }: Props) {
+export function EcosystemCanvas({ mapId, projectId, refreshKey }: Props) {
   const [nodes, setNodes] = useState<Node[]>([]);
   const [edges, setEdges] = useState<Edge[]>([]);
   const [selected, setSelected] = useState<DbNode | null>(null);
   const [dbNodes, setDbNodes] = useState<Record<string, DbNode>>({});
   const [showHidden, setShowHidden] = useState(false);
   const [kindFilter, setKindFilter] = useState<Set<Kind>>(new Set());
+  const [edgePair, setEdgePair] = useState<EdgePair | null>(null);
 
   const load = useCallback(async () => {
     const [nRes, eRes] = await Promise.all([
@@ -104,8 +119,8 @@ export function EcosystemCanvas({ mapId, refreshKey }: Props) {
       .filter((e) => filtered.find((n) => n.id === e.source_node_id) && filtered.find((n) => n.id === e.target_node_id))
       .map<Edge>((e) => ({
         id: e.id, source: e.source_node_id, target: e.target_node_id,
-        label: e.kind !== 'custom' ? e.kind.replace('_', ' ') : undefined,
-        style: { stroke: 'hsl(220 15% 65%)', strokeWidth: 1 },
+        label: e.kind !== 'custom' ? (EDGE_LABEL[e.kind] || e.kind.replace(/_/g, ' ')) : (e.note || undefined),
+        style: { stroke: e.meta?.manual || e.meta?.source === 'ai_suggestion' ? 'hsl(15 80% 50%)' : 'hsl(220 15% 65%)', strokeWidth: 1 },
         labelStyle: { fontSize: 9, fill: 'hsl(220 15% 40%)' },
       })));
   }, [mapId, showHidden, kindFilter]);
@@ -126,6 +141,19 @@ export function EcosystemCanvas({ mapId, refreshKey }: Props) {
     setEdges((es) => applyEdgeChanges(changes, es));
   }, []);
 
+  const openPair = useCallback((sourceId: string, targetId: string) => {
+    setEdgePair({
+      sourceId, targetId,
+      sourceLabel: dbNodes[sourceId]?.label || 'Node',
+      targetLabel: dbNodes[targetId]?.label || 'Node',
+    });
+  }, [dbNodes]);
+
+  const onConnect = useCallback((c: Connection) => {
+    if (!c.source || !c.target || c.source === c.target) return;
+    openPair(c.source, c.target);
+  }, [openPair]);
+
   const kinds = useMemo<Kind[]>(() => Array.from(new Set(Object.values(dbNodes).map((n) => n.kind))) as Kind[], [dbNodes]);
 
   return (
@@ -144,19 +172,24 @@ export function EcosystemCanvas({ mapId, refreshKey }: Props) {
               setKindFilter(next);
             }}
             className={`text-[11px] px-2 py-1 rounded ${kindFilter.has(k) ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}`}
-          >{KIND_STYLES[k].label}</button>
+          >{KIND_STYLES[k]?.label || k}</button>
         ))}
         <label className="text-[11px] flex items-center gap-1 ml-2 px-1">
           <input type="checkbox" checked={showHidden} onChange={(e) => setShowHidden(e.target.checked)} />
           Show hidden/stale
         </label>
       </div>
+      <div className="absolute bottom-3 left-3 z-10 text-[10px] text-muted-foreground bg-background/90 border rounded px-2 py-1">
+        Drag from one card to another to label a relationship · click a line to edit its roles
+      </div>
       <ReactFlow
         nodes={nodes} edges={edges}
         nodeTypes={nodeTypes}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
+        onConnect={onConnect}
         onNodeClick={(_, n) => setSelected(dbNodes[n.id] || null)}
+        onEdgeClick={(_, e) => openPair(e.source, e.target)}
         connectionMode={ConnectionMode.Loose}
         fitView
         minZoom={0.15}
@@ -167,7 +200,14 @@ export function EcosystemCanvas({ mapId, refreshKey }: Props) {
         <MiniMap pannable zoomable className="!bg-background" nodeColor={(n) => KIND_STYLES[(n.data as any).kind as Kind]?.bg || '#ccc'} />
         <Controls showInteractive={false} />
       </ReactFlow>
-      <NodeDrawer node={selected} onClose={() => setSelected(null)} onChanged={load} />
+      <NodeDrawer node={selected} projectId={projectId} onClose={() => setSelected(null)} onChanged={load} />
+      <EdgeDialog
+        pair={edgePair}
+        mapId={mapId}
+        projectId={projectId}
+        onClose={() => setEdgePair(null)}
+        onChanged={load}
+      />
     </div>
   );
 }
