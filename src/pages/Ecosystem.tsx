@@ -18,6 +18,8 @@ export default function Ecosystem() {
   const [syncing, setSyncing] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [addOpen, setAddOpen] = useState(false);
+  const [suggestOpen, setSuggestOpen] = useState(false);
+
 
   useEffect(() => {
     if (!currentProject) return;
@@ -68,10 +70,14 @@ export default function Ecosystem() {
         <div>
           <h1 className="text-xl font-semibold">Ecosystem Map</h1>
           <p className="text-xs text-muted-foreground">
-            Phase 5 · Your project sits at the centre; segments, companies, roles and people radiate outward.
+            Phase 5 · Your project sits at the centre; segments, companies, roles, people and wider
+            stakeholders radiate outward. One organisation can hold several roles.
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" onClick={() => setSuggestOpen(true)}>
+            <Sparkles className="h-4 w-4 mr-1" /> Suggest stakeholders
+          </Button>
           <Button size="sm" variant="outline" onClick={() => setAddOpen(true)}>
             <Plus className="h-4 w-4 mr-1" /> Add node
           </Button>
@@ -91,6 +97,14 @@ export default function Ecosystem() {
         projectId={map.project_id}
         onCreated={() => setRefreshKey((k) => k + 1)}
       />
+      <StakeholderSuggestions
+        open={suggestOpen}
+        onOpenChange={setSuggestOpen}
+        mapId={map.id}
+        projectId={map.project_id}
+        onChanged={() => setRefreshKey((k) => k + 1)}
+      />
+
     </div>
   );
 }
