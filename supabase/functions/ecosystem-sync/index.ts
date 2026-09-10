@@ -26,12 +26,14 @@ Deno.serve(async (req) => {
 
     // Load source data
     const [projRes, icpsRes, personasRes, dcampRes, compRes] = await Promise.all([
-      svc.from("projects").select("id, name, website_url").eq("id", projectId).maybeSingle(),
+      svc.from("projects").select("id, name, website").eq("id", projectId).maybeSingle(),
       svc.from("icps").select("id, segment_name, fit_score, access_score, matrix_category").eq("project_id", projectId),
       svc.from("personas").select("id, persona_name, icp_id, role_in_buying, ai_readiness_score").eq("project_id", projectId),
       svc.from("discovery_campaigns").select("id, icp_ids").eq("project_id", projectId),
-      svc.from("competitors").select("id, name, domain, type, positioning, target_segments")
+      svc.from("competitors")
+        .select("id, name, domain, type, archetype, source, positioning, target_segments, claims, strengths, weaknesses, pricing_signals")
         .eq("project_id", projectId).eq("status", "confirmed"),
+
     ]);
     const project = projRes.data;
     const icps = (icpsRes.data || []) as any[];
