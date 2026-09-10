@@ -242,6 +242,144 @@ Deno.serve(async (req) => {
         return json({ run_id: runId, status: "running" }, 202);
       }
 
+      if (mode === "market_position") {
+        const [compRes, dimRes, scoreRes] = await Promise.all([
+          sb.from("competitors")
+            .select("id, name, type, archetype, positioning, claims, proof_points, strengths, weaknesses, target_segments, pricing_signals")
+            .eq("project_id", project_id).eq("status", "confirmed"),
+          sb.from("competitor_dimensions").select("id, label, description, importance")
+            .eq("project_id", project_id).order("position"),
+          sb.from("competitor_scores").select("dimension_id, competitor_id, claim, rating").eq("project_id", project_id),
+        ]);
+        const comps = compRes.data || [];
+        const dims = dimRes.data || [];
+        if (comps.length === 0) return json({ error: "Confirm at least one competitor first." }, 422);
+
+        let lensPersona: any = null;
+        if (persona_id) {
+          const { data: p } = await sb.from("personas")
+            .select("persona_name, role_in_buying, goals, pain_points, buying_behaviour, channel_preferences, how_we_help")
+            .eq("project_id", project_id).eq("id", persona_id).maybeSingle();
+          lensPersona = p || null;
+        }
+
+        const { data: run, error: runErr } = await sb.from("competitor_runs")
+          .insert({ project_id, kind: "market_position", status: "running", created_by: user.id })
+          .select("id").single();
+        if (runErr || !run) return json({ error: runErr?.message || "Could not start the assessment" }, 500);
+        const runId = run.id as string;
+
+        const background = (async () => {
+          let saved = 0;
+          try {
+            const context = await loadProjectContext(sb, project_id);
+            const nameById = new Map(comps.map((c: any) => [c.id, c.name]));
+            const grid = dims.map((d: any) => ({
+              dimension: d.label,
+              importance: d.importance,
+              cells: (scoreRes.data || [])
+                .filter((s: any) => s.dimension_id === d.id)
+                .map((s: any) => ({
+                  who: s.competitor_id ? (nameById.get(s.competitor_id) || "Unknown") : "US",
+                  claim: s.claim,
+                  rating: s.rating,
+                })),
+            }));
+            const dimIdByLabel = new Map(dims.map((d: any) => [String(d.label).toLowerCase(), d.id]));
+
+            const organisations = [
+              {
+                name: "US",
+                research: {
+                  positioning: context.value_propositions?.[0]?.statement || null,
+                  value_propositions: context.value_propositions,
+                  problems_worth_solving: context.problems_worth_solving,
+                  brand_context: context.brand_context,
+                },
+              },
+              ...comps.map((c: any) => ({
+                name: c.name,
+                research: {
+                  type: c.type, archetype: c.archetype, positioning: c.positioning,
+                  claims: c.claims, proof_points: c.proof_points, strengths: c.strengths,
+                  weaknesses: c.weaknesses, target_segments: c.target_segments,
+                  pricing_signals: c.pricing_signals,
+                },
+              })),
+            ];
+            const idByName = new Map<string, string | null>([["us", null]]);
+            for (const c of comps as any[]) idByName.set(String(c.name).toLowerCase(), c.id);
+
+            const parsed = await aiJson(MARKET_SYSTEM, {
+              project_context: {
+                project_name: context.project_name,
+                icps: context.icps,
+                value_propositions: context.value_propositions,
+                problems_worth_solving: context.problems_worth_solving,
+              },
+              lens: lensPersona ? { persona: lensPersona } : { personas: context.personas },
+              dimensions: dims.map((d: any) => ({ label: d.label, description: d.description, importance: d.importance })),
+              comparison_grid: grid,
+              organisations,
+            });
+
+            const list: any[] = Array.isArray(parsed.positions) ? parsed.positions : [];
+            const clamp = (n: any) => Math.min(100, Math.max(0, Math.round(Number(n) || 0)));
+            for (const p of list) {
+              const key = typeof p?.organisation === "string" ? p.organisation.trim().toLowerCase() : "";
+              if (!idByName.has(key)) continue;
+              const competitor_id = idByName.get(key) ?? null;
+              const cited = Array.isArray(p?.cited_dimensions)
+                ? p.cited_dimensions
+                    .map((l: any) => dimIdByLabel.get(String(l).trim().toLowerCase()))
+                    .filter((x: any) => !!x).slice(0, 3)
+                : [];
+              const row = {
+                project_id,
+                competitor_id,
+                persona_id: persona_id || null,
+                leadership: clamp(p?.leadership),
+                differentiation: clamp(p?.differentiation),
+                rationale: typeof p?.rationale === "string" ? p.rationale.trim().slice(0, 300) : null,
+                cited_dimension_ids: cited,
+              };
+              const q = sb.from("competitor_market_positions").select("id").eq("project_id", project_id);
+              const { data: prev } = await (competitor_id
+                ? q.eq("competitor_id", competitor_id)
+                : q.is("competitor_id", null)
+              ).then((r: any) => r) as any;
+              const match = (prev || []).length > 0 ? prev : null;
+              const { data: existing } = await sb.from("competitor_market_positions")
+                .select("id, persona_id, competitor_id").eq("project_id", project_id);
+              const hit = (existing || []).find((e: any) =>
+                (e.competitor_id ?? null) === competitor_id && (e.persona_id ?? null) === (persona_id || null));
+              if (hit) {
+                await sb.from("competitor_market_positions").update(row).eq("id", hit.id);
+              } else {
+                await sb.from("competitor_market_positions").insert(row);
+              }
+              void match;
+              saved += 1;
+              await sb.from("competitor_runs").update({ saved_count: saved }).eq("id", runId);
+            }
+
+            await sb.from("competitor_runs").update({
+              status: "complete", saved_count: saved,
+              result: { organisations: organisations.length, persona_id: persona_id || null },
+            }).eq("id", runId);
+          } catch (e: any) {
+            console.error("[competitor-whitespace] market_position failed", e?.message);
+            await sb.from("competitor_runs").update({
+              status: "error", saved_count: saved,
+              error: e instanceof AiError ? e.message : (e?.message || "Assessment failed"),
+            }).eq("id", runId);
+          }
+        })();
+
+        const rt2 = (globalThis as any).EdgeRuntime;
+        if (rt2?.waitUntil) rt2.waitUntil(background);
+        return json({ run_id: runId, status: "running" }, 202);
+      }
 
 
       // whitespace
