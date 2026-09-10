@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
-import { Loader2, Sparkles, Plus, Trash2, ArrowUp, ArrowDown } from 'lucide-react';
+import { Loader2, Sparkles, Plus, Trash2, ArrowUp, ArrowDown, Wand2 } from 'lucide-react';
+
 import { toast } from 'sonner';
 import {
   Competitor, CompetitorDimension, CompetitorScore, CompetitorRating, RATING_BADGE, RATING_LABELS,
