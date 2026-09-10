@@ -19,7 +19,11 @@ export function ComparisonGrid({ projectId, competitors }: Props) {
   const [scores, setScores] = useState<CompetitorScore[]>([]);
   const [loading, setLoading] = useState(true);
   const [suggesting, setSuggesting] = useState(false);
+  const [mapping, setMapping] = useState(false);
+  const [mapped, setMapped] = useState(0);
+  const [overwrite, setOverwrite] = useState(false);
   const [newLabel, setNewLabel] = useState('');
+  const pollRef = useRef<number | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -32,7 +36,14 @@ export function ComparisonGrid({ projectId, competitors }: Props) {
     setLoading(false);
   }, [projectId]);
 
+  const refreshScores = useCallback(async () => {
+    const { data } = await (supabase as any).from('competitor_scores').select('*').eq('project_id', projectId);
+    if (data) setScores(data as CompetitorScore[]);
+  }, [projectId]);
+
   useEffect(() => { load(); }, [load]);
+  useEffect(() => () => { if (pollRef.current) window.clearInterval(pollRef.current); }, []);
+
 
   const cell = (dimId: string, compId: string | null) =>
     scores.find((s) => s.dimension_id === dimId && (s.competitor_id ?? null) === compId);
