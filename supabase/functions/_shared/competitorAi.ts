@@ -243,6 +243,7 @@ export async function loadProjectContext(sb: any, projectId: string) {
   return {
     project_name: proj.data?.name || "",
     brand_context: proj.data?.brand_context || null,
+    website: proj.data?.website || null,
     icps: icps.data || [],
     personas: personas.data || [],
     value_propositions: vps.data || [],
