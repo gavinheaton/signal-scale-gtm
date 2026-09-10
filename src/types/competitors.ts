@@ -1,0 +1,113 @@
+// Competitive landscape shared types
+
+export type CompetitorType = 'direct' | 'adjacent' | 'in_house' | 'do_nothing';
+export type CompetitorStatus = 'suggested' | 'confirmed' | 'dismissed';
+export type CompetitorRating = 'strong' | 'parity' | 'weak';
+export type WhitespaceKind = 'unowned' | 'commoditised' | 'counter_position';
+
+export interface CompetitorEvidence {
+  kind?: string;
+  url: string;
+  captured_at?: string;
+}
+
+export interface CompetitorProofPoint {
+  text: string;
+  source_url: string | null;
+}
+
+export interface Competitor {
+  id: string;
+  project_id: string;
+  name: string;
+  domain: string | null;
+  linkedin_url: string | null;
+  type: CompetitorType;
+  status: CompetitorStatus;
+  why_suggested: string | null;
+  positioning: string | null;
+  target_segments: string[];
+  claims: string[];
+  proof_points: CompetitorProofPoint[];
+  pricing_signals: string | null;
+  strengths: string[];
+  weaknesses: string[];
+  evidence: CompetitorEvidence[];
+  confidence: string | null;
+  notes: string | null;
+  researched_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CompetitorDimension {
+  id: string;
+  project_id: string;
+  label: string;
+  description: string | null;
+  position: number;
+}
+
+export interface CompetitorScore {
+  id: string;
+  project_id: string;
+  dimension_id: string;
+  competitor_id: string | null; // null = us
+  claim: string | null;
+  rating: CompetitorRating | null;
+}
+
+export interface CompetitiveWhitespace {
+  id: string;
+  project_id: string;
+  kind: WhitespaceKind;
+  title: string;
+  rationale: string | null;
+  evidence: string[];
+  applied_to: { target: string; at: string }[];
+  created_at: string;
+}
+
+export interface CompetitorRun {
+  id: string;
+  project_id: string;
+  kind: string;
+  status: 'running' | 'complete' | 'error';
+  target_id: string | null;
+  result: any;
+  saved_count: number;
+  error: string | null;
+  created_at: string;
+}
+
+export const TYPE_LABELS: Record<CompetitorType, string> = {
+  direct: 'Direct rival',
+  adjacent: 'Adjacent player',
+  in_house: 'In-house / DIY',
+  do_nothing: 'Do nothing',
+};
+
+export const TYPE_BADGE: Record<CompetitorType, string> = {
+  direct: 'bg-rose-100 text-rose-800',
+  adjacent: 'bg-amber-100 text-amber-800',
+  in_house: 'bg-sky-100 text-sky-800',
+  do_nothing: 'bg-muted text-muted-foreground',
+};
+
+export const RATING_LABELS: Record<CompetitorRating, string> = {
+  strong: 'Strong',
+  parity: 'Parity',
+  weak: 'Weak',
+};
+
+export const RATING_BADGE: Record<CompetitorRating, string> = {
+  strong: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+  parity: 'bg-amber-100 text-amber-800 border-amber-200',
+  weak: 'bg-rose-100 text-rose-800 border-rose-200',
+};
+
+export const WHITESPACE_LABELS: Record<WhitespaceKind, string> = {
+  unowned: 'Nobody owns this',
+  commoditised: 'Everyone says this',
+  counter_position: 'Your angle',
+};
