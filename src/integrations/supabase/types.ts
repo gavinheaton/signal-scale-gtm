@@ -782,6 +782,57 @@ export type Database = {
           },
         ]
       }
+      competitive_narratives: {
+        Row: {
+          created_at: string
+          generated_at: string
+          id: string
+          markdown: string | null
+          model: string | null
+          persona_id: string | null
+          project_id: string
+          sections: Json
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          generated_at?: string
+          id?: string
+          markdown?: string | null
+          model?: string | null
+          persona_id?: string | null
+          project_id: string
+          sections?: Json
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          generated_at?: string
+          id?: string
+          markdown?: string | null
+          model?: string | null
+          persona_id?: string | null
+          project_id?: string
+          sections?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "competitive_narratives_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "competitive_narratives_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       competitive_whitespace: {
         Row: {
           applied_to: Json

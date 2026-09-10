@@ -19,6 +19,7 @@ import {
 import { CompetitorProfileDrawer } from '@/components/competitors/CompetitorProfileDrawer';
 import { ComparisonGrid } from '@/components/competitors/ComparisonGrid';
 import { WhitespacePanel } from '@/components/competitors/WhitespacePanel';
+import { NarrativePanel } from '@/components/competitors/NarrativePanel';
 
 export default function CompetitiveLandscape() {
   const { currentProject } = useProject();
@@ -243,6 +244,7 @@ export default function CompetitiveLandscape() {
           <TabsTrigger value="profiles">Profiles {confirmed.length > 0 && `(${confirmed.length})`}</TabsTrigger>
           <TabsTrigger value="grid">Comparison grid</TabsTrigger>
           <TabsTrigger value="whitespace">Whitespace</TabsTrigger>
+          <TabsTrigger value="narrative">Narrative</TabsTrigger>
         </TabsList>
 
         <TabsContent value="profiles" className="mt-4 space-y-6">
@@ -432,6 +434,14 @@ export default function CompetitiveLandscape() {
 
         <TabsContent value="whitespace" className="mt-4">
           <WhitespacePanel projectId={currentProject.id} confirmedCount={confirmed.length} />
+        </TabsContent>
+
+        <TabsContent value="narrative" className="mt-4">
+          <NarrativePanel
+            projectId={currentProject.id}
+            projectName={currentProject.name}
+            competitors={confirmed}
+          />
         </TabsContent>
       </Tabs>
 

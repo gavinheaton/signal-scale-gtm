@@ -50,6 +50,7 @@ export default function CanvasPrint() {
   const [scores, setScores] = useState<any[]>([]);
   const [whitespace, setWhitespace] = useState<any[]>([]);
   const [positions, setPositions] = useState<any[]>([]);
+  const [narrative, setNarrative] = useState<any[]>([]);
 
 
   useEffect(() => {
@@ -77,18 +78,20 @@ export default function CanvasPrint() {
       out.sort((a, b) => order.indexOf(a.canvas.variant) - order.indexOf(b.canvas.variant));
       setBundles(out);
 
-      const [cRes, dRes, sRes, wRes, mRes] = await Promise.all([
+      const [cRes, dRes, sRes, wRes, mRes, nRes] = await Promise.all([
         (supabase as any).from('competitors').select('*').eq('project_id', projectId).eq('status', 'confirmed').order('name'),
         (supabase as any).from('competitor_dimensions').select('*').eq('project_id', projectId).order('position'),
         (supabase as any).from('competitor_scores').select('*').eq('project_id', projectId),
         (supabase as any).from('competitive_whitespace').select('*').eq('project_id', projectId).order('created_at'),
         (supabase as any).from('competitor_market_positions').select('*').eq('project_id', projectId).is('persona_id', null),
+        (supabase as any).from('competitive_narratives').select('sections').eq('project_id', projectId).is('persona_id', null).maybeSingle(),
       ]);
       setCompetitors(cRes.data || []);
       setDimensions(dRes.data || []);
       setScores(sRes.data || []);
       setWhitespace(wRes.data || []);
       setPositions(mRes.data || []);
+      setNarrative(((nRes as any)?.data?.sections || []) as any[]);
 
 
       setLoading(false);
@@ -331,6 +334,29 @@ export default function CanvasPrint() {
           <MarketPositionChart
             dimensions={dimensions} competitors={competitors} positions={positions} usLabel={projectName} print
           />
+        </section>
+      )}
+
+      {narrative.length > 0 && (
+        <section className="print-page p-6">
+          <h2 className="text-xl font-semibold mb-3">Competitive landscape narrative</h2>
+          <div className="space-y-4">
+            {narrative.map((s: any) => (
+              <div key={s.key} className="break-inside-avoid">
+                <h3 className="text-sm font-semibold uppercase tracking-wide text-[#e33e23] mb-1">{s.heading}</h3>
+                {(s.paragraphs || []).map((p: string, i: number) => (
+                  <p key={i} className="text-[11px] leading-relaxed mb-1.5">{p}</p>
+                ))}
+                {(s.bullets || []).length > 0 && (
+                  <ul className="list-disc pl-4 space-y-0.5">
+                    {(s.bullets || []).map((b: string, i: number) => (
+                      <li key={i} className="text-[11px] leading-relaxed">{b}</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            ))}
+          </div>
         </section>
       )}
 
