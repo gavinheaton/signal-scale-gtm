@@ -150,6 +150,9 @@ export function ComparisonGrid({ projectId, competitors }: Props) {
                 {columns.map((c) => (
                   <th key={c.id ?? 'us'} className={`text-left p-2 min-w-[200px] font-medium ${c.id === null ? 'text-primary' : ''}`}>
                     {c.name}
+                    {c.archetype && (
+                      <span className="block text-xs font-normal text-muted-foreground">{c.archetype}</span>
+                    )}
                   </th>
                 ))}
               </tr>
