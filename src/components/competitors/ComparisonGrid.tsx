@@ -172,6 +172,14 @@ export function ComparisonGrid({ projectId, competitors }: Props) {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
+        <Button size="sm" onClick={mapFromResearch} disabled={mapping || competitors.length === 0}>
+          {mapping ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Wand2 className="h-4 w-4 mr-1" />}
+          {mapping ? `Mapping… ${mapped} cells` : 'Map from research'}
+        </Button>
+        <label className="flex items-center gap-1 text-xs text-muted-foreground">
+          <input type="checkbox" checked={overwrite} onChange={(e) => setOverwrite(e.target.checked)} />
+          Overwrite what's already filled
+        </label>
         <Button size="sm" variant="outline" onClick={suggestDimensions} disabled={suggesting}>
           {suggesting ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Sparkles className="h-4 w-4 mr-1" />}
           Suggest dimensions
@@ -183,6 +191,11 @@ export function ComparisonGrid({ projectId, competitors }: Props) {
           <Button size="sm" variant="ghost" onClick={addDimension}><Plus className="h-4 w-4" /></Button>
         </div>
       </div>
+      <p className="text-xs text-muted-foreground -mt-2">
+        "Map from research" reads what was already found about each organisation and fills in their claim
+        and standing on every row. Nothing you typed is changed unless you tick overwrite.
+      </p>
+
 
       {competitors.length === 0 && (
         <Card><CardContent className="py-8 text-center text-sm text-muted-foreground">
