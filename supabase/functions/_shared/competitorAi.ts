@@ -244,6 +244,110 @@ export function marketExpectation(context: any): { sector: string; markets: stri
   return { sector, markets, what_they_do: what };
 }
 
+// ---------------------------------------------------------------------------
+// Archetypes — the four kinds of organisation working on the same problem.
+// ---------------------------------------------------------------------------
+
+export type Archetype = "capital_coalition" | "engineering_systems" | "applied_research" | "place_alliance" | "other";
+
+export const ARCHETYPES: { key: Archetype; label: string; description: string; query_hint: string }[] = [
+  {
+    key: "capital_coalition",
+    label: "Scale & capital coalitions",
+    description: "Multilateral coalitions, funds and global initiatives that mobilise capital and scale at country or system level.",
+    query_hint: "global coalition, initiative, fund or alliance mobilising investment in this field",
+  },
+  {
+    key: "engineering_systems",
+    label: "Engineering & systems maturity",
+    description: "Engineering, design and advisory firms that deliver the technical and systems work commercially.",
+    query_hint: "engineering and advisory consultancies delivering this work",
+  },
+  {
+    key: "applied_research",
+    label: "Applied research organisations",
+    description: "Research institutes, universities and public science agencies producing applied methods and evidence.",
+    query_hint: "applied research institutes and public science agencies working on this problem",
+  },
+  {
+    key: "place_alliance",
+    label: "Hazard & place-specific alliances",
+    description: "Hazard-specific or place-specific alliances, city networks and partnership programmes.",
+    query_hint: "hazard-specific or city/place-based alliances, networks and partnership programmes in this field",
+  },
+];
+
+export const ARCHETYPE_KEYS = ARCHETYPES.map((a) => a.key);
+
+/** Verify a known URL belongs to the named organisation, in the expected field. */
+export async function verifySiteIdentity(
+  name: string,
+  urlOrDomain: string,
+  expectation: { sector?: string; markets?: string; what_they_do?: string },
+): Promise<SiteResolution> {
+  const apex = apexDomain(urlOrDomain);
+  const url = /^https?:\/\//.test(urlOrDomain) ? urlOrDomain : `https://${apex}`;
+  const md = await fcScrape(url, 5000);
+  if (md.length < 120) {
+    return { domain: null, verdict: "unsure", reason: `${apex} could not be read.`, markdown: "", url };
+  }
+  try {
+    const parsed = await aiJson(IDENTITY_SYSTEM, {
+      looking_for: {
+        name,
+        expected_sector: expectation.sector || expectation.what_they_do || "",
+        expected_markets: expectation.markets || "",
+        what_they_do: expectation.what_they_do || "",
+      },
+      site: { url, content: md.slice(0, 4000) },
+    });
+    const verdict: SiteResolution["verdict"] = ["match", "unsure", "mismatch"].includes(parsed?.verdict) ? parsed.verdict : "unsure";
+    const reason = typeof parsed?.reason === "string" ? parsed.reason.slice(0, 300) : "";
+    return { domain: verdict === "match" ? apex : null, verdict, reason, markdown: md, url };
+  } catch (e: any) {
+    console.error("[competitor-ai] verifySiteIdentity failed", name, e?.message);
+    return { domain: null, verdict: "unsure", reason: "Identity check could not run.", markdown: md, url };
+  }
+}
+
+const CLASSIFY_SYSTEM = `You sort organisations into one of five archetypes for a competitive landscape.
+
+Return ONLY JSON: {"assignments":[{"name":string,"archetype":"capital_coalition"|"engineering_systems"|"applied_research"|"place_alliance"|"other"}]}
+
+ARCHETYPES:
+- capital_coalition: multilateral coalitions, global initiatives, funds and platforms that mobilise capital and scale.
+- engineering_systems: commercial engineering, design and advisory firms delivering technical/systems work.
+- applied_research: research institutes, universities, public science agencies producing applied methods and evidence.
+- place_alliance: hazard-specific or place/city-specific alliances, networks and partnership programmes.
+- other: anything that fits none of the above (including in-house teams and doing nothing).
+
+Return exactly one assignment per input organisation, using the name exactly as given.`;
+
+/** Assign archetypes to a batch of organisations by name and description. */
+export async function classifyArchetypes(
+  items: { name: string; why?: string | null; domain?: string | null; type?: string | null }[],
+  context: { field: string },
+): Promise<Record<string, Archetype>> {
+  const out: Record<string, Archetype> = {};
+  if (items.length === 0) return out;
+  for (let i = 0; i < items.length; i += 25) {
+    const batch = items.slice(i, i + 25);
+    try {
+      const parsed = await aiJson(CLASSIFY_SYSTEM, { field_of_work: context.field, organisations: batch });
+      const rows: any[] = Array.isArray(parsed?.assignments) ? parsed.assignments : [];
+      for (const r of rows) {
+        const name = typeof r?.name === "string" ? r.name.trim() : "";
+        const key = ARCHETYPE_KEYS.includes(r?.archetype) ? (r.archetype as Archetype) : "other";
+        if (name) out[name.toLowerCase()] = key;
+      }
+    } catch (e: any) {
+      console.error("[competitor-ai] classifyArchetypes failed", e?.message);
+    }
+  }
+  return out;
+}
+
+
 
 /** Build the project context every competitor prompt needs. */
 export async function loadProjectContext(sb: any, projectId: string) {
