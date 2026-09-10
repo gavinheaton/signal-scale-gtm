@@ -9,7 +9,10 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2, ExternalLink, RefreshCw, Trash2, Save } from 'lucide-react';
 import { toast } from 'sonner';
-import { Competitor, CompetitorType, TYPE_LABELS } from '@/types/competitors';
+import {
+  Competitor, CompetitorType, CompetitorArchetype, TYPE_LABELS,
+  ARCHETYPE_LABELS, ARCHETYPE_ORDER, ARCHETYPE_BADGE,
+} from '@/types/competitors';
 
 interface Props {
   competitor: Competitor | null;
