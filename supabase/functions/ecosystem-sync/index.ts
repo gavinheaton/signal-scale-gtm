@@ -154,7 +154,7 @@ Deno.serve(async (req) => {
     // 1. Project node (centre)
     const projectNodeId = await upsertNode({
       kind: "project", ref_table: "projects", ref_id: projectId,
-      label: project?.name || "Your project", subtitle: project?.website_url || undefined,
+      label: project?.name || "Your project", subtitle: project?.website || undefined,
       ring: 0, idx: 0, total: 1,
     });
 
