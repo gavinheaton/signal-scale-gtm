@@ -867,6 +867,67 @@ export type Database = {
           },
         ]
       }
+      competitor_market_positions: {
+        Row: {
+          cited_dimension_ids: string[]
+          competitor_id: string | null
+          created_at: string
+          differentiation: number
+          id: string
+          leadership: number
+          persona_id: string | null
+          project_id: string
+          rationale: string | null
+          updated_at: string
+        }
+        Insert: {
+          cited_dimension_ids?: string[]
+          competitor_id?: string | null
+          created_at?: string
+          differentiation?: number
+          id?: string
+          leadership?: number
+          persona_id?: string | null
+          project_id: string
+          rationale?: string | null
+          updated_at?: string
+        }
+        Update: {
+          cited_dimension_ids?: string[]
+          competitor_id?: string | null
+          created_at?: string
+          differentiation?: number
+          id?: string
+          leadership?: number
+          persona_id?: string | null
+          project_id?: string
+          rationale?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "competitor_market_positions_competitor_id_fkey"
+            columns: ["competitor_id"]
+            isOneToOne: false
+            referencedRelation: "competitors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "competitor_market_positions_persona_id_fkey"
+            columns: ["persona_id"]
+            isOneToOne: false
+            referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "competitor_market_positions_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       competitor_runs: {
         Row: {
           created_at: string
