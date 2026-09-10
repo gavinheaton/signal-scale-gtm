@@ -236,6 +236,9 @@ export default function CompetitiveLandscape() {
                             </div>
                           </div>
                           {c.why_suggested && <p className="text-sm text-muted-foreground mt-2">{c.why_suggested}</p>}
+                          {!c.domain && c.identity_reason && (
+                            <p className="text-xs text-amber-800 mt-1">{c.identity_reason}</p>
+                          )}
                           <button className="text-xs text-primary underline mt-2" onClick={() => setSelected(c)}>Edit details</button>
                         </CardContent>
                       </Card>
