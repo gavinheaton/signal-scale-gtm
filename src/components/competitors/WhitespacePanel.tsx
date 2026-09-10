@@ -29,6 +29,9 @@ export function WhitespacePanel({ projectId, confirmedCount }: Props) {
   const [dimensions, setDimensions] = useState<CompetitorDimension[]>([]);
   const [scores, setScores] = useState<CompetitorScore[]>([]);
   const [highlight, setHighlight] = useState<string | null>(null);
+  const [xDim, setXDim] = useState<string | null>(null);
+  const [yDim, setYDim] = useState<string | null>(null);
+
 
   const load = useCallback(async () => {
     setLoading(true);
