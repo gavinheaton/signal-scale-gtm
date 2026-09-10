@@ -28,13 +28,17 @@ export default function CompetitiveLandscape() {
   const [enrichingId, setEnrichingId] = useState<string | null>(null);
   const [selected, setSelected] = useState<Competitor | null>(null);
   const [addOpen, setAddOpen] = useState(false);
-  const [newComp, setNewComp] = useState<{ name: string; website: string; type: CompetitorType; why: string }>({
-    name: '', website: '', type: 'direct', why: '',
+  const [newComp, setNewComp] = useState<{ name: string; website: string; type: CompetitorType; archetype: CompetitorArchetype; why: string }>({
+    name: '', website: '', type: 'direct', archetype: 'other', why: '',
   });
+  const [pasteList, setPasteList] = useState('');
+  const [seeding, setSeeding] = useState(false);
+  const [archetypeFilter, setArchetypeFilter] = useState<'all' | CompetitorArchetype>('all');
   const [ownWebsite, setOwnWebsite] = useState<string | null>(null);
   const [siteInput, setSiteInput] = useState('');
   const [showDismissed, setShowDismissed] = useState(false);
   const pollRef = useRef<number | null>(null);
+
 
   const projectId = currentProject?.id;
 
