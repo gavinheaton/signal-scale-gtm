@@ -148,6 +148,33 @@ export function WhitespacePanel({ projectId, confirmedCount }: Props) {
         </Button>
       </div>
 
+      {dimensions.length > 0 && (
+        <Card>
+          <CardHeader className="pb-0">
+            <CardTitle className="text-sm">Opportunity map</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-3">
+            <WhitespaceChart
+              dimensions={dimensions}
+              competitors={competitors}
+              scores={scores}
+              onSelectDimension={(label) => {
+                setHighlight(label);
+                const el = document.getElementById('whitespace-cards');
+                el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              }}
+            />
+            {highlight && (
+              <p className="text-xs mt-2">
+                Highlighting gaps that mention <span className="font-medium">{highlight}</span>{' '}
+                <button className="underline text-muted-foreground" onClick={() => setHighlight(null)}>clear</button>
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      <div id="whitespace-cards" className="space-y-4">
       {items.length === 0 ? (
         <Card><CardContent className="py-10 text-center text-sm text-muted-foreground">
           {confirmedCount === 0
