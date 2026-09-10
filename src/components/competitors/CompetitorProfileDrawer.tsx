@@ -97,7 +97,24 @@ export function CompetitorProfileDrawer({ competitor, onClose, onChanged, onRese
                 </a>
               </Button>
             )}
+            {competitor.domain && (
+              <Button size="sm" variant="ghost" className="text-muted-foreground" onClick={wrongCompany}>
+                Wrong company?
+              </Button>
+            )}
           </div>
+
+          {competitor.identity_reason && (
+            <p className={`text-xs rounded-md border p-2 ${
+              competitor.identity_verdict === 'match'
+                ? 'text-muted-foreground'
+                : 'text-amber-800 bg-amber-50 border-amber-200'
+            }`}>
+              {competitor.identity_verdict === 'match' ? 'Website check: ' : 'Needs a website: '}
+              {competitor.identity_reason}
+            </p>
+          )}
+
 
           <div className="grid grid-cols-2 gap-3">
             <div>
