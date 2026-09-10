@@ -42,6 +42,10 @@ export default function CanvasPrint() {
   const [projectName, setProjectName] = useState<string>('');
   const [bundles, setBundles] = useState<Bundle[]>([]);
   const [loading, setLoading] = useState(true);
+  const [competitors, setCompetitors] = useState<any[]>([]);
+  const [dimensions, setDimensions] = useState<any[]>([]);
+  const [scores, setScores] = useState<any[]>([]);
+  const [whitespace, setWhitespace] = useState<any[]>([]);
 
   useEffect(() => {
     (async () => {
@@ -67,6 +71,18 @@ export default function CanvasPrint() {
       const order: CanvasVariant[] = ['standard', 'shared_value', 'business_model'];
       out.sort((a, b) => order.indexOf(a.canvas.variant) - order.indexOf(b.canvas.variant));
       setBundles(out);
+
+      const [cRes, dRes, sRes, wRes] = await Promise.all([
+        (supabase as any).from('competitors').select('*').eq('project_id', projectId).eq('status', 'confirmed').order('name'),
+        (supabase as any).from('competitor_dimensions').select('*').eq('project_id', projectId).order('position'),
+        (supabase as any).from('competitor_scores').select('*').eq('project_id', projectId),
+        (supabase as any).from('competitive_whitespace').select('*').eq('project_id', projectId).order('created_at'),
+      ]);
+      setCompetitors(cRes.data || []);
+      setDimensions(dRes.data || []);
+      setScores(sRes.data || []);
+      setWhitespace(wRes.data || []);
+
       setLoading(false);
     })();
   }, [projectId]);
