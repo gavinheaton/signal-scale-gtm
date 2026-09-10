@@ -25,16 +25,19 @@ Deno.serve(async (req) => {
     await assertProjectAccess(svc, user.id, projectId);
 
     // Load source data
-    const [projRes, icpsRes, personasRes, dcampRes] = await Promise.all([
+    const [projRes, icpsRes, personasRes, dcampRes, compRes] = await Promise.all([
       svc.from("projects").select("id, name, website_url").eq("id", projectId).maybeSingle(),
       svc.from("icps").select("id, segment_name, fit_score, access_score, matrix_category").eq("project_id", projectId),
       svc.from("personas").select("id, persona_name, icp_id, role_in_buying, ai_readiness_score").eq("project_id", projectId),
       svc.from("discovery_campaigns").select("id, icp_ids").eq("project_id", projectId),
+      svc.from("competitors").select("id, name, domain, type, positioning, target_segments")
+        .eq("project_id", projectId).eq("status", "confirmed"),
     ]);
     const project = projRes.data;
     const icps = (icpsRes.data || []) as any[];
     const personas = (personasRes.data || []) as any[];
     const dcamps = (dcampRes.data || []) as any[];
+    const competitors = (compRes.data || []) as any[];
     const dcampIds = dcamps.map((c) => c.id);
 
     // Orgs / roles / contacts / themes / insights across all discovery campaigns in this project
@@ -237,6 +240,22 @@ Deno.serve(async (req) => {
       themeNodeId.set(t.id, id);
     }
 
+    // 6b. Competitor nodes — ring 2 (alongside companies and themes)
+    const competitorNodeId = new Map<string, string>();
+    for (let i = 0; i < competitors.length; i++) {
+      const c = competitors[i];
+      const id = await upsertNode({
+        kind: "competitor", ref_table: "competitors", ref_id: c.id,
+        label: c.name,
+        subtitle: c.domain || c.type || undefined,
+        ring: 2, idx: orgs.length + themes.length + i,
+        total: Math.max(orgs.length + themes.length + competitors.length, 1),
+        meta: { type: c.type, domain: c.domain, positioning: c.positioning,
+                target_segments: c.target_segments || [] },
+      });
+      competitorNodeId.set(c.id, id);
+    }
+
     // 7. Insight nodes — ring 4 (alongside people)
     const insightNodeId = new Map<string, string>();
     const convoContact = new Map<string, string>();
@@ -329,6 +348,21 @@ Deno.serve(async (req) => {
         if (seg) await edge(from, seg, "belongs_to");
       }
     }
+    // Competitor -competes_with→ Project, and -serves→ Segment when they target it
+    for (const c of competitors) {
+      const from = competitorNodeId.get(c.id);
+      if (!from) continue;
+      await edge(from, projectNodeId, "competes_with", c.type || undefined);
+      const targets: string[] = Array.isArray(c.target_segments) ? c.target_segments : [];
+      const hay = (targets.join(" ") + " " + (c.positioning || "")).toLowerCase();
+      for (const icp of icps) {
+        const seg = icpNodeId.get(icp.id);
+        if (!seg) continue;
+        const tokens = String(icp.segment_name || "").toLowerCase().split(/[^a-z0-9]+/).filter((t) => t.length > 4);
+        if (tokens.length && tokens.some((t) => hay.includes(t))) await edge(from, seg, "serves");
+      }
+    }
+
     // Insight -evidences→ Contact (via conversation.contact_id) and -evidences→ Theme
     for (const ins of insights) {
       const from = insightNodeId.get(ins.id);
@@ -354,6 +388,7 @@ Deno.serve(async (req) => {
         roles: personas.length + roles.length,
         people: contacts.length + Array.from(leaderNodesByOrg.values()).reduce((s, a) => s + a.length, 0),
         themes: themes.length, insights: insights.length,
+        competitors: competitors.length,
       },
     }), { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 });
   } catch (e) {
