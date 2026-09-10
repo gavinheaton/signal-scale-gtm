@@ -83,6 +83,11 @@ export function ComparisonGrid({ projectId, competitors }: Props) {
     await (supabase as any).from('competitor_dimensions').update({ label }).eq('id', id);
   }
 
+  async function setImportance(id: string, importance: number) {
+    setDims((prev) => prev.map((d) => (d.id === id ? { ...d, importance } : d)));
+    await (supabase as any).from('competitor_dimensions').update({ importance }).eq('id', id);
+  }
+
   async function removeDimension(id: string) {
     const { error } = await (supabase as any).from('competitor_dimensions').delete().eq('id', id);
     if (error) { toast.error(error.message); return; }
@@ -169,6 +174,16 @@ export function ComparisonGrid({ projectId, competitors }: Props) {
                         <button className="text-muted-foreground hover:text-foreground" onClick={() => move(d.id, 1)} disabled={i === dims.length - 1} aria-label="Move down"><ArrowDown className="h-3 w-3" /></button>
                       </div>
                       <button className="text-muted-foreground hover:text-destructive" onClick={() => removeDimension(d.id)} aria-label="Remove dimension"><Trash2 className="h-3.5 w-3.5" /></button>
+                    </div>
+                    <div className="flex items-center gap-1 mt-1">
+                      <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Matters</span>
+                      {[1, 2, 3, 4, 5].map((n) => (
+                        <button key={n} onClick={() => setImportance(d.id, n)}
+                          aria-label={`Importance ${n} of 5`}
+                          className={`h-2.5 w-2.5 rounded-full border ${
+                            n <= (d.importance ?? 3) ? 'bg-primary border-primary' : 'border-border'
+                          }`} />
+                      ))}
                     </div>
                     {d.description && <p className="text-[11px] text-muted-foreground mt-1">{d.description}</p>}
                   </td>
