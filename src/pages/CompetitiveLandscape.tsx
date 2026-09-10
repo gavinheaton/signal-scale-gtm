@@ -352,6 +352,47 @@ export default function CompetitiveLandscape() {
         onResearch={research}
         researching={enrichingId === selected?.id}
       />
+
+      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader><DialogTitle>Add a competitor</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label className="text-xs">Name</Label>
+              <Input value={newComp.name} placeholder="Acme Advisory"
+                onChange={(e) => setNewComp({ ...newComp, name: e.target.value })} />
+            </div>
+            <div>
+              <Label className="text-xs">Website (optional)</Label>
+              <Input value={newComp.website} placeholder="acme.com"
+                onChange={(e) => setNewComp({ ...newComp, website: e.target.value })} />
+              <p className="text-xs text-muted-foreground mt-1">
+                If you give one it is used exactly as typed — research will never replace it.
+              </p>
+            </div>
+            <div>
+              <Label className="text-xs">Type</Label>
+              <Select value={newComp.type} onValueChange={(v) => setNewComp({ ...newComp, type: v as CompetitorType })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {(Object.keys(TYPE_LABELS) as CompetitorType[]).map((t) => (
+                    <SelectItem key={t} value={t}>{TYPE_LABELS[t]}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs">Why they matter (optional)</Label>
+              <Textarea rows={2} value={newComp.why}
+                onChange={(e) => setNewComp({ ...newComp, why: e.target.value })} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => addManual(false)}>Save</Button>
+            <Button onClick={() => addManual(true)}>Save and research</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
