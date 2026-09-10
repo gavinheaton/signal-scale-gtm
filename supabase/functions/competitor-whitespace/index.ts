@@ -80,7 +80,7 @@ Deno.serve(async (req) => {
     try { ({ user } = await requireUser(req, corsHeaders)); }
     catch (r) { return r as Response; }
 
-    const { project_id, mode = "whitespace", overwrite = false }: Body = await req.json();
+    const { project_id, mode = "whitespace", overwrite = false, persona_id = null }: Body = await req.json();
     if (!project_id) return json({ error: "project_id required" }, 400);
 
     const sb = serviceClient();
