@@ -50,6 +50,7 @@ export default function CanvasPrint() {
   const [scores, setScores] = useState<any[]>([]);
   const [whitespace, setWhitespace] = useState<any[]>([]);
   const [positions, setPositions] = useState<any[]>([]);
+  const [narrative, setNarrative] = useState<any[]>([]);
 
 
   useEffect(() => {
