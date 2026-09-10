@@ -352,7 +352,6 @@ Deno.serve(async (req) => {
               } else {
                 await sb.from("competitor_market_positions").insert(row);
               }
-              void match;
               saved += 1;
               await sb.from("competitor_runs").update({ saved_count: saved }).eq("id", runId);
             }
