@@ -9,7 +9,7 @@
 import { corsHeaders } from "../_shared/cors.ts";
 import { requireUser, serviceClient, assertProjectAccess } from "../_shared/auth.ts";
 import {
-  aiJson, apexDomain, fcMap, fcScrape, loadProjectContext, marketExpectation,
+  aiJson, apexDomain, fcMap, fcScrapePage, loadProjectContext, marketExpectation,
   resolveCompanySite, AiError,
 } from "../_shared/competitorAi.ts";
 
@@ -41,6 +41,49 @@ RULES:
 - Max 10 organisations. Return an empty array if none qualify.`;
 
 const SOCIAL = /linkedin\.com|facebook\.com|instagram\.com|x\.com|twitter\.com|youtube\.com|vimeo\.com|tiktok\.com|google\.com|gstatic|cloudflare|wordpress\.|wix\.|squarespace\.|hubspot\.|mailchimp|calendly|eventbrite|apple\.com|microsoft\.com/i;
+const NON_ORGANISATION_LABEL = /^(learn more|read more|click here|website|visit|home|contact|download|privacy|terms|subscribe|share|open|view|source)$/i;
+
+interface ExplicitLink {
+  name: string;
+  url: string;
+  domain: string;
+  sourceUrl: string;
+}
+
+function cleanLinkLabel(value: string): string {
+  return value
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/&quot;/gi, '"')
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** Keep named external links independently of AI, so explicit partners cannot be omitted. */
+function explicitOrganisationLinks(markdown: string, sourceUrl: string, ownApex: string): ExplicitLink[] {
+  const candidates: ExplicitLink[] = [];
+  const seen = new Set<string>();
+  const pattern = /\[([^\]]{2,100})\]\((https?:\/\/[^\s)]+)(?:\s+["'][^"']*["'])?\)/g;
+  for (const match of markdown.matchAll(pattern)) {
+    const name = cleanLinkLabel(match[1]);
+    const url = match[2].replace(/[.,;]+$/, "");
+    const domain = apexDomain(url);
+    if (!name || name.length < 3 || NON_ORGANISATION_LABEL.test(name)) continue;
+    if (!domain || domain === ownApex || SOCIAL.test(domain) || seen.has(domain)) continue;
+
+    // A partner/alliance label is definitive. Other title-like labels are retained
+    // for the AI pass, which can classify them without being asked to rediscover them.
+    const definitive = /\b(partner|partners|alliance|collaborator|member)\b/i.test(name);
+    const titleLike = /^[A-Z0-9][A-Za-z0-9&'’.+\- ]{2,79}$/.test(name) && name.split(/\s+/).length <= 8;
+    if (!definitive && !titleLike) continue;
+
+    seen.add(domain);
+    candidates.push({ name, url, domain, sourceUrl });
+  }
+  return candidates;
+}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -96,18 +139,44 @@ Deno.serve(async (req) => {
             found.slice(0, 2).forEach((u) => pages.add(u));
             if (pages.size >= 4) break;
           }
-          const scrapedAll = await Promise.all(
-            Array.from(pages).slice(0, 4).map(async (u) => ({ url: u, markdown: await fcScrape(u, 5000) })),
-          );
+          const scrapedAll = await Promise.all(Array.from(pages).slice(0, 4).map(async (u) => {
+            const page = await fcScrapePage(u, 8000);
+            return { url: u, markdown: page.markdown, links: page.links };
+          }));
           const scraped = scrapedAll.filter((p) => p.markdown.length > 150);
           if (scraped.length > 0) {
+            const explicitLinks = scraped.flatMap((p) => explicitOrganisationLinks(p.markdown, p.url, ownApex));
             const parsedOwn = await aiJson(OWN_SITE_SYSTEM, {
               site_owner: { name: context.project_name, domain: ownApex },
               expectation,
               pages: scraped,
+              explicit_external_links: explicitLinks,
             });
             const orgs: any[] = Array.isArray(parsedOwn?.organisations) ? parsedOwn.organisations.slice(0, 10) : [];
             const ownRows: any[] = [];
+
+            // Save links explicitly labelled as partnerships before AI results. This
+            // guarantees that links such as "Value Advisory Partners" are retained.
+            for (const link of explicitLinks.filter((item) => /\b(partner|partners|alliance|collaborator|member)\b/i.test(item.name))) {
+              if (takenNames.has(link.name.toLowerCase()) || takenDomains.has(link.domain)) continue;
+              takenNames.add(link.name.toLowerCase());
+              takenDomains.add(link.domain);
+              ownRows.push({
+                project_id,
+                name: link.name,
+                domain: link.domain,
+                type: "adjacent",
+                status: "suggested",
+                source: "own_site",
+                why_suggested: "Linked as a partner on your website.",
+                identity_verdict: "match",
+                identity_reason: "Explicitly linked as a partner from your website.",
+                evidence: [{ kind: "our_site_link", url: link.sourceUrl, linked_url: link.url, captured_at: now() }],
+                confidence: "high",
+              });
+              ownSiteFound++;
+            }
+
             for (const o of orgs) {
               const name = typeof o?.name === "string" ? o.name.trim() : "";
               if (!name || takenNames.has(name.toLowerCase())) continue;

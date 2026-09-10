@@ -84,21 +84,35 @@ export async function fcSearch(query: string, limit = 6): Promise<FcHit[]> {
   }
 }
 
-export async function fcScrape(url: string, maxChars = 6000): Promise<string> {
+export interface FcPage {
+  markdown: string;
+  links: string[];
+}
+
+/** Scrape readable content and the page's explicit links in one request. */
+export async function fcScrapePage(url: string, maxChars = 6000): Promise<FcPage> {
   if (!FIRECRAWL_API_KEY) return "";
   try {
     const r = await fetch("https://api.firecrawl.dev/v2/scrape", {
       method: "POST",
       headers: { Authorization: `Bearer ${FIRECRAWL_API_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ url, formats: ["markdown"], onlyMainContent: true, waitFor: 1200 }),
+      body: JSON.stringify({ url, formats: ["markdown", "links"], onlyMainContent: true, waitFor: 1200 }),
     });
     const d = await r.json().catch(() => ({}));
     const md = d?.markdown || d?.data?.markdown || "";
-    return typeof md === "string" ? md.slice(0, maxChars) : "";
+    const rawLinks = d?.links || d?.data?.links || [];
+    return {
+      markdown: typeof md === "string" ? md.slice(0, maxChars) : "",
+      links: (Array.isArray(rawLinks) ? rawLinks : []).filter((link: unknown): link is string => typeof link === "string"),
+    };
   } catch (e: any) {
     console.error("[competitor-ai] fcScrape failed", url, e?.message);
-    return "";
+    return { markdown: "", links: [] };
   }
+}
+
+export async function fcScrape(url: string, maxChars = 6000): Promise<string> {
+  return (await fcScrapePage(url, maxChars)).markdown;
 }
 
 /** Discover urls on a site (Firecrawl map), optionally filtered by keyword. */
