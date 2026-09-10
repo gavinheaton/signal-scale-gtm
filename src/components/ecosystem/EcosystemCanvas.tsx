@@ -58,9 +58,15 @@ function EcoNode({ data }: NodeProps<any>) {
       <div className="text-[9px] uppercase tracking-wider opacity-70">{style.label}</div>
       <div className="text-sm font-semibold truncate">{data.label}</div>
       {data.subtitle && <div className="text-[11px] opacity-80 truncate">{data.subtitle}</div>}
+      {data.meta?.leadership != null && (
+        <div className="text-[10px] mt-1 opacity-80">
+          Leadership {data.meta.leadership} · Differentiation {data.meta.differentiation}
+        </div>
+      )}
       {data.readiness_score != null && (
         <div className="text-[10px] mt-1 opacity-80">Readiness {data.readiness_score}</div>
       )}
+
       <Handle type="source" position={Position.Bottom} style={{ opacity: 0 }} />
     </div>
   );
@@ -91,7 +97,7 @@ export function EcosystemCanvas({ mapId, refreshKey }: Props) {
     const filtered = dbN.filter((n) => (showHidden || !n.hidden) && (kindFilter.size === 0 || kindFilter.has(n.kind)));
     setNodes(filtered.map<Node>((n) => ({
       id: n.id, type: 'eco', position: { x: n.x, y: n.y },
-      data: { label: n.label, subtitle: n.subtitle, kind: n.kind, readiness_score: n.readiness_score, stale: n.stale },
+      data: { label: n.label, subtitle: n.subtitle, kind: n.kind, readiness_score: n.readiness_score, stale: n.stale, meta: (n as any).meta },
       draggable: true,
     })));
     setEdges(dbE

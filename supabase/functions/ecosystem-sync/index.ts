@@ -26,12 +26,14 @@ Deno.serve(async (req) => {
 
     // Load source data
     const [projRes, icpsRes, personasRes, dcampRes, compRes] = await Promise.all([
-      svc.from("projects").select("id, name, website_url").eq("id", projectId).maybeSingle(),
+      svc.from("projects").select("id, name, website").eq("id", projectId).maybeSingle(),
       svc.from("icps").select("id, segment_name, fit_score, access_score, matrix_category").eq("project_id", projectId),
       svc.from("personas").select("id, persona_name, icp_id, role_in_buying, ai_readiness_score").eq("project_id", projectId),
       svc.from("discovery_campaigns").select("id, icp_ids").eq("project_id", projectId),
-      svc.from("competitors").select("id, name, domain, type, positioning, target_segments")
+      svc.from("competitors")
+        .select("id, name, domain, type, archetype, source, positioning, target_segments, claims, strengths, weaknesses, pricing_signals")
         .eq("project_id", projectId).eq("status", "confirmed"),
+
     ]);
     const project = projRes.data;
     const icps = (icpsRes.data || []) as any[];
@@ -39,6 +41,38 @@ Deno.serve(async (req) => {
     const dcamps = (dcampRes.data || []) as any[];
     const competitors = (compRes.data || []) as any[];
     const dcampIds = dcamps.map((c) => c.id);
+
+    // Competitive landscape detail: dimensions, grid standing, market position, whitespace
+    const [dimRes, scoreRes, mpRes, wsRes] = await Promise.all([
+      svc.from("competitor_dimensions").select("id, label, importance").eq("project_id", projectId).order("position"),
+      svc.from("competitor_scores").select("dimension_id, competitor_id, claim, rating").eq("project_id", projectId),
+      svc.from("competitor_market_positions")
+        .select("competitor_id, leadership, differentiation, rationale, cited_dimension_ids")
+        .eq("project_id", projectId).is("persona_id", null),
+      svc.from("competitive_whitespace").select("id, kind, title, rationale, evidence").eq("project_id", projectId),
+    ]);
+    const dimensions = (dimRes.data || []) as any[];
+    const gridScores = (scoreRes.data || []) as any[];
+    const marketPositions = (mpRes.data || []) as any[];
+    const whitespace = (wsRes.data || []) as any[];
+    const dimLabel = new Map<string, string>(dimensions.map((d) => [d.id, d.label]));
+    const positionByComp = new Map<string, any>();
+    for (const p of marketPositions) positionByComp.set(p.competitor_id ?? "us", p);
+    const strongDims = new Map<string, string[]>();
+    const claimsByComp = new Map<string, string>();
+    for (const s of gridScores) {
+      if (!s.competitor_id) continue;
+      if (s.rating === "strong") {
+        const label = dimLabel.get(s.dimension_id);
+        if (label) strongDims.set(s.competitor_id, [...(strongDims.get(s.competitor_id) || []), label]);
+      }
+      if (s.claim) {
+        claimsByComp.set(s.competitor_id, `${claimsByComp.get(s.competitor_id) || ""} ${s.claim}`);
+      }
+    }
+    const partners = competitors.filter((c) => c.source === "own_site");
+    const rivals = competitors.filter((c) => c.source !== "own_site");
+
 
     // Orgs / roles / contacts / themes / insights across all discovery campaigns in this project
     let orgs: any[] = [], roles: any[] = [], contacts: any[] = [];
@@ -90,6 +124,7 @@ Deno.serve(async (req) => {
     async function upsertNode(input: {
       kind: string; ref_table: string; ref_id: string; label: string; subtitle?: string;
       ring: number; idx: number; total: number; readiness_score?: number | null; meta?: any;
+      cluster?: string | null;
     }): Promise<string> {
       const key = `${input.ref_table}:${input.ref_id}`;
       touched.add(key);
@@ -99,6 +134,7 @@ Deno.serve(async (req) => {
         await svc.from("ecosystem_nodes").update({
           label: input.label, subtitle: input.subtitle ?? null,
           ring: input.ring, readiness_score: input.readiness_score ?? null,
+          cluster: input.cluster ?? null,
           hidden: false, stale: false, meta: input.meta ?? {},
         }).eq("id", existingId);
         return existingId;
@@ -107,17 +143,18 @@ Deno.serve(async (req) => {
         map_id, project_id: projectId, kind: input.kind,
         ref_table: input.ref_table, ref_id: input.ref_id,
         label: input.label, subtitle: input.subtitle ?? null,
-        x: pos.x, y: pos.y, ring: input.ring,
+        x: pos.x, y: pos.y, ring: input.ring, cluster: input.cluster ?? null,
         readiness_score: input.readiness_score ?? null, meta: input.meta ?? {},
       }).select("id").single();
       if (error) throw new Error(`node insert: ${error.message}`);
       return data.id as string;
     }
 
+
     // 1. Project node (centre)
     const projectNodeId = await upsertNode({
       kind: "project", ref_table: "projects", ref_id: projectId,
-      label: project?.name || "Your project", subtitle: project?.website_url || undefined,
+      label: project?.name || "Your project", subtitle: project?.website || undefined,
       ring: 0, idx: 0, total: 1,
     });
 
@@ -240,21 +277,103 @@ Deno.serve(async (req) => {
       themeNodeId.set(t.id, id);
     }
 
-    // 6b. Competitor nodes — ring 2 (alongside companies and themes)
+    // 6b. Competitive landscape nodes — competitors and partners, grouped by archetype
+    const ARCHETYPE_LABEL: Record<string, string> = {
+      capital_coalition: "Scale & capital coalitions",
+      engineering_systems: "Engineering & systems maturity",
+      applied_research: "Applied research organisations",
+      place_alliance: "Hazard & place-specific alliances",
+      other: "Other",
+    };
+    const ARCHETYPE_ORDER = ["capital_coalition", "engineering_systems", "applied_research", "place_alliance", "other"];
+    const byArchetype = (a: any, b: any) =>
+      ARCHETYPE_ORDER.indexOf(a.archetype || "other") - ARCHETYPE_ORDER.indexOf(b.archetype || "other");
+
+    function landscapeMeta(c: any) {
+      const pos = positionByComp.get(c.id);
+      return {
+        type: c.type, domain: c.domain, archetype: c.archetype || null,
+        archetype_label: ARCHETYPE_LABEL[c.archetype || "other"],
+        source: c.source, positioning: c.positioning,
+        target_segments: c.target_segments || [],
+        strengths: c.strengths || [], weaknesses: c.weaknesses || [],
+        pricing_signals: c.pricing_signals || null,
+        strong_dimensions: strongDims.get(c.id) || [],
+        leadership: pos?.leadership ?? null,
+        differentiation: pos?.differentiation ?? null,
+        position_rationale: pos?.rationale ?? null,
+        cited_dimensions: (pos?.cited_dimension_ids || []).map((d: string) => dimLabel.get(d)).filter(Boolean),
+      };
+    }
+    function landscapeRing(c: any) {
+      const lead = positionByComp.get(c.id)?.leadership;
+      if (typeof lead !== "number") return 2;
+      if (lead >= 67) return 2;
+      if (lead >= 34) return 3;
+      return 4;
+    }
+
     const competitorNodeId = new Map<string, string>();
-    for (let i = 0; i < competitors.length; i++) {
-      const c = competitors[i];
+    const sortedRivals = [...rivals].sort(byArchetype);
+    const ringCounts = new Map<number, number>();
+    for (const c of sortedRivals) {
+      const ring = landscapeRing(c);
+      ringCounts.set(ring, (ringCounts.get(ring) || 0) + 1);
+    }
+    const ringSeen = new Map<number, number>();
+    for (const c of sortedRivals) {
+      const ring = landscapeRing(c);
+      const seen = ringSeen.get(ring) || 0;
+      ringSeen.set(ring, seen + 1);
+      const base = ring === 2 ? orgs.length + themes.length : 0;
       const id = await upsertNode({
         kind: "competitor", ref_table: "competitors", ref_id: c.id,
         label: c.name,
-        subtitle: c.domain || c.type || undefined,
-        ring: 2, idx: orgs.length + themes.length + i,
-        total: Math.max(orgs.length + themes.length + competitors.length, 1),
-        meta: { type: c.type, domain: c.domain, positioning: c.positioning,
-                target_segments: c.target_segments || [] },
+        subtitle: ARCHETYPE_LABEL[c.archetype || "other"],
+        ring, idx: base + seen,
+        total: Math.max(base + (ringCounts.get(ring) || 1), 1),
+        cluster: c.archetype || "other",
+        meta: landscapeMeta(c),
       });
       competitorNodeId.set(c.id, id);
     }
+
+    // 6c. Partner nodes — organisations linked from your own website
+    const partnerNodeId = new Map<string, string>();
+    const sortedPartners = [...partners].sort(byArchetype);
+    for (let i = 0; i < sortedPartners.length; i++) {
+      const c = sortedPartners[i];
+      const id = await upsertNode({
+        kind: "partner", ref_table: "competitors", ref_id: c.id,
+        label: c.name,
+        subtitle: "Linked partner",
+        ring: 1, idx: icps.length + i, total: Math.max(icps.length + sortedPartners.length, 1),
+        cluster: "partners",
+        meta: { ...landscapeMeta(c), partner: true },
+      });
+      partnerNodeId.set(c.id, id);
+    }
+
+    // 6d. Whitespace nodes — the open ground, outer ring
+    const WHITESPACE_LABEL: Record<string, string> = {
+      unowned: "Nobody owns this",
+      commoditised: "Everyone says this",
+      counter_position: "Your angle",
+    };
+    const whitespaceNodeId = new Map<string, string>();
+    for (let i = 0; i < whitespace.length; i++) {
+      const w = whitespace[i];
+      const id = await upsertNode({
+        kind: "theme", ref_table: "competitive_whitespace", ref_id: w.id,
+        label: w.title || "Whitespace",
+        subtitle: WHITESPACE_LABEL[w.kind] || "Whitespace",
+        ring: 4, idx: i, total: Math.max(whitespace.length, 1),
+        cluster: "whitespace",
+        meta: { whitespace_kind: w.kind, rationale: w.rationale, evidence: w.evidence || [] },
+      });
+      whitespaceNodeId.set(w.id, id);
+    }
+
 
     // 7. Insight nodes — ring 4 (alongside people)
     const insightNodeId = new Map<string, string>();
@@ -348,13 +467,19 @@ Deno.serve(async (req) => {
         if (seg) await edge(from, seg, "belongs_to");
       }
     }
-    // Competitor -competes_with→ Project, and -serves→ Segment when they target it
-    for (const c of competitors) {
+    // Competitor -competes_with→ Project, and -serves→ Segment when the research supports it
+    for (const c of rivals) {
       const from = competitorNodeId.get(c.id);
       if (!from) continue;
-      await edge(from, projectNodeId, "competes_with", c.type || undefined);
+      const pos = positionByComp.get(c.id);
+      const note = typeof pos?.leadership === "number"
+        ? `${ARCHETYPE_LABEL[c.archetype || "other"]} · leadership ${pos.leadership}/100`
+        : (c.type || undefined);
+      await edge(from, projectNodeId, "competes_with", note);
       const targets: string[] = Array.isArray(c.target_segments) ? c.target_segments : [];
-      const hay = (targets.join(" ") + " " + (c.positioning || "")).toLowerCase();
+      const hay = (
+        targets.join(" ") + " " + (c.positioning || "") + " " + (claimsByComp.get(c.id) || "")
+      ).toLowerCase();
       for (const icp of icps) {
         const seg = icpNodeId.get(icp.id);
         if (!seg) continue;
@@ -362,6 +487,39 @@ Deno.serve(async (req) => {
         if (tokens.length && tokens.some((t) => hay.includes(t))) await edge(from, seg, "serves");
       }
     }
+
+    // Partner -partners_with→ Project, and -serves→ Segment on the same evidence
+    for (const c of partners) {
+      const from = partnerNodeId.get(c.id);
+      if (!from) continue;
+      await edge(from, projectNodeId, "partners_with", c.domain || undefined);
+      const hay = ((c.positioning || "") + " " + (claimsByComp.get(c.id) || "")).toLowerCase();
+      for (const icp of icps) {
+        const seg = icpNodeId.get(icp.id);
+        if (!seg) continue;
+        const tokens = String(icp.segment_name || "").toLowerCase().split(/[^a-z0-9]+/).filter((t) => t.length > 4);
+        if (tokens.length && tokens.some((t) => hay.includes(t))) await edge(from, seg, "serves");
+      }
+    }
+
+    // Whitespace -evidences→ Project, and -evidences→ any organisation it names
+    for (const w of whitespace) {
+      const from = whitespaceNodeId.get(w.id);
+      if (!from) continue;
+      await edge(from, projectNodeId, "evidences", WHITESPACE_LABEL[w.kind] || undefined);
+      const hay = (
+        (w.title || "") + " " + (w.rationale || "") + " " +
+        (Array.isArray(w.evidence) ? w.evidence.join(" ") : "")
+      ).toLowerCase();
+      for (const c of competitors) {
+        const target = competitorNodeId.get(c.id) || partnerNodeId.get(c.id);
+        if (!target) continue;
+        if (String(c.name || "").length > 3 && hay.includes(String(c.name).toLowerCase())) {
+          await edge(from, target, "evidences");
+        }
+      }
+    }
+
 
     // Insight -evidences→ Contact (via conversation.contact_id) and -evidences→ Theme
     for (const ins of insights) {
@@ -388,7 +546,7 @@ Deno.serve(async (req) => {
         roles: personas.length + roles.length,
         people: contacts.length + Array.from(leaderNodesByOrg.values()).reduce((s, a) => s + a.length, 0),
         themes: themes.length, insights: insights.length,
-        competitors: competitors.length,
+        competitors: rivals.length, partners: partners.length, whitespace: whitespace.length,
       },
     }), { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 });
   } catch (e) {

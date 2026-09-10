@@ -78,6 +78,55 @@ export function NodeDrawer({ node, onClose, onChanged }: Props) {
               This node's source record has been deleted. It will remain hidden unless restored or purged.
             </div>
           )}
+          {(node.kind === 'competitor' || node.kind === 'partner') && node.meta && (
+            <div className="space-y-2">
+              {node.meta.archetype_label && (
+                <div>
+                  <div className="text-xs uppercase text-muted-foreground mb-1">Kind of player</div>
+                  <div>{node.meta.archetype_label}</div>
+                </div>
+              )}
+              {node.meta.positioning && (
+                <div>
+                  <div className="text-xs uppercase text-muted-foreground mb-1">Positioning</div>
+                  <p className="text-sm">{node.meta.positioning}</p>
+                </div>
+              )}
+              {node.meta.leadership != null && (
+                <div>
+                  <div className="text-xs uppercase text-muted-foreground mb-1">Market position</div>
+                  <div className="text-sm">
+                    Sector leadership {node.meta.leadership} / 100 · Differentiation {node.meta.differentiation} / 100
+                  </div>
+                  {node.meta.position_rationale && (
+                    <p className="text-xs text-muted-foreground mt-1">{node.meta.position_rationale}</p>
+                  )}
+                  {Array.isArray(node.meta.cited_dimensions) && node.meta.cited_dimensions.length > 0 && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Based on: {node.meta.cited_dimensions.join(', ')}
+                    </p>
+                  )}
+                </div>
+              )}
+              {Array.isArray(node.meta.strong_dimensions) && node.meta.strong_dimensions.length > 0 && (
+                <div>
+                  <div className="text-xs uppercase text-muted-foreground mb-1">Strong on</div>
+                  <div className="flex flex-wrap gap-1">
+                    {node.meta.strong_dimensions.map((d: string) => (
+                      <Badge key={d} variant="outline" className="text-[10px]">{d}</Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+          {node.ref_table === 'competitive_whitespace' && node.meta?.rationale && (
+            <div>
+              <div className="text-xs uppercase text-muted-foreground mb-1">Why this is open ground</div>
+              <p className="text-sm">{node.meta.rationale}</p>
+            </div>
+          )}
+
           {details && (
             <div>
               <div className="text-xs uppercase text-muted-foreground mb-1">Source record</div>
