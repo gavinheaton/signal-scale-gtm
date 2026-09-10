@@ -207,9 +207,17 @@ export default function CompetitiveLandscape() {
     return <div className="p-6 text-muted-foreground">Select a project to view its competitive landscape.</div>;
   }
 
-  const suggested = competitors.filter((c) => c.status === 'suggested');
+  const matchesFilter = (c: Competitor) =>
+    archetypeFilter === 'all' || (c.archetype || 'other') === archetypeFilter;
+  const suggested = competitors.filter((c) => c.status === 'suggested' && matchesFilter(c));
   const confirmed = competitors.filter((c) => c.status === 'confirmed');
+  const confirmedShown = confirmed.filter(matchesFilter);
   const dismissed = competitors.filter((c) => c.status === 'dismissed');
+  const groups = ARCHETYPE_ORDER
+    .map((key) => ({ key, items: confirmedShown.filter((c) => (c.archetype || 'other') === key) }))
+    .filter((g) => g.items.length > 0);
+  const countFor = (key: CompetitorArchetype) =>
+    competitors.filter((c) => c.status !== 'dismissed' && (c.archetype || 'other') === key).length;
 
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
