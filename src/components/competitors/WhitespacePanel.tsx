@@ -9,7 +9,7 @@ import {
   CompetitiveWhitespace, WhitespaceKind, WHITESPACE_LABELS,
   Competitor, CompetitorDimension, CompetitorScore,
 } from '@/types/competitors';
-import { WhitespaceChart } from './WhitespaceChart';
+import { WhitespaceChart, defaultAxes } from './WhitespaceChart';
 
 interface Props { projectId: string; confirmedCount: number }
 
