@@ -149,6 +149,7 @@ export default function CompetitiveLandscape() {
         domain,
         domain_locked: !!domain,
         type: newComp.type,
+        archetype: newComp.archetype,
         status: 'confirmed',
         source: 'manual',
         why_suggested: newComp.why.trim() || null,
@@ -159,9 +160,38 @@ export default function CompetitiveLandscape() {
     if (error) { toast.error(error.message); return; }
     setCompetitors((prev) => [...prev, data as Competitor]);
     setAddOpen(false);
-    setNewComp({ name: '', website: '', type: 'direct', why: '' });
+    setNewComp({ name: '', website: '', type: 'direct', archetype: 'other', why: '' });
     if (research_now) research(data as Competitor);
   }
+
+  /** Research a pasted list of names — one per line. */
+  async function seedList() {
+    if (!projectId) return;
+    const names = pasteList.split('\n').map((s) => s.trim()).filter(Boolean);
+    if (names.length === 0) { toast.error('Paste at least one name.'); return; }
+    setSeeding(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('competitor-seed', {
+        body: { project_id: projectId, names },
+      });
+      if (error) throw new Error((data as any)?.error || error.message);
+      const runId = (data as any)?.run_id;
+      if (!runId) throw new Error((data as any)?.error || 'Could not start the research');
+      setAddOpen(false);
+      setPasteList('');
+      toast.info(`Researching ${names.length} organisations — they will appear as suggestions.`);
+      pollRun(runId, (run) => {
+        setSeeding(false);
+        if (run.status === 'error') { toast.error(run.error || 'Research failed'); return; }
+        toast.success(`${run.saved_count} organisations added for your review.`);
+        load();
+      });
+    } catch (e: any) {
+      setSeeding(false);
+      toast.error(e.message || 'Could not start the research');
+    }
+  }
+
 
   async function saveWebsite() {
     if (!projectId || !siteInput.trim()) return;
