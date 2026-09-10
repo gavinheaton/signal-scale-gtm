@@ -12,6 +12,8 @@ import {
 import ReactMarkdown from 'react-markdown';
 import { Loader2 } from 'lucide-react';
 import { WhitespaceChart } from '@/components/competitors/WhitespaceChart';
+import { MarketPositionChart } from '@/components/competitors/MarketPositionChart';
+
 
 const VARIANT_META: Record<CanvasVariant, { label: string; boxes: typeof STANDARD_BOXES }> = {
   standard: { label: 'Disruptors Canvas', boxes: STANDARD_BOXES },
