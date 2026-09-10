@@ -546,7 +546,7 @@ Deno.serve(async (req) => {
         roles: personas.length + roles.length,
         people: contacts.length + Array.from(leaderNodesByOrg.values()).reduce((s, a) => s + a.length, 0),
         themes: themes.length, insights: insights.length,
-        competitors: competitors.length,
+        competitors: rivals.length, partners: partners.length, whitespace: whitespace.length,
       },
     }), { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 });
   } catch (e) {
