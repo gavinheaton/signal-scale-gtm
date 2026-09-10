@@ -169,7 +169,7 @@ export function MarketPositionChart({
         position is from everyone else. Top-right leads on both; top-left is distinct but smaller;
         bottom-right is big but interchangeable.
       </p>
-      {quadrant(0, 0, '', '', 'transparent')}
+      
     </div>
   );
 }
