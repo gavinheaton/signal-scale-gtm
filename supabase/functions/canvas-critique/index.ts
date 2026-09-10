@@ -23,9 +23,9 @@ Deno.serve(async (req) => {
       .order("updated_at", { ascending: false });
 
     const [compRes, whiteRes] = await Promise.all([
-      svc.from("competitors").select("name, type, positioning, key_claims, strengths, weaknesses")
+      svc.from("competitors").select("name, type, positioning, claims, strengths, weaknesses, pricing_signals")
         .eq("project_id", canvas.project_id).eq("status", "confirmed"),
-      svc.from("competitive_whitespace").select("category, title, description, recommended_angle")
+      svc.from("competitive_whitespace").select("kind, title, rationale")
         .eq("project_id", canvas.project_id),
     ]);
     const competitiveContext = {

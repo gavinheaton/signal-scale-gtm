@@ -45,9 +45,9 @@ Deno.serve(async (req) => {
       svc.from("value_propositions").select("statement, is_primary").eq("project_id", canvas.project_id),
       svc.from("value_prop_problems").select("problem").eq("project_id", canvas.project_id).limit(10),
       svc.from("canvas_entries").select("box, content").eq("canvas_id", canvas_id),
-      svc.from("competitors").select("name, type, positioning, key_claims, strengths, weaknesses")
+      svc.from("competitors").select("name, type, positioning, claims, strengths, weaknesses, pricing_signals")
         .eq("project_id", canvas.project_id).eq("status", "confirmed"),
-      svc.from("competitive_whitespace").select("category, title, description, recommended_angle")
+      svc.from("competitive_whitespace").select("kind, title, rationale")
         .eq("project_id", canvas.project_id),
     ]);
 
