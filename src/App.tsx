@@ -28,6 +28,7 @@ import SettingsPage from "@/pages/Settings";
 import IntegrationHelp from "@/pages/IntegrationHelp";
 import AdminDashboard from "@/pages/AdminDashboard";
 import Ecosystem from "@/pages/Ecosystem";
+import CompetitiveLandscape from "@/pages/CompetitiveLandscape";
 import ValueProp from "@/pages/ValueProp";
 import CanvasPage from "@/pages/Canvas";
 import CanvasPrint from "@/pages/CanvasPrint";
@@ -66,6 +67,7 @@ const App = () => (
                 <Route path="/project/discovery/:id/edit" element={<DiscoveryCampaignForm />} />
                 <Route path="/project/content" element={<ContentPipeline />} />
                 <Route path="/project/analytics" element={<Analytics />} />
+                <Route path="/project/competitors" element={<CompetitiveLandscape />} />
                 <Route path="/project/ecosystem" element={<Ecosystem />} />
                 <Route path="/project/value-prop" element={<ValueProp />} />
                 <Route path="/project/canvas" element={<CanvasPage />} />

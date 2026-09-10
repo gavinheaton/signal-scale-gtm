@@ -218,7 +218,7 @@ export default function CompetitiveLandscape() {
                   <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
                     {confirmed.map((c) => (
                       <Card key={c.id}
-                        className={`cursor-pointer hover:shadow-md transition-shadow ${enrichingId === c.id ? 'animate-glow-pulse' : ''}`}
+                        className={`cursor-pointer hover:shadow-md transition-shadow ${enrichingId === c.id ? 'ring-2 ring-primary animate-pulse' : ''}`}
                         onClick={() => setSelected(c)}>
                         <CardContent className="py-4 space-y-2">
                           <div className="flex items-start justify-between gap-2">
