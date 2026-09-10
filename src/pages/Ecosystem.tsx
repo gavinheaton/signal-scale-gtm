@@ -2,10 +2,12 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useProject } from '@/contexts/ProjectContext';
 import { Button } from '@/components/ui/button';
-import { Loader2, RefreshCw, Plus } from 'lucide-react';
+import { Loader2, RefreshCw, Plus, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import { EcosystemCanvas } from '@/components/ecosystem/EcosystemCanvas';
 import { AddNodeDialog } from '@/components/ecosystem/AddNodeDialog';
+import { StakeholderSuggestions } from '@/components/ecosystem/StakeholderSuggestions';
+
 
 interface EcosystemMap { id: string; project_id: string; name: string; layout_mode: string }
 
