@@ -105,16 +105,41 @@ export default function CompetitiveLandscape() {
     }
   }
 
-  async function addManual() {
-    if (!projectId || !newName.trim()) return;
+  async function addManual(research_now: boolean) {
+    if (!projectId || !newComp.name.trim()) { toast.error('Give the competitor a name.'); return; }
+    const domain = newComp.website.trim()
+      ? newComp.website.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0]
+      : null;
     const { data, error } = await (supabase as any).from('competitors')
-      .insert({ project_id: projectId, name: newName.trim(), status: 'confirmed', type: 'direct' })
+      .insert({
+        project_id: projectId,
+        name: newComp.name.trim(),
+        domain,
+        domain_locked: !!domain,
+        type: newComp.type,
+        status: 'confirmed',
+        source: 'manual',
+        why_suggested: newComp.why.trim() || null,
+        identity_verdict: domain ? 'match' : null,
+        identity_reason: domain ? 'Web address supplied by you.' : null,
+      })
       .select('*').single();
     if (error) { toast.error(error.message); return; }
-    setNewName('');
     setCompetitors((prev) => [...prev, data as Competitor]);
-    research(data as Competitor);
+    setAddOpen(false);
+    setNewComp({ name: '', website: '', type: 'direct', why: '' });
+    if (research_now) research(data as Competitor);
   }
+
+  async function saveWebsite() {
+    if (!projectId || !siteInput.trim()) return;
+    const { error } = await (supabase as any).from('projects')
+      .update({ website: siteInput.trim() }).eq('id', projectId);
+    if (error) { toast.error(error.message); return; }
+    setOwnWebsite(siteInput.trim());
+    toast.success('Saved — your own site will be read first when finding competitors.');
+  }
+
 
   if (!currentProject) {
     return <div className="p-6 text-muted-foreground">Select a project to view its competitive landscape.</div>;
