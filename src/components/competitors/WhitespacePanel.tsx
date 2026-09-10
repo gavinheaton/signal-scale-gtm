@@ -5,7 +5,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, Sparkles, ArrowRight, LayoutGrid, Check } from 'lucide-react';
 import { toast } from 'sonner';
-import { CompetitiveWhitespace, WhitespaceKind, WHITESPACE_LABELS } from '@/types/competitors';
+import {
+  CompetitiveWhitespace, WhitespaceKind, WHITESPACE_LABELS,
+  Competitor, CompetitorDimension, CompetitorScore,
+} from '@/types/competitors';
+import { WhitespaceChart } from './WhitespaceChart';
 
 interface Props { projectId: string; confirmedCount: number }
 
