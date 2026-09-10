@@ -38,13 +38,17 @@ Deno.serve(async (req) => {
     if (!canvas) throw new Error("Canvas not found");
     await assertProjectAccess(svc, user.id, canvas.project_id);
 
-    const [proj, icps, personas, vps, problems, entries] = await Promise.all([
+    const [proj, icps, personas, vps, problems, entries, comps, white] = await Promise.all([
       svc.from("projects").select("name, website_url").eq("id", canvas.project_id).maybeSingle(),
       svc.from("icps").select("segment_name, firmographics, matrix_category").eq("project_id", canvas.project_id),
       svc.from("personas").select("persona_name, pain_points, goals, how_we_help").eq("project_id", canvas.project_id),
       svc.from("value_propositions").select("statement, is_primary").eq("project_id", canvas.project_id),
       svc.from("value_prop_problems").select("problem").eq("project_id", canvas.project_id).limit(10),
       svc.from("canvas_entries").select("box, content").eq("canvas_id", canvas_id),
+      svc.from("competitors").select("name, type, positioning, key_claims, strengths, weaknesses")
+        .eq("project_id", canvas.project_id).eq("status", "confirmed"),
+      svc.from("competitive_whitespace").select("category, title, description, recommended_angle")
+        .eq("project_id", canvas.project_id),
     ]);
 
     const context = {
@@ -53,6 +57,8 @@ Deno.serve(async (req) => {
       personas: personas.data,
       value_propositions: vps.data,
       problems: problems.data,
+      competitors: comps.data,
+      competitive_whitespace: white.data,
       existing_canvas: entries.data,
     };
 

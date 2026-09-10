@@ -22,6 +22,17 @@ Deno.serve(async (req) => {
       .eq("canvas_id", canvas_id)
       .order("updated_at", { ascending: false });
 
+    const [compRes, whiteRes] = await Promise.all([
+      svc.from("competitors").select("name, type, positioning, key_claims, strengths, weaknesses")
+        .eq("project_id", canvas.project_id).eq("status", "confirmed"),
+      svc.from("competitive_whitespace").select("category, title, description, recommended_angle")
+        .eq("project_id", canvas.project_id),
+    ]);
+    const competitiveContext = {
+      competitors: compRes.data || [],
+      whitespace: whiteRes.data || [],
+    };
+
     const apiKey = Deno.env.get("LOVABLE_API_KEY");
     if (!apiKey) throw new Error("LOVABLE_API_KEY not configured");
 
@@ -41,7 +52,7 @@ Deno.serve(async (req) => {
         model: "google/gemini-3-flash-preview",
         messages: [
           { role: "system", content: system },
-          { role: "user", content: `Variant: ${canvas.variant}\n\nEntries:\n${JSON.stringify(entries || [], null, 2)}` },
+          { role: "user", content: `Variant: ${canvas.variant}\n\nEntries:\n${JSON.stringify(entries || [], null, 2)}\n\nConfirmed competitors and identified whitespace (use these to judge whether the USP/unfair advantage is genuinely differentiated):\n${JSON.stringify(competitiveContext, null, 2)}` },
         ],
         response_format: { type: "json_object" },
       }),
