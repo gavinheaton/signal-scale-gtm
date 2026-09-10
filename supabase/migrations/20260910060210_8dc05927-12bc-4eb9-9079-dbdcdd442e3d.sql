@@ -1,0 +1,1 @@
+ALTER TABLE public.competitor_dimensions ADD COLUMN IF NOT EXISTS importance smallint NOT NULL DEFAULT 3;
