@@ -124,6 +124,7 @@ Deno.serve(async (req) => {
     async function upsertNode(input: {
       kind: string; ref_table: string; ref_id: string; label: string; subtitle?: string;
       ring: number; idx: number; total: number; readiness_score?: number | null; meta?: any;
+      cluster?: string | null;
     }): Promise<string> {
       const key = `${input.ref_table}:${input.ref_id}`;
       touched.add(key);
@@ -133,6 +134,7 @@ Deno.serve(async (req) => {
         await svc.from("ecosystem_nodes").update({
           label: input.label, subtitle: input.subtitle ?? null,
           ring: input.ring, readiness_score: input.readiness_score ?? null,
+          cluster: input.cluster ?? null,
           hidden: false, stale: false, meta: input.meta ?? {},
         }).eq("id", existingId);
         return existingId;
@@ -141,12 +143,13 @@ Deno.serve(async (req) => {
         map_id, project_id: projectId, kind: input.kind,
         ref_table: input.ref_table, ref_id: input.ref_id,
         label: input.label, subtitle: input.subtitle ?? null,
-        x: pos.x, y: pos.y, ring: input.ring,
+        x: pos.x, y: pos.y, ring: input.ring, cluster: input.cluster ?? null,
         readiness_score: input.readiness_score ?? null, meta: input.meta ?? {},
       }).select("id").single();
       if (error) throw new Error(`node insert: ${error.message}`);
       return data.id as string;
     }
+
 
     // 1. Project node (centre)
     const projectNodeId = await upsertNode({
