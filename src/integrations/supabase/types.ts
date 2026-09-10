@@ -2582,6 +2582,11 @@ export type Database = {
         | "belongs_to"
         | "evidences"
         | "custom"
+        | "funds"
+        | "owns_infrastructure"
+        | "supplies"
+        | "collaborates_with"
+        | "advocates_for"
       ecosystem_layout_mode: "concentric" | "freeform"
       ecosystem_node_kind:
         | "project"
@@ -2598,6 +2603,10 @@ export type Database = {
         | "theme"
         | "insight"
         | "custom"
+        | "stakeholder"
+        | "funder"
+        | "infrastructure_owner"
+        | "research_body"
       matrix_category:
         | "now_account"
         | "strategic_nurture"
@@ -2819,6 +2828,11 @@ export const Constants = {
         "belongs_to",
         "evidences",
         "custom",
+        "funds",
+        "owns_infrastructure",
+        "supplies",
+        "collaborates_with",
+        "advocates_for",
       ],
       ecosystem_layout_mode: ["concentric", "freeform"],
       ecosystem_node_kind: [
@@ -2836,6 +2850,10 @@ export const Constants = {
         "theme",
         "insight",
         "custom",
+        "stakeholder",
+        "funder",
+        "infrastructure_owner",
+        "research_body",
       ],
       matrix_category: [
         "now_account",
