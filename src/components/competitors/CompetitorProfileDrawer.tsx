@@ -33,9 +33,14 @@ export function CompetitorProfileDrawer({ competitor, onClose, onChanged, onRese
 
   async function save() {
     setSaving(true);
+    const typedDomain = (form.domain || '').trim();
+    const domainChanged = typedDomain !== (competitor.domain || '');
     const { error } = await (supabase as any).from('competitors').update({
       name: form.name,
-      domain: form.domain || null,
+      domain: typedDomain || null,
+      domain_locked: typedDomain ? (domainChanged ? true : competitor.domain_locked) : false,
+      identity_verdict: domainChanged && typedDomain ? 'match' : competitor.identity_verdict,
+      identity_reason: domainChanged && typedDomain ? 'Web address supplied by you.' : competitor.identity_reason,
       linkedin_url: form.linkedin_url || null,
       type: form.type,
       positioning: form.positioning || null,
@@ -51,6 +56,20 @@ export function CompetitorProfileDrawer({ competitor, onClose, onChanged, onRese
     toast.success('Saved');
     onChanged();
   }
+
+  /** Clear a wrong website and research again from scratch. */
+  async function wrongCompany() {
+    const { error } = await (supabase as any).from('competitors').update({
+      domain: null, domain_locked: false, linkedin_url: null,
+      identity_verdict: null, identity_reason: null, researched_at: null,
+    }).eq('id', competitor.id);
+    if (error) { toast.error(error.message); return; }
+    setForm({ ...form, domain: '', linkedin_url: '' });
+    toast.info('Website cleared — looking for the right company.');
+    onChanged();
+    onResearch({ ...competitor, domain: null, domain_locked: false, linkedin_url: null });
+  }
+
 
   async function remove() {
     const { error } = await (supabase as any).from('competitors').delete().eq('id', competitor.id);
