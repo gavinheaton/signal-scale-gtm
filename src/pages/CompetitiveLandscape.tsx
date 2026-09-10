@@ -272,6 +272,21 @@ export default function CompetitiveLandscape() {
                 </Card>
               )}
 
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  onClick={() => setArchetypeFilter('all')}
+                  className={`text-xs rounded-full border px-3 py-1 ${archetypeFilter === 'all' ? 'bg-primary text-primary-foreground border-primary' : 'hover:bg-muted'}`}>
+                  All kinds ({competitors.filter((c) => c.status !== 'dismissed').length})
+                </button>
+                {ARCHETYPE_ORDER.map((key) => (
+                  <button key={key} title={ARCHETYPE_HINTS[key]}
+                    onClick={() => setArchetypeFilter(archetypeFilter === key ? 'all' : key)}
+                    className={`text-xs rounded-full border px-3 py-1 ${archetypeFilter === key ? 'bg-primary text-primary-foreground border-primary' : 'hover:bg-muted'}`}>
+                    {ARCHETYPE_LABELS[key]} ({countFor(key)})
+                  </button>
+                ))}
+              </div>
+
               {suggested.length > 0 && (
                 <div className="space-y-2">
                   <h2 className="text-sm font-semibold text-[#e33e23] uppercase tracking-wide">
@@ -284,12 +299,18 @@ export default function CompetitiveLandscape() {
                           <div className="flex items-start justify-between gap-2">
                             <div className="min-w-0">
                               <p className="font-medium truncate">{c.name}</p>
-                              <div className="flex items-center gap-2 mt-1">
+                              <div className="flex flex-wrap items-center gap-2 mt-1">
                                 <Badge className={TYPE_BADGE[c.type]}>{TYPE_LABELS[c.type]}</Badge>
+                                {c.archetype && (
+                                  <Badge className={ARCHETYPE_BADGE[c.archetype]}>{ARCHETYPE_LABELS[c.archetype]}</Badge>
+                                )}
                                 {c.source === 'own_site' && (
                                   <Badge variant="outline" className="text-xs">
                                     <Globe className="h-3 w-3 mr-1" /> Found on your website
                                   </Badge>
+                                )}
+                                {c.source === 'search' && (
+                                  <Badge variant="outline" className="text-xs">Found by web search</Badge>
                                 )}
                                 {c.domain ? (
                                   <a href={`https://${c.domain}`} target="_blank" rel="noreferrer"
