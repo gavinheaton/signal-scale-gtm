@@ -188,8 +188,10 @@ export function WhitespacePanel({ projectId, confirmedCount }: Props) {
             <div className="grid gap-3 md:grid-cols-2">
               {items.filter((i) => i.kind === kind).map((item) => {
                 const appliedTargets = (item.applied_to || []).map((a) => a.target);
+                const hay = `${item.title} ${item.rationale || ''} ${(item.evidence || []).join(' ')}`.toLowerCase();
+                const isHit = !!highlight && hay.includes(highlight.toLowerCase());
                 return (
-                  <Card key={item.id}>
+                  <Card key={item.id} className={isHit ? 'ring-2 ring-primary' : undefined}>
                     <CardHeader className="pb-2">
                       <div className="flex items-start justify-between gap-2">
                         <CardTitle className="text-sm leading-snug">{item.title}</CardTitle>
@@ -223,6 +225,7 @@ export function WhitespacePanel({ projectId, confirmedCount }: Props) {
           </div>
         ))
       )}
+      </div>
     </div>
   );
 }
