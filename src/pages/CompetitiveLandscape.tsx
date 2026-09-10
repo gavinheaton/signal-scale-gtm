@@ -209,11 +209,20 @@ export default function CompetitiveLandscape() {
                               <p className="font-medium truncate">{c.name}</p>
                               <div className="flex items-center gap-2 mt-1">
                                 <Badge className={TYPE_BADGE[c.type]}>{TYPE_LABELS[c.type]}</Badge>
-                                {c.domain && (
+                                {c.source === 'own_site' && (
+                                  <Badge variant="outline" className="text-xs">
+                                    <Globe className="h-3 w-3 mr-1" /> Found on your website
+                                  </Badge>
+                                )}
+                                {c.domain ? (
                                   <a href={`https://${c.domain}`} target="_blank" rel="noreferrer"
                                     className="text-xs text-primary underline inline-flex items-center gap-1">
                                     {c.domain} <ExternalLink className="h-3 w-3" />
                                   </a>
+                                ) : (c.type === 'direct' || c.type === 'adjacent') && (
+                                  <Badge variant="outline" className="text-xs text-amber-800 border-amber-300">
+                                    <AlertTriangle className="h-3 w-3 mr-1" /> Needs a website
+                                  </Badge>
                                 )}
                               </div>
                             </div>
