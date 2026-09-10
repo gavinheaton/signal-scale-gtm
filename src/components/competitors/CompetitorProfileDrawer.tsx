@@ -46,6 +46,7 @@ export function CompetitorProfileDrawer({ competitor, onClose, onChanged, onRese
       identity_reason: domainChanged && typedDomain ? 'Web address supplied by you.' : competitor.identity_reason,
       linkedin_url: form.linkedin_url || null,
       type: form.type,
+      archetype: form.archetype || null,
       positioning: form.positioning || null,
       pricing_signals: form.pricing_signals || null,
       target_segments: form.target_segments || [],
@@ -92,6 +93,9 @@ export function CompetitorProfileDrawer({ competitor, onClose, onChanged, onRese
         <div className="mt-4 space-y-5">
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="outline">{TYPE_LABELS[competitor.type]}</Badge>
+            {competitor.archetype && (
+              <Badge className={ARCHETYPE_BADGE[competitor.archetype]}>{ARCHETYPE_LABELS[competitor.archetype]}</Badge>
+            )}
             {competitor.confidence && <Badge variant="outline">Confidence: {competitor.confidence}</Badge>}
             {competitor.researched_at && (
               <span className="text-xs text-muted-foreground">
