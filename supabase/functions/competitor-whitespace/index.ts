@@ -1,12 +1,29 @@
-// Two modes:
+// Three modes:
 //  - mode "dimensions": propose the comparison dimensions that matter to this project's buyers.
+//  - mode "map_grid": fill the comparison grid (claims + ratings) from the research already stored
+//    on each confirmed competitor. Runs as a background job, saving batch by batch.
 //  - mode "whitespace": read the grid + profiles and return gaps, commoditised claims
 //    and counter-positioning angles.
 import { corsHeaders } from "../_shared/cors.ts";
 import { requireUser, serviceClient, assertProjectAccess } from "../_shared/auth.ts";
 import { aiJson, loadProjectContext, AiError } from "../_shared/competitorAi.ts";
 
-interface Body { project_id: string; mode?: "dimensions" | "whitespace" }
+interface Body { project_id: string; mode?: "dimensions" | "whitespace" | "map_grid"; overwrite?: boolean }
+
+const MAP_SYSTEM = `You fill a competitive comparison grid from research that has already been gathered.
+
+Return ONLY JSON:
+{"cells":[{"organisation":string,"dimension":string,"claim":string,"rating":"strong"|"parity"|"weak"|null}]}
+
+RULES:
+- Use ONLY the supplied research (positioning, claims, proof points, strengths, weaknesses, segments, pricing signals) and the project context. Never use outside knowledge about the named organisations.
+- "organisation" must exactly match a supplied organisation name; "dimension" must exactly match a supplied dimension label.
+- Return one cell per organisation per dimension. Cover every combination supplied.
+- "claim" is max 14 words, in the organisation's own language, describing what they offer on that dimension. If the research says nothing about it, return an empty string.
+- "rating": "strong" only when the research clearly evidences leadership on that dimension (a proof point, a named capability, a stated focus). "parity" when they do it but nothing sets them apart. "weak" when the research shows a gap or a stated weakness. null when the research says nothing at all — do not guess.
+- Be discriminating: most organisations should NOT be strong on most dimensions.
+- For the organisation named "US" use the project's own value proposition, problems worth solving and proof points.`;
+
 
 const DIMENSIONS_SYSTEM = `You choose the dimensions a B2B buyer actually compares vendors on.
 
