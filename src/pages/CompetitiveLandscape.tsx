@@ -445,42 +445,79 @@ export default function CompetitiveLandscape() {
 
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
         <DialogContent className="sm:max-w-md">
-          <DialogHeader><DialogTitle>Add a competitor</DialogTitle></DialogHeader>
-          <div className="space-y-3">
-            <div>
-              <Label className="text-xs">Name</Label>
-              <Input value={newComp.name} placeholder="Acme Advisory"
-                onChange={(e) => setNewComp({ ...newComp, name: e.target.value })} />
-            </div>
-            <div>
-              <Label className="text-xs">Website (optional)</Label>
-              <Input value={newComp.website} placeholder="acme.com"
-                onChange={(e) => setNewComp({ ...newComp, website: e.target.value })} />
-              <p className="text-xs text-muted-foreground mt-1">
-                If you give one it is used exactly as typed — research will never replace it.
-              </p>
-            </div>
-            <div>
-              <Label className="text-xs">Type</Label>
-              <Select value={newComp.type} onValueChange={(v) => setNewComp({ ...newComp, type: v as CompetitorType })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {(Object.keys(TYPE_LABELS) as CompetitorType[]).map((t) => (
-                    <SelectItem key={t} value={t}>{TYPE_LABELS[t]}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label className="text-xs">Why they matter (optional)</Label>
-              <Textarea rows={2} value={newComp.why}
-                onChange={(e) => setNewComp({ ...newComp, why: e.target.value })} />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => addManual(false)}>Save</Button>
-            <Button onClick={() => addManual(true)}>Save and research</Button>
-          </DialogFooter>
+          <DialogHeader><DialogTitle>Add competitors</DialogTitle></DialogHeader>
+          <Tabs defaultValue="one">
+            <TabsList className="w-full">
+              <TabsTrigger value="one" className="flex-1">One at a time</TabsTrigger>
+              <TabsTrigger value="list" className="flex-1">Paste a list</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="one" className="mt-4 space-y-3">
+              <div>
+                <Label className="text-xs">Name</Label>
+                <Input value={newComp.name} placeholder="Acme Advisory"
+                  onChange={(e) => setNewComp({ ...newComp, name: e.target.value })} />
+              </div>
+              <div>
+                <Label className="text-xs">Website (optional)</Label>
+                <Input value={newComp.website} placeholder="acme.com"
+                  onChange={(e) => setNewComp({ ...newComp, website: e.target.value })} />
+                <p className="text-xs text-muted-foreground mt-1">
+                  If you give one it is used exactly as typed — research will never replace it.
+                </p>
+              </div>
+              <div>
+                <Label className="text-xs">Type</Label>
+                <Select value={newComp.type} onValueChange={(v) => setNewComp({ ...newComp, type: v as CompetitorType })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {(Object.keys(TYPE_LABELS) as CompetitorType[]).map((t) => (
+                      <SelectItem key={t} value={t}>{TYPE_LABELS[t]}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs">Kind of organisation</Label>
+                <Select value={newComp.archetype}
+                  onValueChange={(v) => setNewComp({ ...newComp, archetype: v as CompetitorArchetype })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {ARCHETYPE_ORDER.map((a) => (
+                      <SelectItem key={a} value={a}>{ARCHETYPE_LABELS[a]}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs">Why they matter (optional)</Label>
+                <Textarea rows={2} value={newComp.why}
+                  onChange={(e) => setNewComp({ ...newComp, why: e.target.value })} />
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => addManual(false)}>Save</Button>
+                <Button onClick={() => addManual(true)}>Save and research</Button>
+              </DialogFooter>
+            </TabsContent>
+
+            <TabsContent value="list" className="mt-4 space-y-3">
+              <div>
+                <Label className="text-xs">One organisation per line</Label>
+                <Textarea rows={8} value={pasteList} placeholder={'CDRI\nResilience Rising\nArup\nDeltares'}
+                  onChange={(e) => setPasteList(e.target.value)} />
+                <p className="text-xs text-muted-foreground mt-1">
+                  We look each one up, find and check their website, sort them into the right kind of organisation,
+                  and add them as suggestions for you to confirm. Up to 30 at a time.
+                </p>
+              </div>
+              <DialogFooter>
+                <Button onClick={seedList} disabled={seeding}>
+                  {seeding ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Sparkles className="h-4 w-4 mr-1" />}
+                  Research this list
+                </Button>
+              </DialogFooter>
+            </TabsContent>
+          </Tabs>
         </DialogContent>
       </Dialog>
     </div>
