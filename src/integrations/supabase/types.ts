@@ -975,8 +975,11 @@ export type Database = {
           confidence: string | null
           created_at: string
           domain: string | null
+          domain_locked: boolean
           evidence: Json
           id: string
+          identity_reason: string | null
+          identity_verdict: string | null
           linkedin_url: string | null
           name: string
           notes: string | null
@@ -985,6 +988,7 @@ export type Database = {
           project_id: string
           proof_points: Json
           researched_at: string | null
+          source: string
           status: Database["public"]["Enums"]["competitor_status"]
           strengths: Json
           target_segments: Json
@@ -998,8 +1002,11 @@ export type Database = {
           confidence?: string | null
           created_at?: string
           domain?: string | null
+          domain_locked?: boolean
           evidence?: Json
           id?: string
+          identity_reason?: string | null
+          identity_verdict?: string | null
           linkedin_url?: string | null
           name: string
           notes?: string | null
@@ -1008,6 +1015,7 @@ export type Database = {
           project_id: string
           proof_points?: Json
           researched_at?: string | null
+          source?: string
           status?: Database["public"]["Enums"]["competitor_status"]
           strengths?: Json
           target_segments?: Json
@@ -1021,8 +1029,11 @@ export type Database = {
           confidence?: string | null
           created_at?: string
           domain?: string | null
+          domain_locked?: boolean
           evidence?: Json
           id?: string
+          identity_reason?: string | null
+          identity_verdict?: string | null
           linkedin_url?: string | null
           name?: string
           notes?: string | null
@@ -1031,6 +1042,7 @@ export type Database = {
           project_id?: string
           proof_points?: Json
           researched_at?: string | null
+          source?: string
           status?: Database["public"]["Enums"]["competitor_status"]
           strengths?: Json
           target_segments?: Json
@@ -2068,6 +2080,7 @@ export type Database = {
           propresence_tone_synced_at: string | null
           slug: string | null
           status: Database["public"]["Enums"]["project_status"]
+          website: string | null
         }
         Insert: {
           brand_context?: Json | null
@@ -2090,6 +2103,7 @@ export type Database = {
           propresence_tone_synced_at?: string | null
           slug?: string | null
           status?: Database["public"]["Enums"]["project_status"]
+          website?: string | null
         }
         Update: {
           brand_context?: Json | null
@@ -2112,6 +2126,7 @@ export type Database = {
           propresence_tone_synced_at?: string | null
           slug?: string | null
           status?: Database["public"]["Enums"]["project_status"]
+          website?: string | null
         }
         Relationships: [
           {
